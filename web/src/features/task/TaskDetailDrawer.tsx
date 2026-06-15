@@ -1,0 +1,517 @@
+import { useState } from 'react';
+import {
+  CalendarClock,
+  Check,
+  MessageSquare,
+  Pencil,
+  History,
+  Trash2,
+  UserMinus,
+  X,
+} from 'lucide-react';
+import type { Priority, Task } from 'shared';
+import { updateTaskInputSchema, type UpdateTaskInput } from 'shared';
+import {
+  Avatar,
+  Badge,
+  Button,
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Spinner,
+  Textarea,
+} from '../../components/ui';
+import { useAuth } from '../../lib/auth-context';
+import {
+  useAssignTask,
+  usePatchTask,
+  useProjectMembers,
+  useReleaseTask,
+  useTask,
+  useDeleteTask,
+} from '../../api/tasks';
+import { useActivities, useComments } from '../../api/comments';
+import { ClaimButton } from '../board/ClaimButton';
+import { dueInfo } from '../board/format';
+import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_LABELS } from '../board/labels';
+import {
+  canAssign,
+  canDeleteTask,
+  canEditTask,
+  canRelease,
+  resolveProjectRole,
+} from '../board/permissions';
+import { renderMarkdown } from './markdown';
+import { CommentComposer } from './CommentComposer';
+import { CommentList } from './CommentList';
+import { ActivityTimeline } from './ActivityTimeline';
+
+/**
+ * Task detail drawer (§4 features/task). A right-side sheet opened from a board
+ * card. Shows editable fields, role-aware assignee controls (claim/release/
+ * assign), the comment thread (markdown + @mentions, safely rendered), and the
+ * activity timeline. All edits go through the optimistic task mutations.
+ */
+const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent'];
+const STATUSES = ['open', 'in_progress', 'done'] as const;
+const UNASSIGNED = '__unassigned__';
+
+export interface TaskDetailDrawerProps {
+  taskId: string | null;
+  projectId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+type Tab = 'comments' | 'activity';
+
+export function TaskDetailDrawer({
+  taskId,
+  projectId,
+  open,
+  onOpenChange,
+}: TaskDetailDrawerProps): JSX.Element {
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent widthClassName="w-full sm:max-w-2xl" className="gap-0 p-0">
+        {taskId ? (
+          <DrawerInner taskId={taskId} projectId={projectId} onClose={() => onOpenChange(false)} />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <Spinner />
+          </div>
+        )}
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+interface DrawerInnerProps {
+  taskId: string;
+  projectId: string;
+  onClose: () => void;
+}
+
+function DrawerInner({ taskId, projectId, onClose }: DrawerInnerProps): JSX.Element {
+  const { user } = useAuth();
+  const { data: task, isLoading } = useTask(taskId);
+  const { data: members } = useProjectMembers(projectId);
+  const { data: comments, isLoading: commentsLoading } = useComments(taskId);
+  const { data: activities, isLoading: activitiesLoading } = useActivities(taskId);
+
+  const patchTask = usePatchTask(projectId, user?.id);
+  const assignTask = useAssignTask(projectId);
+  const releaseTask = useReleaseTask(projectId);
+  const deleteTask = useDeleteTask(projectId);
+
+  const [tab, setTab] = useState<Tab>('comments');
+  const [editing, setEditing] = useState(false);
+
+  const projectRole = resolveProjectRole(members, user?.id);
+  const permCtx = { user, projectRole };
+  const memberList = members ?? [];
+  const assignee = task?.assigneeId
+    ? memberList.find((m) => m.userId === task.assigneeId)?.user
+    : undefined;
+
+  if (isLoading || !task) {
+    return (
+      <>
+        <DrawerHeader>
+          <DrawerTitle>任务详情</DrawerTitle>
+        </DrawerHeader>
+        <div className="flex flex-1 items-center justify-center">
+          <Spinner label="加载任务" />
+        </div>
+      </>
+    );
+  }
+
+  const editable = canEditTask(permCtx, task);
+  const deletable = canDeleteTask(permCtx, task);
+  const assignable = canAssign(permCtx);
+  const releasable = canRelease(permCtx, task);
+
+  const statusVariant =
+    task.status === 'done' ? 'success' : task.status === 'in_progress' ? 'primary' : 'neutral';
+
+  return (
+    <>
+      <DrawerHeader className="flex flex-row items-center justify-between gap-2 pr-4">
+        <div className="flex items-center gap-2">
+          <Badge variant={statusVariant}>{STATUS_LABELS[task.status]}</Badge>
+          <Badge variant={PRIORITY_BADGE[task.priority].variant} className="gap-1">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${PRIORITY_BADGE[task.priority].dot}`}
+              aria-hidden
+            />
+            {PRIORITY_LABELS[task.priority]}
+          </Badge>
+          {task.points != null && <Badge variant="outline">{task.points} 点</Badge>}
+        </div>
+        <div className="flex items-center gap-1">
+          {editable && !editing && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="编辑任务"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="关闭"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </Button>
+        </div>
+      </DrawerHeader>
+
+      <DrawerBody className="flex flex-col gap-6">
+        {editing && editable ? (
+          <TaskEditForm
+            task={task}
+            onCancel={() => setEditing(false)}
+            onSave={(patch) =>
+              patchTask.mutate(
+                { taskId: task.id, patch },
+                { onSuccess: () => setEditing(false) },
+              )
+            }
+            saving={patchTask.isPending}
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <DrawerTitle className="text-xl leading-snug">{task.title}</DrawerTitle>
+            {task.description ? (
+              renderMarkdown(task.description)
+            ) : (
+              <p className="text-sm italic text-muted-foreground">暂无描述</p>
+            )}
+          </div>
+        )}
+
+        {/* Meta + assignment controls */}
+        <div className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-3">
+          {/* Assignee row */}
+          <div className="flex items-center gap-3">
+            <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">负责人</span>
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              {assignee ? (
+                <span className="inline-flex items-center gap-2">
+                  <Avatar name={assignee.displayName} color={assignee.avatarColor} size="xs" />
+                  <span className="text-sm">{assignee.displayName}</span>
+                </span>
+              ) : task.assigneeId ? (
+                <span className="text-sm text-muted-foreground">已指派</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">未指派</span>
+              )}
+
+              <div className="ml-auto flex items-center gap-2">
+                {/* Claim (open + unassigned) */}
+                <ClaimButton task={task} projectId={projectId} size="sm" />
+
+                {/* Release (assignee or manager) */}
+                {releasable && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    loading={releaseTask.isPending}
+                    onClick={() => releaseTask.mutate(task.id)}
+                  >
+                    <UserMinus className="h-3.5 w-3.5" aria-hidden />
+                    释放
+                  </Button>
+                )}
+
+                {/* Assign / dispatch (managers) */}
+                {assignable && (
+                  <Select
+                    value={task.assigneeId ?? UNASSIGNED}
+                    onValueChange={(value) => {
+                      if (value === UNASSIGNED) {
+                        if (task.assigneeId) releaseTask.mutate(task.id);
+                      } else {
+                        assignTask.mutate({ taskId: task.id, assigneeId: value });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-36 text-xs">
+                      <SelectValue placeholder="指派给…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={UNASSIGNED}>不指派</SelectItem>
+                      {memberList.map((m) => (
+                        <SelectItem key={m.userId} value={m.userId}>
+                          {m.user.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Status quick-move (editable) */}
+          {editable && (
+            <div className="flex items-center gap-3">
+              <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">状态</span>
+              <div className="flex flex-1 flex-wrap gap-1.5">
+                {STATUSES.map((status) => (
+                  <Button
+                    key={status}
+                    type="button"
+                    variant={task.status === status ? 'primary' : 'outline'}
+                    size="sm"
+                    disabled={task.status === status}
+                    onClick={() =>
+                      patchTask.mutate({ taskId: task.id, patch: { status } })
+                    }
+                  >
+                    {task.status === status && <Check className="h-3.5 w-3.5" aria-hidden />}
+                    {STATUS_LABELS[status]}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Due date */}
+          {task.dueDate && (
+            <div className="flex items-center gap-3">
+              <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">截止</span>
+              <DueLabel dueDate={task.dueDate} />
+            </div>
+          )}
+        </div>
+
+        {/* Tabs: comments / activity */}
+        <div>
+          <div className="mb-3 flex items-center gap-1 border-b border-border">
+            <TabButton
+              active={tab === 'comments'}
+              onClick={() => setTab('comments')}
+              icon={<MessageSquare className="h-4 w-4" aria-hidden />}
+              label={`评论${comments ? ` (${comments.length})` : ''}`}
+            />
+            <TabButton
+              active={tab === 'activity'}
+              onClick={() => setTab('activity')}
+              icon={<History className="h-4 w-4" aria-hidden />}
+              label="动态"
+            />
+          </div>
+
+          {tab === 'comments' ? (
+            <div className="flex flex-col gap-4">
+              <CommentList
+                taskId={task.id}
+                comments={comments ?? []}
+                isLoading={commentsLoading}
+                members={memberList}
+                permCtx={permCtx}
+              />
+              <CommentComposer taskId={task.id} members={memberList} />
+            </div>
+          ) : (
+            <ActivityTimeline activities={activities ?? []} isLoading={activitiesLoading} />
+          )}
+        </div>
+      </DrawerBody>
+
+      {deletable && (
+        <DrawerFooter className="justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            loading={deleteTask.isPending}
+            onClick={() => {
+              if (window.confirm('确定删除这个任务？此操作不可撤销。')) {
+                deleteTask.mutate(task.id, { onSuccess: onClose });
+              }
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+            删除任务
+          </Button>
+        </DrawerFooter>
+      )}
+    </>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+        active
+          ? 'border-primary text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground'
+      }`}
+      aria-pressed={active}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function DueLabel({ dueDate }: { dueDate: string }): JSX.Element {
+  const due = dueInfo(dueDate);
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-sm ${
+        due.overdue
+          ? 'font-medium text-destructive'
+          : due.soon
+            ? 'text-warning-foreground'
+            : 'text-foreground'
+      }`}
+    >
+      <CalendarClock className="h-3.5 w-3.5" aria-hidden />
+      {dueDate}
+      {due.overdue && <span className="text-xs">（已逾期）</span>}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline edit form
+// ---------------------------------------------------------------------------
+
+interface TaskEditFormProps {
+  task: Task;
+  onCancel: () => void;
+  onSave: (patch: UpdateTaskInput) => void;
+  saving: boolean;
+}
+
+function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JSX.Element {
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? '');
+  const [priority, setPriority] = useState<Priority>(task.priority);
+  const [points, setPoints] = useState(task.points != null ? String(task.points) : '');
+  const [dueDate, setDueDate] = useState(task.dueDate ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  function submit(e: React.FormEvent): void {
+    e.preventDefault();
+    setError(null);
+    const patch: UpdateTaskInput = {
+      title: title.trim(),
+      description: description.trim() ? description.trim() : null,
+      priority,
+      points: points.trim() ? Number(points) : null,
+      dueDate: dueDate ? dueDate : null,
+    };
+    const parsed = updateTaskInputSchema.safeParse(patch);
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? '请检查输入');
+      return;
+    }
+    onSave(parsed.data);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      <div className="grid gap-1.5">
+        <Label htmlFor="edit-title" required>
+          标题
+        </Label>
+        <Input
+          id="edit-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          invalid={!title.trim()}
+        />
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="edit-desc">描述（支持 Markdown）</Label>
+        <Textarea
+          id="edit-desc"
+          rows={5}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="grid gap-1.5">
+          <Label>优先级</Label>
+          <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITIES.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {PRIORITY_LABELS[p]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-points">点数</Label>
+          <Input
+            id="edit-points"
+            type="number"
+            min={0}
+            value={points}
+            onChange={(e) => setPoints(e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-due">截止</Label>
+          <Input
+            id="edit-due"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" loading={saving} disabled={!title.trim()}>
+          保存
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+          取消
+        </Button>
+      </div>
+    </form>
+  );
+}

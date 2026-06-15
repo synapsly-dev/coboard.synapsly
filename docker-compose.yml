@@ -1,0 +1,44 @@
+# Coboard 一键部署 —— app (Node/Fastify + 静态前端) + db (Postgres 16)
+# 用法见 README.md 的「三步部署」。
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: coboard
+      POSTGRES_PASSWORD: coboard
+      POSTGRES_DB: coboard
+    volumes:
+      # 命名卷 = 唯一备份对象（见 README 备份/恢复）
+      - coboard-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U coboard -d coboard']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # 容器内部连接 db 服务；用户名/密码与上面的 db 一致。
+      DATABASE_URL: postgres://coboard:coboard@db:5432/coboard
+      # 生产务必改为随机长字符串：openssl rand -hex 32
+      SESSION_SECRET: ${SESSION_SECRET:-please-change-me-to-a-long-random-secret}
+      PORT: '3000'
+      NODE_ENV: production
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
+      # 设为 true 时，空库首启会写入演示数据
+      SEED_DEMO: ${SEED_DEMO:-false}
+    ports:
+      - '${PORT:-3000}:3000'
+
+volumes:
+  coboard-db:

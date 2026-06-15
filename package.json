@@ -1,0 +1,23 @@
+{
+  "name": "coboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Coboard — 自部署团队协作工具 (看板 / 派发认领 / 评论 / 贡献统计)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.5.2",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter shared build && pnpm --parallel --filter server --filter web dev",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "pnpm --filter server migrate"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.6",
+    "typescript": "^5.7.3"
+  }
+}

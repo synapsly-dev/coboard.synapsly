@@ -1,0 +1,27 @@
+import type { FastifyPluginAsync } from 'fastify';
+import authRoutes from './routes/auth.js';
+import usersRoutes from './routes/users.js';
+import setupRoutes from './routes/setup.js';
+import projectsRoutes from './routes/projects.js';
+import tasksRoutes from './routes/tasks.js';
+import commentsRoutes from './routes/comments.js';
+import statsRoutes from './routes/stats.js';
+import streamRoutes from './routes/stream.js';
+
+/**
+ * Explicit route registration. In production `@fastify/autoload` scans the
+ * `routes/` directory; in tests (Vitest), autoload's native dynamic import
+ * bypasses the Vite transform, so the app builder registers routes through this
+ * static map instead. Kept OUTSIDE `routes/` so autoload does not treat it as the
+ * directory's index plugin. Keep this list in sync with the route files.
+ */
+export const registerRoutes: FastifyPluginAsync = async (fastify) => {
+  await fastify.register(authRoutes);
+  await fastify.register(usersRoutes);
+  await fastify.register(setupRoutes);
+  await fastify.register(projectsRoutes);
+  await fastify.register(tasksRoutes);
+  await fastify.register(commentsRoutes);
+  await fastify.register(statsRoutes);
+  await fastify.register(streamRoutes);
+};

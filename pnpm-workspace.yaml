@@ -1,0 +1,7 @@
+packages:
+  - 'packages/*'
+  - 'server'
+  - 'web'
+allowBuilds:
+  argon2: true
+  esbuild: true

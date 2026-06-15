@@ -1,0 +1,19 @@
+# Brainstorm visual companion session files
+.superpowers/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# OS
+.DS_Store
