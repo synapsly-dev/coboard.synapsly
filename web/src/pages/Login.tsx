@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LayoutDashboard } from 'lucide-react';
 import { loginInputSchema, type LoginInput } from 'shared';
 
 import { isApiClientError, type FieldErrors } from '../api/client';
+import { useRegistrationStatus } from '../api/auth';
 import { useAuth } from '../lib/auth-context';
 import { Button, Input, Label } from '../components/ui';
 
@@ -26,6 +27,7 @@ export default function LoginPage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const registrationStatus = useRegistrationStatus();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
@@ -129,9 +131,21 @@ export default function LoginPage(): JSX.Element {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          没有账号？请联系团队管理员创建
-        </p>
+        {registrationStatus.data?.enabled ? (
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            没有账号？
+            <Link
+              to="/register"
+              className="ml-1 text-primary underline-offset-4 hover:underline"
+            >
+              注册账号
+            </Link>
+          </p>
+        ) : (
+          <p className="mt-6 text-center text-xs text-muted-foreground">
+            没有账号？请联系团队管理员创建
+          </p>
+        )}
       </div>
     </main>
   );

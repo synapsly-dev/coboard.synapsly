@@ -19,6 +19,7 @@ import { FullPageSpinner } from './components/ui/Spinner';
 
 import SetupPage from './pages/Setup';
 import LoginPage from './pages/Login';
+import RegisterPage from './pages/Register';
 import BoardPage from './pages/BoardPage';
 import StatsPage from './pages/StatsPage';
 import AdminPage from './pages/AdminPage';
@@ -136,6 +137,14 @@ function AppRoutes(): JSX.Element {
         element={
           <PublicOnly>
             <LoginPage />
+          </PublicOnly>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <PublicOnly>
+            <RegisterPage />
           </PublicOnly>
         }
       />

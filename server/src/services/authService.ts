@@ -1,5 +1,11 @@
+import { timingSafeEqual } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import type { ChangePasswordInput, LoginInput, SetupInput } from 'shared';
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  RegisterInput,
+  SetupInput,
+} from 'shared';
 import type { Database } from '../db/index.js';
 import { users, type UserRow } from '../db/schema.js';
 import { hashPassword, verifyPassword } from '../auth/password.js';
@@ -8,7 +14,8 @@ import {
   deleteUserSessions,
   type CreatedSession,
 } from '../auth/session.js';
-import { conflict, unauthorized, validationError } from '../lib/errors.js';
+import { conflict, forbidden, unauthorized, validationError } from '../lib/errors.js';
+import { getRegistrationSettings } from './settingsService.js';
 import { countUsers, createUser, findUserByEmail, findUserById } from './userService.js';
 
 /**
@@ -42,6 +49,51 @@ export async function setupFirstAdmin(
     password: input.password,
     displayName: input.displayName,
     role: 'admin',
+  });
+  const session = await createSession(db, user.id);
+  return { user, session };
+}
+
+/** Constant-time string compare that never short-circuits on length. */
+function codeMatches(submitted: string, expected: string): boolean {
+  const a = Buffer.from(submitted);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) {
+    // timingSafeEqual requires equal-length buffers; compare against self so the
+    // work is still done, then return false.
+    timingSafeEqual(a, a);
+    return false;
+  }
+  return timingSafeEqual(a, b);
+}
+
+/**
+ * Self-register a new account (§8, admin-gated). Always creates a global
+ * `member` (never admin), `isActive=true`. Registration only succeeds when an
+ * admin has enabled it AND configured a non-empty code AND the submitted code
+ * matches. A failed gate returns a single generic 403 that does NOT reveal
+ * whether registration is closed or merely the code was wrong. A duplicate email
+ * surfaces as 409 (via createUser).
+ */
+export async function registerUser(
+  db: Database,
+  input: RegisterInput,
+): Promise<AuthenticatedUser> {
+  const { registrationEnabled, registrationCode } = await getRegistrationSettings(db);
+
+  const allowed =
+    registrationEnabled &&
+    registrationCode.length > 0 &&
+    codeMatches(input.code, registrationCode);
+  if (!allowed) {
+    throw forbidden('注册未开放或验证码错误');
+  }
+
+  const user = await createUser(db, {
+    email: input.email,
+    password: input.password,
+    displayName: input.displayName,
+    role: 'member',
   });
   const session = await createSession(db, user.id);
   return { user, session };

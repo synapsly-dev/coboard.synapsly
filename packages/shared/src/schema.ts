@@ -204,6 +204,53 @@ export const changePasswordInputSchema = z.object({
 export type ChangePasswordInput = z.infer<typeof changePasswordInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Self-registration (admin-gated by an invite code) (§8, §11 moved into v1)
+// ---------------------------------------------------------------------------
+
+/**
+ * POST /auth/register — self-register a `member` account, gated by the admin's
+ * invite code. Reuses the shared email/password/displayName rules; `code` is the
+ * verification code the admin shares out-of-band.
+ */
+export const registerInputSchema = z.object({
+  email: emailSchema,
+  password: passwordSchema,
+  displayName: displayNameSchema,
+  code: z.string().min(1, '请输入验证码').max(200),
+});
+export type RegisterInput = z.infer<typeof registerInputSchema>;
+
+/**
+ * GET /auth/registration — public probe of whether self-registration is open.
+ * Never exposes the code itself: `enabled` is true only when registration is
+ * enabled AND a non-empty code is configured.
+ */
+export const registrationStatusSchema = z.object({
+  enabled: z.boolean(),
+});
+export type RegistrationStatus = z.infer<typeof registrationStatusSchema>;
+
+/** GET /settings — admin-only registration settings (includes the secret code). */
+export const registrationSettingsSchema = z.object({
+  registrationEnabled: z.boolean(),
+  registrationCode: z.string().max(200),
+});
+export type RegistrationSettings = z.infer<typeof registrationSettingsSchema>;
+
+/** PATCH /settings — admin updates either field (both optional). */
+export const updateRegistrationSettingsInputSchema = z
+  .object({
+    registrationEnabled: z.boolean().optional(),
+    registrationCode: z.string().max(200).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: '至少修改一个字段',
+  });
+export type UpdateRegistrationSettingsInput = z.infer<
+  typeof updateRegistrationSettingsInputSchema
+>;
+
+// ---------------------------------------------------------------------------
 // Users (admin) (§7)
 // ---------------------------------------------------------------------------
 

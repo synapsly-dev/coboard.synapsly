@@ -33,6 +33,8 @@ export const queryClient = new QueryClient({
  */
 export const queryKeys = {
   setupStatus: () => ['setup', 'status'] as const,
+  registrationStatus: () => ['auth', 'registration'] as const,
+  settings: () => ['settings'] as const,
   me: () => ['auth', 'me'] as const,
   users: () => ['users'] as const,
   projects: () => ['projects'] as const,

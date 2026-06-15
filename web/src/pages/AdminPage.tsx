@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FolderKanban, Users } from 'lucide-react';
+import { FolderKanban, Settings, Users } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 import { cn } from '../lib/utils';
-import { ProjectsTab, UsersTab } from '../features/admin';
+import { ProjectsTab, SettingsTab, UsersTab } from '../features/admin';
 
 /**
  * Admin console (§6.3). Two tabs — Users and Projects — for managing accounts and
@@ -12,7 +12,7 @@ import { ProjectsTab, UsersTab } from '../features/admin';
  * (§6.3); the guard below is a defensive belt-and-braces redirect.
  */
 
-type AdminTab = 'users' | 'projects';
+type AdminTab = 'users' | 'projects' | 'settings';
 
 interface TabDef {
   id: AdminTab;
@@ -23,6 +23,7 @@ interface TabDef {
 const tabs: readonly TabDef[] = [
   { id: 'users', label: '用户', icon: Users },
   { id: 'projects', label: '项目', icon: FolderKanban },
+  { id: 'settings', label: '设置', icon: Settings },
 ];
 
 export default function AdminPage(): JSX.Element {
@@ -103,7 +104,9 @@ export default function AdminPage(): JSX.Element {
           })}
         </div>
 
-        {active === 'users' ? <UsersTab /> : <ProjectsTab />}
+        {active === 'users' && <UsersTab />}
+        {active === 'projects' && <ProjectsTab />}
+        {active === 'settings' && <SettingsTab />}
       </div>
     </div>
   );

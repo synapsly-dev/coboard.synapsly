@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AuthUserResponse, LoginInput, User } from 'shared';
+import type { AuthUserResponse, LoginInput, RegisterInput, User } from 'shared';
 import { api, isApiClientError } from '../api/client';
 import { queryKeys } from './query';
 
@@ -24,6 +24,8 @@ interface AuthContextValue {
   /** True once the `me` query has settled (success or known-unauthenticated). */
   isAuthenticated: boolean;
   login: (input: LoginInput) => Promise<User>;
+  /** Self-register a member account; logs in on success (§8). */
+  register: (input: RegisterInput) => Promise<User>;
   logout: () => Promise<void>;
   /** Convenience: is the current user a global admin (§6.3). */
   isAdmin: boolean;
@@ -63,6 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     [queryClient],
   );
 
+  const register = useCallback(
+    async (input: RegisterInput): Promise<User> => {
+      // The server creates a member, mints a session cookie, and returns the
+      // user. Prime the `me` cache so the app reflects the new session at once.
+      const res = await api.post<AuthUserResponse>('/auth/register', input);
+      queryClient.setQueryData(queryKeys.me(), res.user);
+      return res.user;
+    },
+    [queryClient],
+  );
+
   const logout = useCallback(async (): Promise<void> => {
     try {
       await api.post('/auth/logout');
@@ -83,9 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       isAuthenticated: user !== null,
       isAdmin: user?.role === 'admin',
       login,
+      register,
       logout,
     }),
-    [user, meQuery.isLoading, login, logout],
+    [user, meQuery.isLoading, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

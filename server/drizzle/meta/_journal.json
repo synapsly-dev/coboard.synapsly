@@ -8,6 +8,13 @@
       "when": 1781530390443,
       "tag": "0000_unknown_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781538799248,
+      "tag": "0001_light_sharon_carter",
+      "breakpoints": true
     }
   ]
 }

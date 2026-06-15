@@ -34,6 +34,11 @@ export type {
   LoginInput,
   AuthUserResponse,
   ChangePasswordInput,
+  // self-registration
+  RegisterInput,
+  RegistrationStatus,
+  RegistrationSettings,
+  UpdateRegistrationSettingsInput,
   // users
   UsersListResponse,
   CreateUserInput,

@@ -225,6 +225,18 @@ export const activities = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// settings — key/value store for admin-settable instance config (§8)
+// ---------------------------------------------------------------------------
+
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Inferred row types (server-internal; wire types live in `shared`)
 // ---------------------------------------------------------------------------
 
@@ -242,6 +254,8 @@ export type CommentRow = typeof comments.$inferSelect;
 export type NewCommentRow = typeof comments.$inferInsert;
 export type ActivityRow = typeof activities.$inferSelect;
 export type NewActivityRow = typeof activities.$inferInsert;
+export type SettingRow = typeof settings.$inferSelect;
+export type NewSettingRow = typeof settings.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -252,6 +266,7 @@ export const schema = {
   tasks,
   comments,
   activities,
+  settings,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,

@@ -6,6 +6,7 @@ export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from '.
 export { Input, type InputProps } from './Input';
 export { Textarea, type TextareaProps } from './Textarea';
 export { Label, type LabelProps } from './Label';
+export { Switch, type SwitchProps } from './Switch';
 export { Badge, type BadgeProps, type BadgeVariant } from './Badge';
 export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Spinner, FullPageSpinner } from './Spinner';
