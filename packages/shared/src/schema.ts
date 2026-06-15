@@ -254,8 +254,26 @@ export type UpdateRegistrationSettingsInput = z.infer<
 // Users (admin) (§7)
 // ---------------------------------------------------------------------------
 
+/**
+ * A user's membership in a single project, as embedded in the admin user list.
+ * Lets the admin console show each account's projects (and flag orphaned users
+ * who belong to none, so they can't see any board, §6.3).
+ */
+export const userProjectMembershipSchema = z.object({
+  projectId: uuidSchema,
+  projectName: z.string(),
+  role: projectRoleSchema,
+});
+export type UserProjectMembership = z.infer<typeof userProjectMembershipSchema>;
+
+/** User with their project memberships — the admin §7 GET /users row shape. */
+export const userWithProjectsSchema = userSchema.extend({
+  projects: z.array(userProjectMembershipSchema),
+});
+export type UserWithProjects = z.infer<typeof userWithProjectsSchema>;
+
 export const usersListResponseSchema = z.object({
-  users: z.array(userSchema),
+  users: z.array(userWithProjectsSchema),
 });
 export type UsersListResponse = z.infer<typeof usersListResponseSchema>;
 

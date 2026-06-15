@@ -11,7 +11,7 @@ import { parseBody, parseParams } from '../lib/validate.js';
 import {
   createUser,
   createUserParamsFromInput,
-  listUsers,
+  listUsersWithProjects,
   serializeUser,
   updateUser,
 } from '../services/userService.js';
@@ -24,8 +24,8 @@ import {
 const usersRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/users', async (request): Promise<UsersListResponse> => {
     requireAdmin(request);
-    const rows = await listUsers(fastify.db);
-    return { users: rows.map(serializeUser) };
+    const users = await listUsersWithProjects(fastify.db);
+    return { users };
   });
 
   fastify.post('/users', async (request, reply): Promise<AuthUserResponse> => {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { MoreHorizontal, ShieldCheck, ShieldOff, UserCheck, UserX, Users as UsersIcon } from 'lucide-react';
-import type { User, UserRole } from 'shared';
+import { FolderPlus, MoreHorizontal, ShieldCheck, ShieldOff, UserCheck, UserX, Users as UsersIcon } from 'lucide-react';
+import type { User, UserRole, UserWithProjects } from 'shared';
 import {
   Avatar,
   Badge,
@@ -18,6 +18,7 @@ import { useUpdateUser, useUsers } from '../../api/users';
 import { useAuth } from '../../lib/auth-context';
 import { cn } from '../../lib/utils';
 import { CreateUserDialog } from './CreateUserDialog';
+import { AddUserToProjectsDialog } from './AddUserToProjectsDialog';
 import { userRoleLabels } from './labels';
 
 /**
@@ -33,6 +34,8 @@ export function UsersTab(): JSX.Element {
   const [actionError, setActionError] = useState<string | null>(null);
   /** Id of the user whose row mutation is in flight (drives per-row spinner). */
   const [pendingId, setPendingId] = useState<string | null>(null);
+  /** User whose "加入项目" dialog is open. */
+  const [addingTo, setAddingTo] = useState<UserWithProjects | null>(null);
 
   async function patchUser(
     id: string,
@@ -116,6 +119,7 @@ export function UsersTab(): JSX.Element {
                 <th className="px-4 py-2.5">成员</th>
                 <th className="px-4 py-2.5">角色</th>
                 <th className="px-4 py-2.5">状态</th>
+                <th className="px-4 py-2.5">所属项目</th>
                 <th className="hidden px-4 py-2.5 sm:table-cell">创建时间</th>
                 <th className="px-4 py-2.5 text-right">操作</th>
               </tr>
@@ -158,6 +162,23 @@ export function UsersTab(): JSX.Element {
                         <Badge variant="outline">已停用</Badge>
                       )}
                     </td>
+                    <td className="px-4 py-3">
+                      {u.projects.length === 0 ? (
+                        <Badge variant="warning">未加入任何项目</Badge>
+                      ) : (
+                        <div className="flex max-w-[18rem] flex-wrap gap-1">
+                          {u.projects.map((p) => (
+                            <Badge
+                              key={p.projectId}
+                              variant={p.role === 'lead' ? 'primary' : 'neutral'}
+                            >
+                              {p.projectName}
+                              {p.role === 'lead' && ' · 负责人'}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </td>
                     <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
                       {formatDate(u.createdAt)}
                     </td>
@@ -174,6 +195,11 @@ export function UsersTab(): JSX.Element {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
+                          <DropdownMenuItem onSelect={() => setAddingTo(u)}>
+                            <FolderPlus className="h-4 w-4" aria-hidden />
+                            加入项目
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             onSelect={() => toggleRole(u)}
                             disabled={isSelf}
@@ -217,6 +243,16 @@ export function UsersTab(): JSX.Element {
             </tbody>
           </table>
         </div>
+      )}
+
+      {addingTo && (
+        <AddUserToProjectsDialog
+          user={addingTo}
+          open={addingTo !== null}
+          onOpenChange={(next) => {
+            if (!next) setAddingTo(null);
+          }}
+        />
       )}
     </div>
   );

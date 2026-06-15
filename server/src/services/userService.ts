@@ -1,7 +1,13 @@
 import { asc, eq, sql } from 'drizzle-orm';
-import type { CreateUserInput, UpdateUserInput, User } from 'shared';
+import type {
+  CreateUserInput,
+  UpdateUserInput,
+  User,
+  UserProjectMembership,
+  UserWithProjects,
+} from 'shared';
 import type { Database } from '../db/index.js';
-import { users, type UserRow } from '../db/schema.js';
+import { projectMembers, projects, users, type UserRow } from '../db/schema.js';
 import { hashPassword } from '../auth/password.js';
 import { deleteUserSessions } from '../auth/session.js';
 import { conflict, notFound } from '../lib/errors.js';
@@ -83,6 +89,41 @@ export async function findUserById(
 /** List all users ordered by creation time (admin view §7). */
 export async function listUsers(db: Database): Promise<UserRow[]> {
   return db.select().from(users).orderBy(asc(users.createdAt));
+}
+
+/**
+ * List all users (admin §7) each joined with their project memberships
+ * `{ projectId, projectName, role }`. Uses a single grouped query over
+ * project_members ⋈ projects (no per-user N+1); users in no project come back
+ * with an empty `projects` array so the UI can flag them as orphaned (§6.3).
+ */
+export async function listUsersWithProjects(
+  db: Database,
+): Promise<UserWithProjects[]> {
+  const rows = await listUsers(db);
+
+  const memberships = await db
+    .select({
+      userId: projectMembers.userId,
+      projectId: projects.id,
+      projectName: projects.name,
+      role: projectMembers.role,
+    })
+    .from(projectMembers)
+    .innerJoin(projects, eq(projectMembers.projectId, projects.id))
+    .orderBy(asc(projects.createdAt));
+
+  const byUser = new Map<string, UserProjectMembership[]>();
+  for (const m of memberships) {
+    const list = byUser.get(m.userId) ?? [];
+    list.push({ projectId: m.projectId, projectName: m.projectName, role: m.role });
+    byUser.set(m.userId, list);
+  }
+
+  return rows.map((row) => ({
+    ...serializeUser(row),
+    projects: byUser.get(row.id) ?? [],
+  }));
 }
 
 export interface CreateUserParams {

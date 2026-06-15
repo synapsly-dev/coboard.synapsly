@@ -36,6 +36,8 @@ interface CreateProps {
   mode: 'create';
   /** Custom trigger; defaults to a primary "新建项目" button. */
   trigger?: ReactNode;
+  /** Called after a project is successfully created (e.g. to prompt adding members). */
+  onCreated?: (project: Project) => void;
 }
 
 interface EditProps {
@@ -57,7 +59,7 @@ export function ProjectFormDialog(props: ProjectFormDialogProps): JSX.Element {
       />
     );
   }
-  return <CreateProjectDialog trigger={props.trigger} />;
+  return <CreateProjectDialog trigger={props.trigger} onCreated={props.onCreated} />;
 }
 
 function applyFieldErrors<T extends Record<string, unknown>>(
@@ -72,7 +74,13 @@ function applyFieldErrors<T extends Record<string, unknown>>(
   }
 }
 
-function CreateProjectDialog({ trigger }: { trigger?: ReactNode }): JSX.Element {
+function CreateProjectDialog({
+  trigger,
+  onCreated,
+}: {
+  trigger?: ReactNode;
+  onCreated?: (project: Project) => void;
+}): JSX.Element {
   const [open, setOpen] = useState(false);
   const createProject = useCreateProject();
   const [formError, setFormError] = useState<string | null>(null);
@@ -103,8 +111,9 @@ function CreateProjectDialog({ trigger }: { trigger?: ReactNode }): JSX.Element 
       description: values.description?.trim() ? values.description.trim() : undefined,
     };
     try {
-      await createProject.mutateAsync(payload);
+      const created = await createProject.mutateAsync(payload);
       setOpen(false);
+      onCreated?.(created);
     } catch (err) {
       if (isApiClientError(err)) {
         if (err.fields) {

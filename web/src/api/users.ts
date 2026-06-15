@@ -11,6 +11,7 @@ import type {
   UpdateUserInput,
   User,
   UsersListResponse,
+  UserWithProjects,
 } from 'shared';
 import { api } from './client';
 import { queryKeys } from '../lib/query';
@@ -37,9 +38,13 @@ export const usersApi = {
     api.patch<AuthUserResponse>(`/users/${id}`, input),
 };
 
-/** All accounts (admin only) — §7 GET /users. */
-export function useUsers(): UseQueryResult<User[]> {
-  return useQuery<User[]>({
+/**
+ * All accounts (admin only) — §7 GET /users. Each user carries their project
+ * memberships (`projects`), so the admin console can show per-user project chips
+ * and flag orphaned accounts (§6.3).
+ */
+export function useUsers(): UseQueryResult<UserWithProjects[]> {
+  return useQuery<UserWithProjects[]>({
     queryKey: queryKeys.users(),
     queryFn: async ({ signal }) => {
       const res = await usersApi.list(signal);

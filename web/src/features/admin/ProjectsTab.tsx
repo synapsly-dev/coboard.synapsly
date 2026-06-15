@@ -88,7 +88,7 @@ export function ProjectsTab(): JSX.Element {
           <h2 className="text-base font-semibold">项目</h2>
           <p className="text-sm text-muted-foreground">共 {list.length} 个项目。管理项目设置与成员。</p>
         </div>
-        <ProjectFormDialog mode="create" />
+        <ProjectFormDialog mode="create" onCreated={(p) => setManagingMembers(p)} />
       </div>
 
       {actionError && (
@@ -102,7 +102,7 @@ export function ProjectsTab(): JSX.Element {
           icon={FolderKanban}
           title="还没有项目"
           description="创建第一个项目来组织团队的任务看板。"
-          action={<ProjectFormDialog mode="create" />}
+          action={<ProjectFormDialog mode="create" onCreated={(p) => setManagingMembers(p)} />}
         />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
