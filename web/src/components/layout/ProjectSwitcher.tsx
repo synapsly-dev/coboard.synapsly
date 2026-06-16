@@ -42,7 +42,7 @@ export function ProjectSwitcher(): JSX.Element {
             // Constrain tightly on phones so the nav bar never overflows; the label
             // truncates. sm+ allows a more generous width.
             'inline-flex h-9 min-w-0 max-w-[9rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors sm:max-w-[16rem]',
-            'hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
           )}
           aria-label="切换项目"
         >

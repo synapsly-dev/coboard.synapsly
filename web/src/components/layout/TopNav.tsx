@@ -102,7 +102,7 @@ export function TopNav(): JSX.Element {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-accent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                   aria-label="用户菜单"
                 >
                   <Avatar
