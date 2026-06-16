@@ -65,6 +65,15 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorateRequest('user', null);
   app.decorateRequest('sessionToken', null);
 
+  // Tolerant body parsing for bodyless POST/DELETE (logout, claim, release,
+  // avatar delete). Some proxies (cloudflared / HTTP-2) attach a Content-Type
+  // to these empty requests; without a matching parser Fastify rejects them with
+  // 415. Our API only ever consumes JSON bodies, so treat any other content type
+  // as an empty body. The built-in application/json parser still handles JSON.
+  app.addContentTypeParser('*', { parseAs: 'string' }, (_request, _body, done) => {
+    done(null, undefined);
+  });
+
   await app.register(cookie, {
     secret: options.sessionSecret,
     hook: 'onRequest',
