@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   DndContext,
   DragOverlay,
@@ -59,6 +60,8 @@ export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element 
   const [filter, setFilter] = useState<AssigneeFilter>(FILTER_ALL);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  // Deep-link support: `?task=<id>` opens the detail drawer (e.g. from the 灵感区).
+  const [searchParams, setSearchParams] = useSearchParams();
   /** A drag-into-待审阅 that needs the deliver dialog. */
   const [deliverTaskId, setDeliverTaskId] = useState<string | null>(null);
   /** Transient hint shown when a drag move is not allowed. */
@@ -79,6 +82,12 @@ export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element 
     const id = window.setTimeout(() => setHint(null), 3000);
     return () => window.clearTimeout(id);
   }, [hint]);
+
+  // Open the drawer for a `?task=<id>` deep link (e.g. clicking an idea in 灵感区).
+  const linkedTaskId = searchParams.get('task');
+  useEffect(() => {
+    if (linkedTaskId) setOpenTaskId(linkedTaskId);
+  }, [linkedTaskId]);
 
   /** Apply the claimant filter to the flat task list (v2: filter by claimants). */
   const filtered = useMemo(() => {
@@ -287,7 +296,15 @@ export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element 
         projectId={projectId}
         open={openTaskId !== null}
         onOpenChange={(next) => {
-          if (!next) setOpenTaskId(null);
+          if (!next) {
+            setOpenTaskId(null);
+            // Drop the deep-link param so reopening the board doesn't re-open it.
+            if (searchParams.has('task')) {
+              const params = new URLSearchParams(searchParams);
+              params.delete('task');
+              setSearchParams(params, { replace: true });
+            }
+          }
         }}
       />
     </div>

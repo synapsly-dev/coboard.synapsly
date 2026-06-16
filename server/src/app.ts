@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import staticPlugin from '@fastify/static';
 import autoload from '@fastify/autoload';
@@ -72,6 +73,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // as an empty body. The built-in application/json parser still handles JSON.
   app.addContentTypeParser('*', { parseAs: 'string' }, (_request, _body, done) => {
     done(null, undefined);
+  });
+
+  // Multipart uploads (§7.2 task files). Registering this adds a dedicated
+  // `multipart/form-data` content-type parser; Fastify prefers that specific match
+  // over the '*' catch-all above, so form-data uploads route here while every other
+  // content type still falls through to the tolerant parser. The per-file `fileSize`
+  // limit is the server-side 5MB cap (busboy hard-truncates the stream); the GLOBAL
+  // JSON bodyLimit stays at 1MB — only multipart bodies may exceed it.
+  await app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5 MB per file
+      files: 1, // single file per upload
+      fields: 8,
+    },
   });
 
   await app.register(cookie, {

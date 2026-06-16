@@ -1,6 +1,6 @@
 import { Medal, Trophy } from 'lucide-react';
 import type { LeaderboardEntry, StatsSort } from 'shared';
-import { Avatar, Badge, EmptyState, Spinner } from '../../components/ui';
+import { Avatar, Badge, EmptyState, Spinner, Tooltip } from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
 
 /**
@@ -131,6 +131,12 @@ export function Leaderboard({
                 label="点数"
                 value={entry.pointsSum}
                 emphasized={sort === 'points'}
+                // Breakdown: 任务点数 + 奖励点数 (§7.1), surfaced only when rewards exist.
+                breakdown={
+                  entry.rewardPoints > 0
+                    ? `任务 ${entry.taskPoints} 点 + 奖励 ${entry.rewardPoints} 点`
+                    : undefined
+                }
               />
             </div>
           </li>
@@ -144,12 +150,15 @@ function Metric({
   label,
   value,
   emphasized,
+  breakdown,
 }: {
   label: string;
   value: number;
   emphasized: boolean;
+  /** Optional tooltip detail (e.g. the task-vs-reward points split). */
+  breakdown?: string;
 }): JSX.Element {
-  return (
+  const cell = (
     <div className="flex flex-col items-end">
       <span
         className={cn(
@@ -157,6 +166,7 @@ function Metric({
           emphasized
             ? 'text-lg font-bold text-foreground'
             : 'text-base font-semibold text-muted-foreground',
+          breakdown && 'cursor-help underline decoration-dotted underline-offset-4',
         )}
       >
         {value}
@@ -164,4 +174,6 @@ function Metric({
       <span className="text-[11px] text-muted-foreground">{label}</span>
     </div>
   );
+  if (!breakdown) return cell;
+  return <Tooltip content={breakdown}>{cell}</Tooltip>;
 }

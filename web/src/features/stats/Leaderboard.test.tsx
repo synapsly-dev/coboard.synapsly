@@ -22,11 +22,24 @@ function makeUser(overrides: Partial<User> & Pick<User, 'id' | 'displayName'>): 
   };
 }
 
+/** Build an entry whose points split defaults to all task points (no rewards). */
+function makeEntry(
+  overrides: Pick<LeaderboardEntry, 'user' | 'completedCount' | 'pointsSum'> &
+    Partial<Pick<LeaderboardEntry, 'taskPoints' | 'rewardPoints'>>,
+): LeaderboardEntry {
+  const rewardPoints = overrides.rewardPoints ?? 0;
+  return {
+    taskPoints: overrides.taskPoints ?? overrides.pointsSum - rewardPoints,
+    rewardPoints,
+    ...overrides,
+  };
+}
+
 const ENTRIES: LeaderboardEntry[] = [
-  { user: makeUser({ id: 'u1', displayName: '张三' }), completedCount: 12, pointsSum: 34 },
-  { user: makeUser({ id: 'u2', displayName: '李四' }), completedCount: 8, pointsSum: 21 },
-  { user: makeUser({ id: 'u3', displayName: '王五' }), completedCount: 5, pointsSum: 9 },
-  { user: makeUser({ id: 'u4', displayName: '赵六' }), completedCount: 2, pointsSum: 3 },
+  makeEntry({ user: makeUser({ id: 'u1', displayName: '张三' }), completedCount: 12, pointsSum: 34 }),
+  makeEntry({ user: makeUser({ id: 'u2', displayName: '李四' }), completedCount: 8, pointsSum: 21 }),
+  makeEntry({ user: makeUser({ id: 'u3', displayName: '王五' }), completedCount: 5, pointsSum: 9 }),
+  makeEntry({ user: makeUser({ id: 'u4', displayName: '赵六' }), completedCount: 2, pointsSum: 3 }),
 ];
 
 describe('Leaderboard', () => {

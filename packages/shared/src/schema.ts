@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   activityTypeSchema,
+  ideaStatusSchema,
   prioritySchema,
   projectRoleSchema,
   taskStatusSchema,
@@ -179,6 +180,117 @@ export const activityWithActorSchema = activitySchema.extend({
   actor: userSchema,
 });
 export type ActivityWithActor = z.infer<typeof activityWithActorSchema>;
+
+// ---------------------------------------------------------------------------
+// Ideas / inspiration (§7.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * A user's display summary as embedded in an idea (§7.1). Carries only the public
+ * display fields, not the full user row (matches the claimant-summary convention).
+ */
+export const userSummarySchema = z.object({
+  id: uuidSchema,
+  displayName: displayNameSchema,
+  avatarColor: avatarColorSchema,
+  /** Whether the user has an uploaded avatar (fetch via /users/:id/avatar). */
+  hasAvatar: z.boolean(),
+});
+export type UserSummary = z.infer<typeof userSummarySchema>;
+
+/**
+ * An idea posted against a task (§7.1). `status` starts `pending`; on adoption a
+ * lead/admin writes `rewardPoints` (credited to the author's contribution) and
+ * `adoptedBy`. The `author` is a display summary; `body` is safe markdown.
+ */
+export const ideaSchema = z.object({
+  id: uuidSchema,
+  taskId: uuidSchema,
+  author: userSummarySchema,
+  body: z.string(),
+  status: ideaStatusSchema,
+  /** Reward points granted on adoption; null while pending / rejected. */
+  rewardPoints: z.number().int().nullable(),
+  /** The lead/admin who adopted the idea; null otherwise. */
+  adoptedBy: uuidSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+});
+export type Idea = z.infer<typeof ideaSchema>;
+
+/**
+ * An idea enriched with its task title + owning project (§7.1), as returned by the
+ * cross-project 灵感区 listing (GET /ideas). The per-task listing returns the plain
+ * {@link ideaSchema} (task/project are already in context).
+ */
+export const ideaWithContextSchema = ideaSchema.extend({
+  taskTitle: z.string(),
+  projectId: uuidSchema,
+  projectName: z.string(),
+});
+export type IdeaWithContext = z.infer<typeof ideaWithContextSchema>;
+
+/** POST /tasks/:id/ideas — post an idea (any project member). */
+export const createIdeaInputSchema = z.object({
+  body: z.string().trim().min(1, '想法不能为空').max(20000),
+});
+export type CreateIdeaInput = z.infer<typeof createIdeaInputSchema>;
+
+/** POST /ideas/:id/adopt — adopt an idea + grant reward points (lead/admin). */
+export const adoptIdeaInputSchema = z.object({
+  rewardPoints: z.number().int().nonnegative().max(100000),
+});
+export type AdoptIdeaInput = z.infer<typeof adoptIdeaInputSchema>;
+
+/** GET /tasks/:id/ideas — a task's ideas (newest first). */
+export const ideasResponseSchema = z.object({
+  ideas: z.array(ideaSchema),
+});
+export type IdeasResponse = z.infer<typeof ideasResponseSchema>;
+
+/** GET /ideas — all ideas across the caller's visible projects, with context. */
+export const ideasWithContextResponseSchema = z.object({
+  ideas: z.array(ideaWithContextSchema),
+});
+export type IdeasWithContextResponse = z.infer<typeof ideasWithContextResponseSchema>;
+
+/** GET /ideas?status= — optional status filter for the 灵感区 listing. */
+export const ideasQuerySchema = z.object({
+  status: ideaStatusSchema.optional(),
+});
+export type IdeasQuery = z.infer<typeof ideasQuerySchema>;
+
+/** POST /ideas/:id/adopt | /reject — single-idea response wrapper. */
+export const ideaResponseSchema = z.object({
+  idea: ideaSchema,
+});
+export type IdeaResponse = z.infer<typeof ideaResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Task files / attachments (§7.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * A file attached to a task (§7.2), used to deliver file content. Metadata only —
+ * the raw bytes NEVER cross the wire in this shape; they are streamed separately by
+ * GET /tasks/:id/files/:fileId. Single-file uploads are capped at 5MB server-side.
+ */
+export const taskFileSchema = z.object({
+  id: uuidSchema,
+  taskId: uuidSchema,
+  filename: z.string(),
+  mime: z.string(),
+  /** Stored byte size of the file (≤ 5MB). */
+  sizeBytes: z.number().int().nonnegative(),
+  uploaderId: uuidSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type TaskFile = z.infer<typeof taskFileSchema>;
+
+/** GET /tasks/:id/files (and the POST upload response) — a task's attachments. */
+export const taskFilesResponseSchema = z.object({
+  files: z.array(taskFileSchema),
+});
+export type TaskFilesResponse = z.infer<typeof taskFilesResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Error shape (§7)
@@ -551,7 +663,12 @@ export type LeaderboardQuery = z.infer<typeof leaderboardQuerySchema>;
 export const leaderboardEntrySchema = z.object({
   user: userSchema,
   completedCount: z.number().int().nonnegative(),
+  /** Total points = task-share points + adopted-idea reward points (§7.1). */
   pointsSum: z.number().int().nonnegative(),
+  /** Breakdown: points from per-claimant shares of done tasks (§4). */
+  taskPoints: z.number().int().nonnegative(),
+  /** Breakdown: reward points from adopted ideas authored by the user (§7.1). */
+  rewardPoints: z.number().int().nonnegative(),
 });
 export type LeaderboardEntry = z.infer<typeof leaderboardEntrySchema>;
 
@@ -569,7 +686,12 @@ export type MyStatsQuery = z.infer<typeof myStatsQuerySchema>;
 
 export const myStatsResponseSchema = z.object({
   completedCount: z.number().int().nonnegative(),
+  /** Total points = task-share points + adopted-idea reward points (§7.1). */
   pointsSum: z.number().int().nonnegative(),
+  /** Breakdown: points from per-claimant shares of done tasks (§4). */
+  taskPoints: z.number().int().nonnegative(),
+  /** Breakdown: reward points from adopted ideas authored by the user (§7.1). */
+  rewardPoints: z.number().int().nonnegative(),
 });
 export type MyStatsResponse = z.infer<typeof myStatsResponseSchema>;
 
@@ -603,7 +725,13 @@ export type TrendResponse = z.infer<typeof trendResponseSchema>;
 // ---------------------------------------------------------------------------
 
 /** Logical entity a realtime event concerns — drives query invalidation. */
-export const realtimeEntitySchema = z.enum(['task', 'comment', 'activity', 'project']);
+export const realtimeEntitySchema = z.enum([
+  'task',
+  'comment',
+  'activity',
+  'project',
+  'idea',
+]);
 export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 
 /**

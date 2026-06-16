@@ -352,8 +352,14 @@ describe('GET /api/stats/me', () => {
 
     const res = await getJson<MyStatsResponse>('/api/stats/me', grace.cookie);
     expect(res.status).toBe(200);
-    // Grace owns 2 completed tasks; null points → 0, so sum = 3.
-    expect(res.body).toEqual({ completedCount: 2, pointsSum: 3 });
+    // Grace owns 2 completed tasks; null points → 0, so task points = 3. No adopted
+    // ideas, so reward points = 0 and pointsSum = task points (§7.1 breakdown).
+    expect(res.body).toEqual({
+      completedCount: 2,
+      pointsSum: 3,
+      taskPoints: 3,
+      rewardPoints: 0,
+    });
   });
 
   it('honors the time-range filter', async () => {
@@ -367,7 +373,12 @@ describe('GET /api/stats/me', () => {
       '/api/stats/me?from=2026-06-01T00:00:00.000Z&to=2026-06-30T00:00:00.000Z',
       heidi.cookie,
     );
-    expect(res.body).toEqual({ completedCount: 1, pointsSum: 5 });
+    expect(res.body).toEqual({
+      completedCount: 1,
+      pointsSum: 5,
+      taskPoints: 5,
+      rewardPoints: 0,
+    });
   });
 });
 

@@ -45,6 +45,9 @@ export const queryKeys = {
   task: (taskId: string) => ['tasks', taskId] as const,
   comments: (taskId: string) => ['tasks', taskId, 'comments'] as const,
   activities: (taskId: string) => ['tasks', taskId, 'activities'] as const,
+  taskIdeas: (taskId: string) => ['tasks', taskId, 'ideas'] as const,
+  taskFiles: (taskId: string) => ['tasks', taskId, 'files'] as const,
+  ideas: (params: Record<string, string | undefined>) => ['ideas', params] as const,
   leaderboard: (params: Record<string, string | undefined>) =>
     ['stats', 'leaderboard', params] as const,
   myStats: (params: Record<string, string | undefined>) =>

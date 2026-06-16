@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   CalendarClock,
   Check,
+  Lightbulb,
   MessageSquare,
   PackageCheck,
   Pencil,
@@ -63,6 +64,9 @@ import { renderMarkdown } from './markdown';
 import { CommentComposer } from './CommentComposer';
 import { CommentList } from './CommentList';
 import { ActivityTimeline } from './ActivityTimeline';
+import { IdeaSection } from './IdeaSection';
+import { AttachmentSection } from './AttachmentSection';
+import { useTaskIdeas } from '../../api/ideas';
 
 /**
  * Task detail drawer (lifecycle v2 §5). A right-side sheet opened from a board
@@ -82,7 +86,7 @@ export interface TaskDetailDrawerProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Tab = 'comments' | 'activity';
+type Tab = 'comments' | 'ideas' | 'activity';
 
 export function TaskDetailDrawer({
   taskId,
@@ -116,6 +120,7 @@ function DrawerInner({ taskId, projectId, onClose }: DrawerInnerProps): JSX.Elem
   const { data: task, isLoading } = useTask(taskId);
   const { data: members } = useProjectMembers(projectId);
   const { data: comments, isLoading: commentsLoading } = useComments(taskId);
+  const { data: ideas } = useTaskIdeas(taskId);
   const { data: activities, isLoading: activitiesLoading } = useActivities(taskId);
 
   const patchTask = usePatchTask(projectId);
@@ -377,6 +382,9 @@ function DrawerInner({ taskId, projectId, onClose }: DrawerInnerProps): JSX.Elem
           )}
         </div>
 
+        {/* Attachments — used to deliver file content (§7.2) */}
+        <AttachmentSection taskId={task.id} permCtx={permCtx} />
+
         {/* Tabs: comments / activity */}
         <div>
           <div className="mb-3 flex items-center gap-1 border-b border-border">
@@ -385,6 +393,12 @@ function DrawerInner({ taskId, projectId, onClose }: DrawerInnerProps): JSX.Elem
               onClick={() => setTab('comments')}
               icon={<MessageSquare className="h-4 w-4" aria-hidden />}
               label={`评论${comments ? ` (${comments.length})` : ''}`}
+            />
+            <TabButton
+              active={tab === 'ideas'}
+              onClick={() => setTab('ideas')}
+              icon={<Lightbulb className="h-4 w-4" aria-hidden />}
+              label={`想法${ideas ? ` (${ideas.length})` : ''}`}
             />
             <TabButton
               active={tab === 'activity'}
@@ -405,6 +419,8 @@ function DrawerInner({ taskId, projectId, onClose }: DrawerInnerProps): JSX.Elem
               />
               <CommentComposer taskId={task.id} members={memberList} />
             </div>
+          ) : tab === 'ideas' ? (
+            <IdeaSection taskId={task.id} permCtx={permCtx} />
           ) : (
             <ActivityTimeline activities={activities ?? []} isLoading={activitiesLoading} />
           )}

@@ -9,6 +9,7 @@ import type {
 } from 'shared';
 import type { Database } from '../db/index.js';
 import {
+  ideas,
   projectMembers,
   taskClaimants,
   tasks,
@@ -17,15 +18,19 @@ import {
 } from '../db/schema.js';
 
 /**
- * Contribution-statistics service (§6.4 / §7; lifecycle v2 §4). Metrics are
- * computed live by joining `task_claimants` to `tasks WHERE status='done'` — there
- * is no pre-aggregation table. Each claimant earns +1 completed and their locked
- * points share (claimant.points, NULL→0). The time window filters on the task's
- * `completed_at` (locked at approval; attribution is therefore stable).
+ * Contribution-statistics service (§6.4 / §7; lifecycle v2 §4; §7.1 ideas). Metrics
+ * are computed live (no pre-aggregation table).
  *
- * Metric definitions (§4):
- * - count  = number of done tasks the user claimed (each counts as exactly 1).
- * - points = SUM(task_claimants.points) treating a NULL share as 0.
+ * Points have TWO sources, summed into `pointsSum` and also surfaced split as
+ * `taskPoints` + `rewardPoints` (§7.1):
+ * - task share points: join `task_claimants` to `tasks WHERE status='done'`. Each
+ *   claimant earns +1 completed and their locked share (claimant.points, NULL→0),
+ *   time-filtered on the task's `completed_at`.
+ * - idea reward points: SUM(`ideas.reward_points`) over ideas the user authored that
+ *   were adopted (`status='adopted'`), time-filtered on the idea's `updated_at` (the
+ *   adoption time) — consistent with how task points filter on `completed_at`.
+ *
+ * The completed COUNT stays tasks-only (§7.1: 完成数仍只来自任务).
  *
  * Routes call these after the auth/membership guards have run; the service itself
  * only encodes the visibility scope it is handed (a concrete project id or the set
@@ -132,6 +137,92 @@ function buildBaseFilters(args: {
 const pointsSumSql = sql<number>`coalesce(sum(coalesce(${taskClaimants.points}, 0)), 0)::int`;
 /** COUNT(*) of (claimant, done task) rows — each claimant earns +1 (§4). */
 const completedCountSql = sql<number>`count(*)::int`;
+/** SUM(adopted idea reward points) with NULL treated as 0, as a JS integer (§7.1). */
+const rewardPointsSumSql = sql<number>`coalesce(sum(coalesce(${ideas.rewardPoints}, 0)), 0)::int`;
+
+// ---------------------------------------------------------------------------
+// Adopted-idea reward points (§7.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the WHERE predicate for the adopted-idea reward aggregate (§7.1): only
+ * `adopted` ideas, narrowed by the visibility scope (joined via the idea's task's
+ * project) and the time window on the idea's `updated_at` (the adoption time), and
+ * optionally to a single author. Returns `'never'` for an empty project set.
+ */
+function buildRewardFilters(args: {
+  scope: StatsScope;
+  from?: Date;
+  to?: Date;
+  userId?: string;
+}): ReturnType<typeof and> | undefined | 'never' {
+  const conditions = [eq(ideas.status, 'adopted')];
+
+  switch (args.scope.kind) {
+    case 'project':
+      conditions.push(eq(tasks.projectId, args.scope.projectId));
+      break;
+    case 'projects':
+      if (args.scope.projectIds.length === 0) return 'never';
+      conditions.push(inArray(tasks.projectId, args.scope.projectIds));
+      break;
+    case 'all':
+      break;
+  }
+
+  if (args.userId) {
+    conditions.push(eq(ideas.authorId, args.userId));
+  }
+  if (args.from) {
+    conditions.push(gte(ideas.updatedAt, args.from));
+  }
+  if (args.to) {
+    conditions.push(lte(ideas.updatedAt, args.to));
+  }
+
+  return and(...conditions);
+}
+
+/**
+ * Per-author reward-points sum from adopted ideas, as a Map keyed by author id.
+ * Authors with no adopted ideas in scope are simply absent (callers default to 0).
+ */
+async function rewardPointsByAuthor(
+  db: Database,
+  args: { scope: StatsScope; from?: Date; to?: Date },
+): Promise<Map<string, number>> {
+  const where = buildRewardFilters(args);
+  if (where === 'never') return new Map();
+
+  const rows = await db
+    .select({ authorId: ideas.authorId, rewardPoints: rewardPointsSumSql })
+    .from(ideas)
+    .innerJoin(tasks, eq(tasks.id, ideas.taskId))
+    .where(where)
+    .groupBy(ideas.authorId);
+
+  const byAuthor = new Map<string, number>();
+  for (const row of rows) {
+    byAuthor.set(row.authorId, row.rewardPoints);
+  }
+  return byAuthor;
+}
+
+/** Single-user reward-points sum from adopted ideas (§7.1). */
+async function rewardPointsForUser(
+  db: Database,
+  args: { scope: StatsScope; from?: Date; to?: Date; userId: string },
+): Promise<number> {
+  const where = buildRewardFilters(args);
+  if (where === 'never') return 0;
+
+  const rows = await db
+    .select({ rewardPoints: rewardPointsSumSql })
+    .from(ideas)
+    .innerJoin(tasks, eq(tasks.id, ideas.taskId))
+    .where(where);
+  return rows[0]?.rewardPoints ?? 0;
+}
 
 // ---------------------------------------------------------------------------
 // Leaderboard (GET /stats/leaderboard)
@@ -158,13 +249,14 @@ export async function getLeaderboard(
     from: args.from,
     to: args.to,
   });
+  // An empty visible-project set means no contributions can match either source.
   if (where === 'never') return [];
 
-  const rows = await db
+  const taskRows = await db
     .select({
       user: users,
       completedCount: completedCountSql,
-      pointsSum: pointsSumSql,
+      taskPoints: pointsSumSql,
     })
     .from(taskClaimants)
     .innerJoin(tasks, eq(tasks.id, taskClaimants.taskId))
@@ -172,11 +264,52 @@ export async function getLeaderboard(
     .where(where)
     .groupBy(users.id);
 
-  const entries: LeaderboardEntry[] = rows.map((row) => ({
-    user: serializeUser(row.user),
-    completedCount: row.completedCount,
-    pointsSum: row.pointsSum,
-  }));
+  // Adopted-idea reward points (§7.1) — folded into pointsSum, also surfaced split.
+  const rewardByAuthor = await rewardPointsByAuthor(db, {
+    scope: args.scope,
+    from: args.from,
+    to: args.to,
+  });
+
+  // Build entries keyed by user id, starting from task contributors.
+  const byUser = new Map<string, LeaderboardEntry>();
+  for (const row of taskRows) {
+    byUser.set(row.user.id, {
+      user: serializeUser(row.user),
+      completedCount: row.completedCount,
+      taskPoints: row.taskPoints,
+      rewardPoints: 0,
+      pointsSum: row.taskPoints,
+    });
+  }
+
+  // Merge in reward points — a user may have rewards but no completed tasks, in
+  // which case they appear with completedCount 0 (counts stay tasks-only, §7.1).
+  const rewardOnlyUserIds = [...rewardByAuthor.keys()].filter((id) => !byUser.has(id));
+  if (rewardOnlyUserIds.length > 0) {
+    const extra = await db
+      .select()
+      .from(users)
+      .where(inArray(users.id, rewardOnlyUserIds));
+    for (const u of extra) {
+      byUser.set(u.id, {
+        user: serializeUser(u),
+        completedCount: 0,
+        taskPoints: 0,
+        rewardPoints: 0,
+        pointsSum: 0,
+      });
+    }
+  }
+  for (const [authorId, reward] of rewardByAuthor) {
+    const entry = byUser.get(authorId);
+    if (entry) {
+      entry.rewardPoints = reward;
+      entry.pointsSum = entry.taskPoints + reward;
+    }
+  }
+
+  const entries = [...byUser.values()];
 
   // Stable, fully-deterministic ordering (DB group order is unspecified).
   const primary = args.sort;
@@ -216,27 +349,43 @@ export async function getMyStats(
   db: Database,
   args: MyStatsArgs,
 ): Promise<MyStatsResponse> {
+  const scope: StatsScope = { kind: 'all' };
   const where = buildBaseFilters({
-    scope: { kind: 'all' },
+    scope,
     from: args.from,
     to: args.to,
     userId: args.userId,
   });
-  if (where === 'never') return { completedCount: 0, pointsSum: 0 };
 
-  const rows = await db
-    .select({
-      completedCount: completedCountSql,
-      pointsSum: pointsSumSql,
-    })
-    .from(taskClaimants)
-    .innerJoin(tasks, eq(tasks.id, taskClaimants.taskId))
-    .where(where);
+  const rows =
+    where === 'never'
+      ? []
+      : await db
+          .select({
+            completedCount: completedCountSql,
+            taskPoints: pointsSumSql,
+          })
+          .from(taskClaimants)
+          .innerJoin(tasks, eq(tasks.id, taskClaimants.taskId))
+          .where(where);
 
   const row = rows[0];
+  const completedCount = row?.completedCount ?? 0;
+  const taskPoints = row?.taskPoints ?? 0;
+
+  // Adopted-idea reward points authored by the caller (§7.1), across all projects.
+  const rewardPoints = await rewardPointsForUser(db, {
+    scope,
+    from: args.from,
+    to: args.to,
+    userId: args.userId,
+  });
+
   return {
-    completedCount: row?.completedCount ?? 0,
-    pointsSum: row?.pointsSum ?? 0,
+    completedCount,
+    taskPoints,
+    rewardPoints,
+    pointsSum: taskPoints + rewardPoints,
   };
 }
 
@@ -257,6 +406,10 @@ export interface TrendArgs {
  * `completed_at` timestamp by day or ISO week and returns one ascending-ordered
  * point per non-empty bucket. The bucket label is the bucket-start date
  * ("YYYY-MM-DD"); empty buckets are omitted (the client fills gaps for display).
+ *
+ * `pointsSum` per bucket folds in adopted-idea reward points (§7.1), bucketed by the
+ * idea's `updated_at` (adoption time); the completed count stays tasks-only. A bucket
+ * with only reward points (no completed task) still appears, with completedCount 0.
  */
 export async function getTrend(
   db: Database,
@@ -268,7 +421,6 @@ export async function getTrend(
     to: args.to,
     userId: args.userId,
   });
-  if (where === 'never') return [];
 
   // date_trunc → the bucket start; cast to ::date renders as "YYYY-MM-DD".
   // The unit is embedded as a SQL literal (not a bind parameter) so the GROUP BY
@@ -277,21 +429,60 @@ export async function getTrend(
   const unit = args.bucket === 'week' ? 'week' : 'day';
   const bucketDate = sql<string>`date_trunc('${sql.raw(unit)}', ${tasks.completedAt})::date::text`;
 
-  const rows = await db
-    .select({
-      date: bucketDate,
-      completedCount: completedCountSql,
-      pointsSum: pointsSumSql,
-    })
-    .from(taskClaimants)
-    .innerJoin(tasks, eq(tasks.id, taskClaimants.taskId))
-    .where(where)
-    .groupBy(bucketDate)
-    .orderBy(bucketDate);
+  const taskRows =
+    where === 'never'
+      ? []
+      : await db
+          .select({
+            date: bucketDate,
+            completedCount: completedCountSql,
+            pointsSum: pointsSumSql,
+          })
+          .from(taskClaimants)
+          .innerJoin(tasks, eq(tasks.id, taskClaimants.taskId))
+          .where(where)
+          .groupBy(bucketDate)
+          .orderBy(bucketDate);
 
-  return rows.map((row) => ({
-    date: row.date,
-    completedCount: row.completedCount,
-    pointsSum: row.pointsSum,
-  }));
+  // Per-bucket adopted-idea reward points for this user (§7.1).
+  const rewardWhere = buildRewardFilters({
+    scope: args.scope,
+    from: args.from,
+    to: args.to,
+    userId: args.userId,
+  });
+  const rewardBucketDate = sql<string>`date_trunc('${sql.raw(unit)}', ${ideas.updatedAt})::date::text`;
+  const rewardRows =
+    rewardWhere === 'never'
+      ? []
+      : await db
+          .select({ date: rewardBucketDate, rewardPoints: rewardPointsSumSql })
+          .from(ideas)
+          .innerJoin(tasks, eq(tasks.id, ideas.taskId))
+          .where(rewardWhere)
+          .groupBy(rewardBucketDate);
+
+  // Merge the two bucketed series, summing reward points into the bucket pointsSum.
+  const byDate = new Map<string, TrendPoint>();
+  for (const row of taskRows) {
+    byDate.set(row.date, {
+      date: row.date,
+      completedCount: row.completedCount,
+      pointsSum: row.pointsSum,
+    });
+  }
+  for (const row of rewardRows) {
+    const point = byDate.get(row.date);
+    if (point) {
+      point.pointsSum += row.rewardPoints;
+    } else {
+      byDate.set(row.date, {
+        date: row.date,
+        completedCount: 0,
+        pointsSum: row.rewardPoints,
+      });
+    }
+  }
+
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }

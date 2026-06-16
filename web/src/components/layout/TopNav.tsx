@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { LayoutGrid, LogOut, BarChart3, Compass, Settings, UserCog } from 'lucide-react';
+import { LayoutGrid, LogOut, BarChart3, Compass, Lightbulb, Settings, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -44,6 +44,7 @@ export function TopNav(): JSX.Element {
       icon: LayoutGrid,
     },
     { to: '/projects', label: '项目', icon: Compass },
+    { to: '/ideas', label: '灵感', icon: Lightbulb },
     { to: '/stats', label: '统计', icon: BarChart3 },
     { to: '/admin', label: '管理', icon: Settings, adminOnly: true },
   ];

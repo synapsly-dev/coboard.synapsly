@@ -71,6 +71,12 @@ export function PersonalSummary({
           value={data?.pointsSum}
           loading={isLoading}
           accent="text-primary"
+          // Breakdown caption: 任务点数 + 奖励点数 (§7.1) — shown when rewards exist.
+          caption={
+            data && data.rewardPoints > 0
+              ? `任务 ${data.taskPoints} + 奖励 ${data.rewardPoints}`
+              : undefined
+          }
         />
       </div>
     </section>
@@ -83,12 +89,15 @@ function SummaryStat({
   value,
   loading,
   accent,
+  caption,
 }: {
   icon: typeof TrendingUp;
   label: string;
   value: number | undefined;
   loading: boolean;
   accent: string;
+  /** Optional sub-line under the value, e.g. the points breakdown. */
+  caption?: string;
 }): JSX.Element {
   return (
     <div className="rounded-xl border border-border bg-card/80 px-4 py-3">
@@ -103,6 +112,9 @@ function SummaryStat({
           (value ?? 0)
         )}
       </div>
+      {caption && (
+        <div className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">{caption}</div>
+      )}
     </div>
   );
 }

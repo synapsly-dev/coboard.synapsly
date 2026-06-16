@@ -56,3 +56,12 @@ export const activityTypes = [
 ] as const;
 export const activityTypeSchema = z.enum(activityTypes);
 export type ActivityType = (typeof activityTypes)[number];
+
+/**
+ * Idea / inspiration review status (§7.1). A posted idea starts `pending`; a
+ * project lead / global admin either `adopted` it (writing a reward-points value
+ * credited to the author's contribution) or `rejected` it.
+ */
+export const ideaStatuses = ['pending', 'adopted', 'rejected'] as const;
+export const ideaStatusSchema = z.enum(ideaStatuses);
+export type IdeaStatus = (typeof ideaStatuses)[number];

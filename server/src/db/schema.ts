@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -15,6 +16,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   activityTypes,
+  ideaStatuses,
   priorities,
   projectRoles,
   taskStatuses,
@@ -37,6 +39,7 @@ export const projectRoleEnum = pgEnum('project_role', projectRoles);
 export const taskStatusEnum = pgEnum('task_status', taskStatuses);
 export const priorityEnum = pgEnum('priority', priorities);
 export const activityTypeEnum = pgEnum('activity_type', activityTypes);
+export const ideaStatusEnum = pgEnum('idea_status', ideaStatuses);
 
 const primaryId = uuid('id')
   .primaryKey()
@@ -45,6 +48,18 @@ const primaryId = uuid('id')
 const createdAt = timestamp('created_at', { withTimezone: true })
   .notNull()
   .defaultNow();
+
+/**
+ * Postgres `bytea` column carrying raw binary data as a Node `Buffer` (§7.2). Used
+ * for task-file attachment bytes stored directly in the database (so files are
+ * captured in DB backups). Drizzle has no built-in bytea type, so we define one;
+ * the driver round-trips a Buffer to/from the bytea on the wire.
+ */
+const bytea = customType<{ data: Buffer; default: false }>({
+  dataType() {
+    return 'bytea';
+  },
+});
 
 // ---------------------------------------------------------------------------
 // users (§5)
@@ -287,6 +302,68 @@ export const activities = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// ideas (§7.1) — inspiration / suggestions posted against a task. A lead/admin
+// may adopt one (writing reward_points credited to the author's contribution) or
+// reject it. Cascades with the owning task.
+// ---------------------------------------------------------------------------
+
+export const ideas = pgTable(
+  'ideas',
+  {
+    id: primaryId,
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    body: text('body').notNull(),
+    status: ideaStatusEnum('status').notNull().default('pending'),
+    // Reward points written on adoption; null until then / after a reject.
+    rewardPoints: integer('reward_points'),
+    // The lead/admin who adopted the idea; null otherwise.
+    adoptedBy: uuid('adopted_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('ideas_task_id_idx').on(table.taskId),
+    index('ideas_author_id_idx').on(table.authorId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// task_files (§7.2) — file attachments uploaded against a task (used to deliver
+// file content). The raw bytes live in `data` (bytea) so files ride along with DB
+// backups; single-file uploads are capped at 5MB server-side. Cascades with the
+// owning task.
+// ---------------------------------------------------------------------------
+
+export const taskFiles = pgTable(
+  'task_files',
+  {
+    id: primaryId,
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    uploaderId: uuid('uploader_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    filename: text('filename').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    // Raw file bytes; never selected into list/metadata queries.
+    data: bytea('data').notNull(),
+    createdAt,
+  },
+  (table) => [index('task_files_task_id_idx').on(table.taskId)],
+);
+
+// ---------------------------------------------------------------------------
 // settings — key/value store for admin-settable instance config (§8)
 // ---------------------------------------------------------------------------
 
@@ -320,6 +397,10 @@ export type CommentRow = typeof comments.$inferSelect;
 export type NewCommentRow = typeof comments.$inferInsert;
 export type ActivityRow = typeof activities.$inferSelect;
 export type NewActivityRow = typeof activities.$inferInsert;
+export type IdeaRow = typeof ideas.$inferSelect;
+export type NewIdeaRow = typeof ideas.$inferInsert;
+export type TaskFileRow = typeof taskFiles.$inferSelect;
+export type NewTaskFileRow = typeof taskFiles.$inferInsert;
 export type SettingRow = typeof settings.$inferSelect;
 export type NewSettingRow = typeof settings.$inferInsert;
 
@@ -334,10 +415,13 @@ export const schema = {
   taskClaimants,
   comments,
   activities,
+  ideas,
+  taskFiles,
   settings,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,
   priorityEnum,
   activityTypeEnum,
+  ideaStatusEnum,
 };

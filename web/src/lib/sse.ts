@@ -23,6 +23,7 @@ const ENTITY_CHANNELS: readonly RealtimeEntity[] = [
   'comment',
   'activity',
   'project',
+  'idea',
 ];
 
 function safeParse(raw: string): RealtimeEvent | null {
@@ -56,6 +57,8 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       void queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });
       if (taskId) {
         void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
+        // A task event also carries attachment changes (§7.2 file upload/delete).
+        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'files'] });
       }
       // Completing/reopening a task changes contribution stats.
       void queryClient.invalidateQueries({ queryKey: ['stats'] });
@@ -76,6 +79,16 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
     }
     case 'project': {
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      break;
+    }
+    case 'idea': {
+      // Refresh the task's idea list, the cross-project 灵感区, and the recomputed
+      // stats (adopting an idea credits the author's contribution points, §7.1).
+      if (taskId) {
+        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'ideas'] });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['ideas'] });
+      void queryClient.invalidateQueries({ queryKey: ['stats'] });
       break;
     }
     default: {
