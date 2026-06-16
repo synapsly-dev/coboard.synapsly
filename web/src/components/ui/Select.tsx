@@ -56,7 +56,7 @@ export const SelectContent = forwardRef<
         position={position}
         className={cn(
           'z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg',
-          'animate-content-in',
+          'animate-popover-in',
           position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}

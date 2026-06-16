@@ -32,7 +32,7 @@ export function Tooltip({
           sideOffset={6}
           className={cn(
             'z-50 max-w-xs rounded-md bg-foreground px-2.5 py-1.5 text-xs text-background shadow-md',
-            'animate-content-in',
+            'animate-popover-in',
           )}
         >
           {content}

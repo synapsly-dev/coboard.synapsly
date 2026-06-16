@@ -84,6 +84,14 @@ const config: Config = {
           from: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.96)' },
           to: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
         },
+        // For Radix-positioned popovers (dropdown / select / tooltip): the element
+        // is placed by Radix's own transform, so we must NOT translate here (a
+        // translate would shift it off its anchor and make it jump). Fade + a tiny
+        // scale only.
+        'popover-in': {
+          from: { opacity: '0', transform: 'scale(0.97)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
         'slide-in-right': {
           from: { transform: 'translateX(100%)' },
           to: { transform: 'translateX(0)' },
@@ -100,6 +108,7 @@ const config: Config = {
         'fade-in': 'fade-in 150ms ease-out',
         'overlay-in': 'overlay-in 150ms ease-out',
         'content-in': 'content-in 150ms ease-out',
+        'popover-in': 'popover-in 120ms ease-out',
         'slide-in-right': 'slide-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1)',
         'slide-out-right': 'slide-out-right 200ms ease-in',
         spin: 'spin 0.7s linear infinite',

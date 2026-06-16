@@ -7,9 +7,9 @@ import { TopNav } from './TopNav';
  */
 export function AppShell({ children }: { children: ReactNode }): JSX.Element {
   return (
-    <div className="flex h-full min-h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
       <TopNav />
-      <main className="flex-1 overflow-hidden">{children}</main>
+      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
     </div>
   );
 }

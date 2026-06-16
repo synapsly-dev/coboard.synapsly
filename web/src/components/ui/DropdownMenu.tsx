@@ -20,7 +20,7 @@ export const DropdownMenuContent = forwardRef<
         align={align}
         className={cn(
           'z-50 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
-          'animate-content-in',
+          'animate-popover-in',
           className,
         )}
         {...props}

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Lightbulb } from 'lucide-react';
 import type { IdeaStatus, IdeaWithContext } from 'shared';
 import { ideaStatuses } from 'shared';
@@ -19,6 +18,7 @@ import { avatarUrl } from '../lib/utils';
 import { useAllIdeas } from '../api/ideas';
 import { relativeTime } from '../features/board/format';
 import { IDEA_STATUS_LABELS } from '../features/task/IdeaSection';
+import { TaskDetailDrawer } from '../features/task/TaskDetailDrawer';
 import type { BadgeVariant } from '../components/ui';
 
 /**
@@ -38,8 +38,9 @@ const IDEA_STATUS_VARIANT: Record<IdeaStatus, BadgeVariant> = {
 const ALL_STATUSES = 'all';
 
 export default function IdeasPage(): JSX.Element {
-  const navigate = useNavigate();
   const [status, setStatus] = useState<IdeaStatus | typeof ALL_STATUSES>(ALL_STATUSES);
+  // Clicking an idea opens its task detail drawer in-place (no navigation away).
+  const [selected, setSelected] = useState<{ taskId: string; projectId: string } | null>(null);
   const { data: ideas, isLoading, isError, refetch } = useAllIdeas({
     status: status === ALL_STATUSES ? undefined : status,
   });
@@ -102,13 +103,21 @@ export default function IdeasPage(): JSX.Element {
                 key={idea.id}
                 idea={idea}
                 onOpen={() =>
-                  navigate(`/board/${idea.projectId}?task=${idea.taskId}`)
+                  setSelected({ taskId: idea.taskId, projectId: idea.projectId })
                 }
               />
             ))}
           </div>
         )}
       </div>
+      <TaskDetailDrawer
+        taskId={selected?.taskId ?? null}
+        projectId={selected?.projectId ?? ''}
+        open={selected !== null}
+        onOpenChange={(o) => {
+          if (!o) setSelected(null);
+        }}
+      />
     </div>
   );
 }
