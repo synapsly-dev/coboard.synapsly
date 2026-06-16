@@ -56,7 +56,7 @@ export const SelectContent = forwardRef<
         position={position}
         className={cn(
           'z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg',
-          'animate-popover-in',
+          'animate-popover-in focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
           position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}
@@ -84,7 +84,7 @@ export const SelectItem = forwardRef<
       ref={ref}
       className={cn(
         'relative flex cursor-pointer select-none items-center rounded-md py-1.5 pl-7 pr-2 text-sm outline-none transition-colors',
-        'focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}

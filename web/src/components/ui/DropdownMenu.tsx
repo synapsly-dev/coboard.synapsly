@@ -20,7 +20,7 @@ export const DropdownMenuContent = forwardRef<
         align={align}
         className={cn(
           'z-50 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
-          'animate-popover-in',
+          'animate-popover-in focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
           className,
         )}
         {...props}
@@ -44,7 +44,7 @@ export const DropdownMenuItem = forwardRef<
       ref={ref}
       className={cn(
         'relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors',
-        'focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         destructive && 'text-destructive focus:bg-destructive/10 focus:text-destructive',
         className,
       )}
@@ -63,7 +63,7 @@ export const DropdownMenuCheckboxItem = forwardRef<
       checked={checked}
       className={cn(
         'relative flex cursor-pointer select-none items-center gap-2 rounded-md py-1.5 pl-7 pr-2 text-sm outline-none transition-colors',
-        'focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}
