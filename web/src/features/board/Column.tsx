@@ -43,7 +43,7 @@ export function Column({
       className={cn(
         // Mobile (paged view): the active column fills the width; siblings are
         // hidden by the parent (see Board). md+: equal full-width flex columns.
-        'flex h-full w-full shrink-0 flex-col rounded-xl bg-secondary/40',
+        'flex h-full min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-xl bg-secondary/40',
         'md:w-auto md:flex-1 md:shrink',
         className,
       )}

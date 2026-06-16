@@ -108,7 +108,7 @@ export function Board({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
         <BoardFilters
@@ -139,7 +139,7 @@ export function Board({
         <>
           {/* Mobile status pager: tap a status to page to its column. Desktop
               (md+) shows all four columns at once and hides these tabs. */}
-          <div className="flex gap-1.5 overflow-x-auto px-4 pb-2 sm:px-6 md:hidden">
+          <div className="flex flex-wrap gap-1.5 px-4 pb-2 sm:px-6 md:hidden">
             {COLUMN_ORDER.map((status) => {
               const active = status === activeStatus;
               return (
@@ -169,7 +169,7 @@ export function Board({
             })}
           </div>
 
-          <div className="flex min-h-0 flex-1 gap-3 px-4 pb-4 sm:px-6">
+          <div className="flex min-h-0 flex-1 gap-3 overflow-hidden px-4 pb-4 sm:px-6">
             {COLUMN_ORDER.map((status) => (
               <Column
                 key={status}
