@@ -1,4 +1,4 @@
-import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom';
 import { LayoutGrid, LogOut, BarChart3, Compass, Lightbulb, Settings, UserCog } from 'lucide-react';
 import {
   Avatar,
@@ -11,7 +11,6 @@ import {
 } from '../ui';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { useAuth } from '../../lib/auth-context';
-import { useProjects } from '../../api/projects';
 import { avatarUrl, cn } from '../../lib/utils';
 
 /**
@@ -30,16 +29,14 @@ interface NavItem {
 export function TopNav(): JSX.Element {
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
-  const { projectId } = useParams<{ projectId: string }>();
-  const { data: projects } = useProjects();
-
-  // The board link points at the active project, or the first visible one.
-  const boardTarget =
-    projectId ?? projects?.find((p) => !p.archived)?.id ?? undefined;
+  // The nav lives above the /board/:projectId route, so useParams can't see the
+  // param — read it from the location. Default the 看板 link to the all view.
+  const projectId = useMatch('/board/:projectId')?.params.projectId;
+  const boardTarget = projectId ?? 'all';
 
   const navItems: NavItem[] = [
     {
-      to: boardTarget ? `/board/${boardTarget}` : '/',
+      to: `/board/${boardTarget}`,
       label: '看板',
       icon: LayoutGrid,
     },

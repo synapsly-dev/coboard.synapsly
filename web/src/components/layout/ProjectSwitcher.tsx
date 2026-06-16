@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useMatch, useNavigate } from 'react-router-dom';
 import { ChevronsUpDown, FolderKanban, LayoutGrid } from 'lucide-react';
 import {
   DropdownMenu,
@@ -20,7 +20,11 @@ import { cn } from '../../lib/utils';
  */
 export function ProjectSwitcher(): JSX.Element {
   const navigate = useNavigate();
-  const { projectId } = useParams<{ projectId: string }>();
+  // ProjectSwitcher lives in TopNav (the app shell), which is ABOVE the
+  // `/board/:projectId` route — so useParams() can't see the param. Read the
+  // current board project from the location via useMatch instead.
+  const match = useMatch('/board/:projectId');
+  const projectId = match?.params.projectId;
   const { data: projects, isLoading } = useProjects();
 
   const isAll = projectId === ALL_PROJECTS;
