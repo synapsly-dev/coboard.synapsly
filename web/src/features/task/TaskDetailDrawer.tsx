@@ -84,7 +84,7 @@ export function TaskDetailDrawer({
 }: TaskDetailDrawerProps): JSX.Element {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent widthClassName="w-full sm:max-w-2xl" className="gap-0 p-0">
+      <DrawerContent widthClassName="w-full sm:max-w-2xl" className="gap-0 p-0" hideClose>
         {taskId ? (
           <DrawerInner taskId={taskId} projectId={projectId} onClose={() => onOpenChange(false)} />
         ) : (

@@ -77,9 +77,12 @@ const config: Config = {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        // Keep the centering translate(-50%, -50%) in BOTH frames — the dialog is
+        // centered via that transform, so animating a bare translate/scale would
+        // override it and make the modal fly in from the center's corner.
         'content-in': {
-          from: { opacity: '0', transform: 'translateY(4px) scale(0.98)' },
-          to: { opacity: '1', transform: 'translateY(0) scale(1)' },
+          from: { opacity: '0', transform: 'translate(-50%, -50%) scale(0.96)' },
+          to: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
         },
         'slide-in-right': {
           from: { transform: 'translateX(100%)' },
