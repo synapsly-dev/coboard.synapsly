@@ -26,13 +26,17 @@ export class RealtimeBus {
   }
 
   /**
-   * Subscribe to events for a set of project ids. The handler is only invoked for
-   * events whose `projectId` is in `projectIds`. Returns an unsubscribe function.
+   * Subscribe to events for a set of project ids. The handler is invoked for events
+   * whose `projectId` is in `projectIds`, AND for every no-project event (§8): a
+   * `projectId === null` event is on the global channel that all connected users
+   * receive. Returns an unsubscribe function.
    */
   subscribe(projectIds: readonly string[], handler: RealtimeHandler): () => void {
     const allowed = new Set(projectIds);
     const listener = (event: RealtimeEvent): void => {
-      if (allowed.has(event.projectId)) {
+      // No-project events (§8) reach every subscriber; project events are filtered
+      // to the subscriber's membership set.
+      if (event.projectId === null || allowed.has(event.projectId)) {
         handler(event);
       }
     };

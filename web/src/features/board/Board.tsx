@@ -34,26 +34,40 @@ import { canDeliver, canEditTask, canReview, resolveProjectRole } from './permis
 import { rankBetween } from './rank';
 
 /**
- * The kanban board (lifecycle v2 §5). Four columns: 待认领 / 进行中 / 待审阅 /
- * 已完成. Drag-and-drop: reorder within a column (rank PATCH), drag open↔in_progress
- * (status PATCH); dragging a card into 待审阅 opens the deliver dialog when the
- * caller is a claimant (else it snaps back with a hint); dragging into 已完成
+ * The kanban board (lifecycle v2 §5; all-projects §8). Four columns: 待认领 / 进行中 /
+ * 待审阅 / 已完成. Drag-and-drop: reorder within a column (rank PATCH), drag
+ * open↔in_progress (status PATCH); dragging a card into 待审阅 opens the deliver dialog
+ * when the caller is a claimant (else it snaps back with a hint); dragging into 已完成
  * triggers a review-approve for a lead/admin (else snaps back). Controlled
  * transitions are preferred via the card buttons; drag is a convenience.
+ *
+ * In all-projects mode (`allProjects`, §8) `projectId` is the {@link ALL_PROJECTS}
+ * sentinel — used only as the optimistic cache key (`queryKeys.allTasks()`). There
+ * is no single board project, so board-level member-scoped affordances (the assignee
+ * filter, board-level lead role) are suppressed and each card shows a project badge;
+ * the detail drawer still resolves the task's own project for full role-aware actions.
  */
 export interface BoardProps {
   projectId: string;
   tasks: Task[];
   isLoading: boolean;
+  /** All-projects aggregate view (§8): show per-card project badges, hide member UI. */
+  allProjects?: boolean;
 }
 
 function isTaskStatus(value: string): value is TaskStatus {
   return (taskStatuses as readonly string[]).includes(value);
 }
 
-export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element {
+export function Board({
+  projectId,
+  tasks,
+  isLoading,
+  allProjects = false,
+}: BoardProps): JSX.Element {
   const { user } = useAuth();
-  const { data: members } = useProjectMembers(projectId);
+  // No single owning project in all-projects mode → no board-level member list.
+  const { data: members } = useProjectMembers(allProjects ? undefined : projectId);
   const patchTask = usePatchTask(projectId);
   const reviewTask = useReviewTask(projectId);
 
@@ -220,11 +234,14 @@ export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element 
     <div className="flex h-full flex-col">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+        {/* The assignee filter is scoped to a single project's members; in the
+            全部项目 view (§8) only the 全部 / 我的 quick filters apply. */}
         <BoardFilters
           value={filter}
           onChange={setFilter}
           members={members ?? []}
           currentUserId={user?.id}
+          membersOnly={!allProjects}
         />
         <div className="ml-auto">
           <CreateTaskDialog projectId={projectId} />
@@ -265,6 +282,7 @@ export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element 
                 tasks={columns[status]}
                 projectId={projectId}
                 permCtx={permCtx}
+                showProjectBadge={allProjects}
                 onOpenTask={setOpenTaskId}
               />
             ))}
@@ -272,7 +290,12 @@ export function Board({ projectId, tasks, isLoading }: BoardProps): JSX.Element 
 
           <DragOverlay dropAnimation={null}>
             {activeTask ? (
-              <TaskCard task={activeTask} projectId={projectId} dragging />
+              <TaskCard
+                task={activeTask}
+                projectId={projectId}
+                showProjectBadge={allProjects}
+                dragging
+              />
             ) : null}
           </DragOverlay>
         </DndContext>

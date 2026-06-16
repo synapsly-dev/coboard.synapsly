@@ -117,14 +117,23 @@ export const taskClaimantSchema = z.object({
 export type TaskClaimant = z.infer<typeof taskClaimantSchema>;
 
 /**
- * Task wire shape (lifecycle v2 §2/§3). The single `assigneeId`/`completedBy`
- * fields are gone — the set of workers is carried in `claimants`. `deliveredAt`/
- * `deliveredBy` are set on deliver and cleared on reject; `reviewedBy` is the last
- * reviewer; `completedAt` is set when a review approves the task.
+ * Task wire shape (lifecycle v2 §2/§3; no-project tasks §8). The single
+ * `assigneeId`/`completedBy` fields are gone — the set of workers is carried in
+ * `claimants`. `deliveredAt`/`deliveredBy` are set on deliver and cleared on reject;
+ * `reviewedBy` is the last reviewer; `completedAt` is set when a review approves the
+ * task.
+ *
+ * `projectId` is nullable (§8): a NULL means a "no-project" / task-pool task,
+ * visible to every logged-in user. `projectName`/`projectKey` carry lightweight
+ * owning-project context for the all-projects view; both are null for pool tasks.
  */
 export const taskSchema = z.object({
   id: uuidSchema,
-  projectId: uuidSchema,
+  projectId: uuidSchema.nullable(),
+  /** Owning project's display name; null for no-project (pool) tasks (§8). */
+  projectName: z.string().nullable(),
+  /** Owning project's short key; null for no-project (pool) tasks (§8). */
+  projectKey: projectKeySchema.nullable(),
   title: z.string(),
   description: z.string().nullable(),
   status: taskStatusSchema,
@@ -167,7 +176,8 @@ export type ActivityMeta = z.infer<typeof activityMetaSchema>;
 export const activitySchema = z.object({
   id: uuidSchema,
   taskId: uuidSchema,
-  projectId: uuidSchema,
+  /** Owning project; null for activities on a no-project (pool) task (§8). */
+  projectId: uuidSchema.nullable(),
   actorId: uuidSchema,
   type: activityTypeSchema,
   meta: activityMetaSchema,
@@ -531,7 +541,12 @@ export const taskResponseSchema = z.object({
 });
 export type TaskResponse = z.infer<typeof taskResponseSchema>;
 
-/** POST /projects/:id/tasks. */
+/**
+ * POST /tasks (unified create) and POST /projects/:id/tasks. When `projectId` is
+ * supplied the task is created in that project (caller must be a member); when it is
+ * absent the task is a no-project / task-pool task (§8). The legacy per-project route
+ * ignores the body `projectId` and uses its path param.
+ */
 export const createTaskInputSchema = z.object({
   title: z.string().trim().min(1, '标题不能为空').max(200),
   description: z.string().max(20000).optional(),
@@ -540,6 +555,8 @@ export const createTaskInputSchema = z.object({
   dueDate: dateOnlySchema.nullable().optional(),
   /** Optionally dispatch on creation; moves task to in_progress. */
   assigneeId: uuidSchema.nullable().optional(),
+  /** Owning project (§8); omit/null to create a no-project (pool) task. */
+  projectId: uuidSchema.nullable().optional(),
 });
 export type CreateTaskInput = z.infer<typeof createTaskInputSchema>;
 
@@ -737,10 +754,14 @@ export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 /**
  * SSE payload broadcast on any successful write (§6.5). `type` carries the
  * activity/event semantic; `entity` tells the client which queries to invalidate.
+ *
+ * `projectId` is nullable (§8): a NULL is a no-project (task-pool) event, which the
+ * SSE layer broadcasts to every connected user (the global channel). Project events
+ * keep per-membership filtering.
  */
 export const realtimeEventSchema = z.object({
   type: z.string(),
-  projectId: uuidSchema,
+  projectId: uuidSchema.nullable(),
   entity: realtimeEntitySchema,
   payload: z.record(z.string(), z.unknown()),
 });

@@ -12,7 +12,8 @@ import { bus, type RealtimeBus } from '../realtime/bus.js';
 
 export interface RecordActivityParams {
   taskId: string;
-  projectId: string;
+  /** Owning project, or null for a no-project (task-pool) activity (§8). */
+  projectId: string | null;
   actorId: string;
   type: ActivityType;
   /** Free-form jsonb meta, e.g. { from: 'open', to: 'in_progress' }. */
@@ -78,7 +79,8 @@ export function publishEvent(
 export function publishChange(
   args: {
     type: string;
-    projectId: string;
+    /** Owning project, or null for a no-project (global) event (§8). */
+    projectId: string | null;
     entity: RealtimeEntity;
     payload?: Record<string, unknown>;
   },

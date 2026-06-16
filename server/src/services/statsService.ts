@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import type {
   LeaderboardEntry,
   MyStatsResponse,
@@ -60,10 +60,12 @@ function serializeUser(row: UserRow): User {
 // ---------------------------------------------------------------------------
 
 /**
- * Describes which projects a stats query may aggregate over.
- * - `{ kind: 'project', projectId }`  — a single, already-authorized project.
- * - `{ kind: 'all' }`                 — every project (global admin).
- * - `{ kind: 'projects', projectIds }`— the explicit set the caller belongs to.
+ * Describes which tasks a stats query may aggregate over.
+ * - `{ kind: 'project', projectId }`  — a single, already-authorized project; excludes
+ *   no-project (pool) tasks (§8).
+ * - `{ kind: 'all' }`                 — every project + the task pool (global admin).
+ * - `{ kind: 'projects', projectIds }`— the caller's member projects PLUS the shared
+ *   task pool (no-project tasks are visible to all, §8).
  */
 export type StatsScope =
   | { kind: 'project'; projectId: string }
@@ -110,13 +112,22 @@ function buildBaseFilters(args: {
 
   switch (args.scope.kind) {
     case 'project':
+      // A specific project excludes no-project (pool) tasks (§8).
       conditions.push(eq(tasks.projectId, args.scope.projectId));
       break;
-    case 'projects':
-      if (args.scope.projectIds.length === 0) return 'never';
-      conditions.push(inArray(tasks.projectId, args.scope.projectIds));
+    case 'projects': {
+      // The caller's visible scope: their member projects PLUS the shared task pool
+      // (no-project tasks are visible to every user, so they count in "all", §8).
+      const pool = isNull(tasks.projectId);
+      const predicate =
+        args.scope.projectIds.length === 0
+          ? pool
+          : or(pool, inArray(tasks.projectId, args.scope.projectIds));
+      if (predicate) conditions.push(predicate);
       break;
+    }
     case 'all':
+      // Every project + the pool (no project filter).
       break;
   }
 
@@ -160,12 +171,19 @@ function buildRewardFilters(args: {
 
   switch (args.scope.kind) {
     case 'project':
+      // A specific project excludes ideas on no-project (pool) tasks (§8).
       conditions.push(eq(tasks.projectId, args.scope.projectId));
       break;
-    case 'projects':
-      if (args.scope.projectIds.length === 0) return 'never';
-      conditions.push(inArray(tasks.projectId, args.scope.projectIds));
+    case 'projects': {
+      // Member projects PLUS ideas on shared pool tasks (visible to all, §8).
+      const pool = isNull(tasks.projectId);
+      const predicate =
+        args.scope.projectIds.length === 0
+          ? pool
+          : or(pool, inArray(tasks.projectId, args.scope.projectIds));
+      if (predicate) conditions.push(predicate);
       break;
+    }
     case 'all':
       break;
   }

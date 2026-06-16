@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
-import type { CommentWithAuthor, ProjectMemberWithUser } from 'shared';
+import type { CommentWithAuthor, ProjectMemberWithUser, Task } from 'shared';
 import { updateCommentInputSchema } from 'shared';
 import { Avatar, Button, Spinner, Textarea } from '../../components/ui';
 import { avatarUrl } from '../../lib/utils';
@@ -19,7 +19,7 @@ import { renderMarkdown } from './markdown';
  * edit/delete their own comments; managers (admin/lead) can delete any (§6.3).
  */
 export interface CommentListProps {
-  taskId: string;
+  task: Task;
   comments: CommentWithAuthor[];
   isLoading: boolean;
   members: ProjectMemberWithUser[];
@@ -27,7 +27,7 @@ export interface CommentListProps {
 }
 
 export function CommentList({
-  taskId,
+  task,
   comments,
   isLoading,
   members,
@@ -50,7 +50,7 @@ export function CommentList({
       {comments.map((comment) => (
         <CommentItem
           key={comment.id}
-          taskId={taskId}
+          task={task}
           comment={comment}
           members={members}
           permCtx={permCtx}
@@ -61,13 +61,14 @@ export function CommentList({
 }
 
 interface CommentItemProps {
-  taskId: string;
+  task: Task;
   comment: CommentWithAuthor;
   members: ProjectMemberWithUser[];
   permCtx: TaskPermissionContext;
 }
 
-function CommentItem({ taskId, comment, members, permCtx }: CommentItemProps): JSX.Element {
+function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX.Element {
+  const taskId = task.id;
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(comment.body);
@@ -78,7 +79,7 @@ function CommentItem({ taskId, comment, members, permCtx }: CommentItemProps): J
 
   const isAuthor = user?.id === comment.authorId;
   const canEdit = isAuthor;
-  const canDelete = isAuthor || isManager(permCtx);
+  const canDelete = isAuthor || isManager(permCtx, task);
 
   function saveEdit(): void {
     setError(null);

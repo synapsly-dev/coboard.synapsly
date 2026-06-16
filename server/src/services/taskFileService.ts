@@ -125,7 +125,8 @@ export async function getTaskFileBytes(
 
 export interface CreateTaskFileParams {
   taskId: string;
-  projectId: string;
+  /** Owning project, or null for a file on a no-project (pool) task (§8). */
+  projectId: string | null;
   uploaderId: string;
   filename: string;
   mime: string;
@@ -179,7 +180,7 @@ export async function createTaskFile(
 export async function deleteTaskFile(
   db: Database,
   file: { id: string; taskId: string },
-  projectId: string,
+  projectId: string | null,
   realtimeBus: RealtimeBus = bus,
 ): Promise<void> {
   await db.delete(taskFiles).where(eq(taskFiles.id, file.id));
@@ -197,7 +198,7 @@ export async function deleteTaskFile(
 function publishTaskFileChange(
   realtimeBus: RealtimeBus,
   type: string,
-  projectId: string,
+  projectId: string | null,
   taskId: string,
 ): void {
   publishChange(

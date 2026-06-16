@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, Paperclip, Trash2, Upload } from 'lucide-react';
-import type { TaskFile } from 'shared';
+import type { Task, TaskFile } from 'shared';
 import { Button, Spinner } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import {
@@ -22,7 +22,7 @@ import { isManager } from '../board/permissions';
  */
 
 export interface AttachmentSectionProps {
-  taskId: string;
+  task: Task;
   permCtx: TaskPermissionContext;
 }
 
@@ -35,13 +35,14 @@ export function formatFileSize(bytes: number): string {
   return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
 }
 
-export function AttachmentSection({ taskId, permCtx }: AttachmentSectionProps): JSX.Element {
+export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JSX.Element {
+  const taskId = task.id;
   const { data: files, isLoading } = useTaskFiles(taskId);
   const uploadFile = useUploadTaskFile(taskId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const manager = isManager(permCtx);
+  const manager = isManager(permCtx, task);
   const myId = permCtx.user?.id;
 
   function handlePick(e: React.ChangeEvent<HTMLInputElement>): void {

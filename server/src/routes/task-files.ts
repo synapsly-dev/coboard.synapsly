@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { idParamSchema, type TaskFilesResponse } from 'shared';
 import { AppError, ErrorCode, forbidden, notFound, validationError } from '../lib/errors.js';
-import { requireProjectMember } from '../lib/guards.js';
+import { requireTaskVisibility } from '../lib/guards.js';
 import { parseParams } from '../lib/validate.js';
 import { loadTaskOrThrow } from '../services/commentService.js';
 import {
@@ -54,8 +54,8 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/tasks/:id/files', async (request): Promise<TaskFilesResponse> => {
     const { id } = parseParams(idParamSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
-    // Project membership (admins included) gates visibility.
-    await requireProjectMember(db, request, task.projectId);
+    // Project membership (project task) or any authenticated user (pool task, §8).
+    await requireTaskVisibility(db, request, task);
 
     const files = await listTaskFiles(db, id);
     return { files };
@@ -66,8 +66,8 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parseParams(idParamSchema, request.params);
 
     const task = await loadTaskOrThrow(db, id);
-    // Any project member may upload an attachment (§7.2).
-    const { user } = await requireProjectMember(db, request, task.projectId);
+    // Any project member (project task) or any authenticated user (pool task, §8).
+    const { user } = await requireTaskVisibility(db, request, task);
 
     if (!request.isMultipart()) {
       throw validationError('请使用 multipart/form-data 上传文件');
@@ -120,7 +120,7 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/tasks/:id/files/:fileId', async (request, reply) => {
     const { id, fileId } = parseParams(fileParamsSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
-    await requireProjectMember(db, request, task.projectId);
+    await requireTaskVisibility(db, request, task);
 
     // Ensure the file belongs to this task (404 otherwise).
     const meta = await loadTaskFileOrThrow(db, fileId);
@@ -143,17 +143,17 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete('/tasks/:id/files/:fileId', async (request, reply) => {
     const { id, fileId } = parseParams(fileParamsSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
-    const membership = await requireProjectMember(db, request, task.projectId);
+    const { user, isLead } = await requireTaskVisibility(db, request, task);
 
     const meta = await loadTaskFileOrThrow(db, fileId);
     if (meta.taskId !== id) {
       throw notFound('文件不存在');
     }
 
-    // Uploader, project lead, or global admin may delete (§6.3 / §7.2).
-    const isUploader = meta.uploaderId === membership.user.id;
-    const isLeadOrAdmin = membership.projectRole === 'lead';
-    if (!isUploader && !isLeadOrAdmin) {
+    // Uploader, project lead/admin, or — for a pool task — the task creator/admin may
+    // delete (§6.3 / §7.2 / §8, the lead-equivalent is carried in `isLead`).
+    const isUploader = meta.uploaderId === user.id;
+    if (!isUploader && !isLead) {
       throw forbidden('只能删除自己上传的文件');
     }
 

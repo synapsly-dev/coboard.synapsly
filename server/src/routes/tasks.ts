@@ -12,7 +12,7 @@ import {
   type TaskResponse,
 } from 'shared';
 import { z } from 'zod';
-import { requireProjectMember } from '../lib/guards.js';
+import { requireAuth, requireProjectMember } from '../lib/guards.js';
 import { parseBody, parseParams } from '../lib/validate.js';
 import {
   assignTask,
@@ -21,6 +21,7 @@ import {
   deleteTask,
   deliverTask,
   getTask,
+  listAllVisibleTasks,
   listBoardTasks,
   releaseTask,
   reviewTask,
@@ -50,7 +51,8 @@ const tasksRoutes: FastifyPluginAsync = async (fastify) => {
     return { tasks };
   });
 
-  // POST /projects/:id/tasks — create (§6.1, §6.2).
+  // POST /projects/:id/tasks — create within a project (§6.1, §6.2). Legacy entry
+  // point; the body `projectId` (if any) is ignored in favor of the path param.
   fastify.post('/projects/:id/tasks', async (request, reply): Promise<TaskResponse> => {
     const { id: projectId } = parseParams(projectIdParamSchema, request.params);
     // The schema applies a default for `priority`, so the validated runtime value
@@ -61,6 +63,24 @@ const tasksRoutes: FastifyPluginAsync = async (fastify) => {
     const task = await createTask(db, bus, request, projectId, input);
     reply.code(201);
     return { task };
+  });
+
+  // POST /tasks — unified create (§8). With a `projectId` in the body the task is
+  // created in that project (caller must be a member); without one it is a no-project
+  // (task-pool) task that any authenticated user may create.
+  fastify.post('/tasks', async (request, reply): Promise<TaskResponse> => {
+    const input = parseBody(createTaskInputSchema, request.body) as CreateTaskInput;
+    const task = await createTask(db, bus, request, input.projectId ?? null, input);
+    reply.code(201);
+    return { task };
+  });
+
+  // GET /tasks/all — every task the caller can see across their projects + the
+  // no-project task pool, each with owning-project context + claimants (§8).
+  fastify.get('/tasks/all', async (request): Promise<BoardResponse> => {
+    const user = requireAuth(request);
+    const tasks = await listAllVisibleTasks(db, user);
+    return { tasks };
   });
 
   // GET /tasks/:id — single task (§7).

@@ -29,6 +29,11 @@ export interface BoardFiltersProps {
   members: ProjectMemberWithUser[];
   /** Current user id, to label/enable "我的任务". */
   currentUserId: string | undefined;
+  /**
+   * Whether the per-assignee dropdown applies (§8). False in the 全部项目 view, where
+   * there is no single project member list — only the 我的任务 quick toggle is shown.
+   */
+  membersOnly?: boolean;
 }
 
 export function BoardFilters({
@@ -36,6 +41,7 @@ export function BoardFilters({
   onChange,
   members,
   currentUserId,
+  membersOnly = true,
 }: BoardFiltersProps): JSX.Element {
   const isMine = value === FILTER_ME;
   const selectedMember =
@@ -60,7 +66,8 @@ export function BoardFilters({
         我的任务
       </Button>
 
-      {/* Per-assignee dropdown */}
+      {/* Per-assignee dropdown — scoped to a single project's members (§8). */}
+      {membersOnly && (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="outline" size="sm">
@@ -92,6 +99,7 @@ export function BoardFilters({
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
     </div>
   );
 }

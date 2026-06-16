@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Plus } from 'lucide-react';
 import { createTaskInputSchema, type CreateTaskInput, type Priority } from 'shared';
@@ -21,16 +21,22 @@ import {
   Textarea,
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
-import { useCreateTask, useProjectMembers } from '../../api/tasks';
+import { useProjects } from '../../api/projects';
+import { ALL_PROJECTS, useCreateTask, useProjectMembers } from '../../api/tasks';
 import { PRIORITY_LABELS } from './labels';
 
 /**
- * Create-task dialog (§6.1). New tasks default to the `open` column; supplying an
- * assignee dispatches the task into `in_progress` server-side (§6.2). Validated
- * against the shared {@link createTaskInputSchema} via react-hook-form + zod.
+ * Create-task dialog (§6.1, §8). A 项目 select at the top chooses the owning project
+ * (the caller's visible projects) or 「不指定项目（任务池）」 for a no-project / pool
+ * task. New tasks default to the `open` column; supplying an assignee dispatches the
+ * task into `in_progress` server-side (§6.2) — assignment is only available for a
+ * project task (a pool task has no members). Validated against the shared
+ * {@link createTaskInputSchema} and submitted via the unified POST /tasks.
  */
 const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent'];
 const UNASSIGNED = '__unassigned__';
+/** Sentinel select value for the 「不指定项目（任务池）」 option (§8). */
+const NO_PROJECT = '__no_project__';
 
 interface FormValues {
   title: string;
@@ -42,13 +48,35 @@ interface FormValues {
 }
 
 export interface CreateTaskDialogProps {
-  projectId: string;
+  /**
+   * The current board's project. A concrete project id preselects it; the
+   * all-projects sentinel ({@link ALL_PROJECTS}) or undefined defaults the select
+   * to 「不指定项目（任务池）」 (§8).
+   */
+  projectId: string | undefined;
 }
 
 export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Element {
   const [open, setOpen] = useState(false);
-  const { data: members } = useProjectMembers(open ? projectId : undefined);
-  const createTask = useCreateTask(projectId);
+  const { data: projects } = useProjects();
+
+  // Default the project select: a concrete board project preselects it; the
+  // 全部项目 view (projectId === 'all') or no board defaults to the task pool (§8).
+  const defaultProject =
+    projectId && projectId !== ALL_PROJECTS ? projectId : NO_PROJECT;
+  const [selectedProject, setSelectedProject] = useState<string>(defaultProject);
+
+  const createTask = useCreateTask();
+  // Members for the assignee picker come from the chosen project; a pool task has
+  // none, so the query stays disabled (§8).
+  const projectForMembers =
+    open && selectedProject !== NO_PROJECT ? selectedProject : undefined;
+  const { data: members } = useProjectMembers(projectForMembers);
+
+  const visibleProjects = useMemo(
+    () => (projects ?? []).filter((p) => !p.archived),
+    [projects],
+  );
 
   const {
     register,
@@ -71,6 +99,13 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
 
   const priority = watch('priority');
   const assigneeId = watch('assigneeId');
+  const isPoolTask = selectedProject === NO_PROJECT;
+
+  // Reset the whole dialog (form + project select) to its opening defaults.
+  function resetDialog(): void {
+    reset();
+    setSelectedProject(defaultProject);
+  }
 
   const onSubmit = handleSubmit((values) => {
     // Build the API payload, normalizing optional/empty fields.
@@ -84,7 +119,11 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
       if (Number.isInteger(pts) && pts >= 0) payload.points = pts;
     }
     if (values.dueDate) payload.dueDate = values.dueDate;
-    if (values.assigneeId !== UNASSIGNED) payload.assigneeId = values.assigneeId;
+    // A pool task carries no project and cannot be assigned at creation.
+    if (!isPoolTask) {
+      payload.projectId = selectedProject;
+      if (values.assigneeId !== UNASSIGNED) payload.assigneeId = values.assigneeId;
+    }
 
     // Validate against the shared contract before sending.
     const parsed = createTaskInputSchema.safeParse(payload);
@@ -96,7 +135,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
 
     createTask.mutate(parsed.data, {
       onSuccess: () => {
-        reset();
+        resetDialog();
         setOpen(false);
       },
       onError: (err) => {
@@ -112,7 +151,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) reset();
+        if (!next) resetDialog();
       }}
     >
       <DialogTrigger asChild>
@@ -130,6 +169,30 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label>所属项目</Label>
+            <Select
+              value={selectedProject}
+              onValueChange={(v) => {
+                setSelectedProject(v);
+                // Switching projects invalidates any previously chosen member.
+                setValue('assigneeId', UNASSIGNED);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_PROJECT}>不指定项目（任务池）</SelectItem>
+                {visibleProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid gap-1.5">
             <Label htmlFor="task-title" required>
               标题
@@ -190,23 +253,32 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
               <Input id="task-due" type="date" {...register('dueDate')} />
             </div>
 
-            <div className="grid gap-1.5">
-              <Label>负责人（选填）</Label>
-              <Select value={assigneeId} onValueChange={(v) => setValue('assigneeId', v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="不指派" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>不指派</SelectItem>
-                  {(members ?? []).map((m) => (
-                    <SelectItem key={m.userId} value={m.userId}>
-                      {m.user.displayName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Assignment requires a project (pool tasks have no members, §8). */}
+            {!isPoolTask && (
+              <div className="grid gap-1.5">
+                <Label>负责人（选填）</Label>
+                <Select value={assigneeId} onValueChange={(v) => setValue('assigneeId', v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="不指派" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>不指派</SelectItem>
+                    {(members ?? []).map((m) => (
+                      <SelectItem key={m.userId} value={m.userId}>
+                        {m.user.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
+
+          {isPoolTask && (
+            <p className="text-xs text-muted-foreground">
+              任务池任务对所有成员可见，需自行认领，创建时无法指派负责人。
+            </p>
+          )}
 
           {createTask.isError && !errors.title && (
             <p className="text-xs text-destructive">
@@ -221,7 +293,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
               type="button"
               variant="outline"
               onClick={() => {
-                reset();
+                resetDialog();
                 setOpen(false);
               }}
             >

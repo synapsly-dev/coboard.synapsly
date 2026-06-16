@@ -167,3 +167,54 @@ describe('0003_task_lifecycle_v2 migration', () => {
     ]);
   });
 });
+
+describe('0006 no-project tasks migration', () => {
+  it('drops NOT NULL on tasks.project_id and activities.project_id (pool tasks insertable)', async () => {
+    pglite = new PGlite();
+    const tags = await orderedTags();
+    const v6Tag = '0006_tranquil_hardball';
+    expect(tags).toContain(v6Tag);
+
+    // Apply every migration up to and including 0006.
+    const v6Index = tags.indexOf(v6Tag);
+    for (const tag of tags.slice(0, v6Index + 1)) {
+      await applyMigration(pglite, tag);
+    }
+
+    // Both columns must now be nullable.
+    const cols = await pglite.query<{ table_name: string; is_nullable: string }>(
+      `SELECT table_name, is_nullable FROM information_schema.columns
+       WHERE column_name = 'project_id'
+         AND table_name IN ('tasks', 'activities')
+       ORDER BY table_name;`,
+    );
+    const nullable = Object.fromEntries(
+      cols.rows.map((r) => [r.table_name, r.is_nullable]),
+    );
+    expect(nullable.tasks).toBe('YES');
+    expect(nullable.activities).toBe('YES');
+
+    // A no-project (pool) task + a no-project activity can be written.
+    await pglite.exec(`
+      INSERT INTO users (id, email, password_hash, display_name, avatar_color)
+      VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'pool@x.com', 'h', 'Pooler', '#3b82f6');
+      INSERT INTO tasks (id, project_id, title, status, created_by, rank, created_at)
+      VALUES ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', NULL, 'Pool task', 'open',
+              'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'n', now());
+      INSERT INTO activities (id, task_id, project_id, actor_id, type, created_at)
+      VALUES ('cccccccc-cccc-cccc-cccc-cccccccccccc',
+              'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', NULL,
+              'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'created', now());
+    `);
+
+    const task = await pglite.query<{ project_id: string | null }>(
+      `SELECT project_id FROM tasks WHERE id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';`,
+    );
+    expect(task.rows[0]?.project_id).toBeNull();
+
+    const activity = await pglite.query<{ project_id: string | null }>(
+      `SELECT project_id FROM activities WHERE id = 'cccccccc-cccc-cccc-cccc-cccccccccccc';`,
+    );
+    expect(activity.rows[0]?.project_id).toBeNull();
+  });
+});

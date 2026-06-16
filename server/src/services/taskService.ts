@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import type {
   AssignTaskInput,
   CreateTaskInput,
@@ -11,6 +11,8 @@ import type {
 } from 'shared';
 import type { Database } from '../db/index.js';
 import {
+  projectMembers,
+  projects,
   taskClaimants,
   tasks,
   users,
@@ -20,10 +22,14 @@ import {
 } from '../db/schema.js';
 import { conflict, forbidden, notFound, validationError } from '../lib/errors.js';
 import {
+  canEditNoProjectTask,
   canEditTask,
+  canReviewNoProjectTask,
+  requireAuth,
   requireProjectLead,
   requireProjectMember,
-  type ProjectMembership,
+  requireTaskVisibility,
+  type TaskAccessContext,
 } from '../lib/guards.js';
 import type { FastifyRequest } from 'fastify';
 import { publishChange, recordActivity } from './activityService.js';
@@ -102,16 +108,21 @@ export function rankBetween(before: string | null, after: string | null): string
   }
 }
 
-/** Compute a rank that appends after the last task in the given column. */
+/**
+ * Compute a rank that appends after the last task in the given column. The column is
+ * scoped to a project, or to the shared no-project pool when `projectId` is null (§8).
+ */
 async function nextRankForColumn(
   db: Database,
-  projectId: string,
+  projectId: string | null,
   status: TaskStatus,
 ): Promise<string> {
+  const projectFilter =
+    projectId === null ? isNull(tasks.projectId) : eq(tasks.projectId, projectId);
   const rows = await db
     .select({ rank: tasks.rank })
     .from(tasks)
-    .where(and(eq(tasks.projectId, projectId), eq(tasks.status, status)))
+    .where(and(projectFilter, eq(tasks.status, status)))
     .orderBy(desc(tasks.rank))
     .limit(1);
   const last = rows[0]?.rank ?? null;
@@ -144,15 +155,29 @@ function serializeClaimant(c: ClaimantWithUser): TaskClaimant {
   };
 }
 
+/** Lightweight owning-project context embedded in a serialized task (§8). */
+export interface TaskProjectContext {
+  name: string;
+  key: string;
+}
+
 /**
- * Serialize a persisted task row to the shared `Task` wire shape (lifecycle v2 §2).
- * Claimants are sorted by claim time so avatar stacking is stable. The deprecated
- * single-assignee columns are never surfaced.
+ * Serialize a persisted task row to the shared `Task` wire shape (lifecycle v2 §2;
+ * no-project tasks §8). Claimants are sorted by claim time so avatar stacking is
+ * stable. The deprecated single-assignee columns are never surfaced. `project`
+ * carries the owning project's name/key for the all-projects view; pass null for a
+ * no-project (pool) task — `projectName`/`projectKey` then serialize to null.
  */
-export function serializeTask(row: TaskRow, claimants: ClaimantWithUser[] = []): Task {
+export function serializeTask(
+  row: TaskRow,
+  claimants: ClaimantWithUser[] = [],
+  project: TaskProjectContext | null = null,
+): Task {
   return {
     id: row.id,
     projectId: row.projectId,
+    projectName: project ? project.name : null,
+    projectKey: project ? project.key : null,
     title: row.title,
     description: row.description,
     status: row.status,
@@ -206,10 +231,26 @@ async function loadClaimantsForTasks(
   return byTask;
 }
 
-/** Load + serialize a single task with its claimants. */
+/** Load a task's owning-project context (name/key), or null for a pool task (§8). */
+async function loadProjectContext(
+  db: Database,
+  projectId: string | null,
+): Promise<TaskProjectContext | null> {
+  if (projectId === null) return null;
+  const rows = await db
+    .select({ name: projects.name, key: projects.key })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const row = rows[0];
+  return row ? { name: row.name, key: row.key } : null;
+}
+
+/** Load + serialize a single task with its claimants and owning-project context. */
 async function serializeTaskById(db: Database, row: TaskRow): Promise<Task> {
   const byTask = await loadClaimantsForTasks(db, [row.id]);
-  return serializeTask(row, byTask.get(row.id) ?? []);
+  const project = await loadProjectContext(db, row.projectId);
+  return serializeTask(row, byTask.get(row.id) ?? [], project);
 }
 
 // ---------------------------------------------------------------------------
@@ -227,20 +268,36 @@ async function loadTask(db: Database, taskId: string): Promise<TaskRow> {
 }
 
 /**
- * Resolve the membership context for a task's project (enforces visibility) and
- * return both the task and the membership. Non-members get 403 via the guard.
+ * The task row plus the caller's resolved {@link TaskAccessContext} (§6.3 / §8).
  */
-async function loadTaskWithMembership(
+interface TaskAccess extends TaskAccessContext {
+  task: TaskRow;
+}
+
+/**
+ * Load a task and resolve who the caller is relative to it, enforcing visibility
+ * (§6.3 / §8): project tasks require membership (403 otherwise); no-project (pool)
+ * tasks are visible to every authenticated user. Delegates to the shared guard so the
+ * pool/project semantics stay in one place.
+ *
+ * Note `isLead` here is the lead-equivalent manage flag (project lead/admin, or the
+ * creator/admin of a pool task), per {@link requireTaskVisibility}.
+ */
+async function loadTaskAccess(
   db: Database,
   request: FastifyRequest,
   taskId: string,
-): Promise<{ task: TaskRow; membership: ProjectMembership }> {
+): Promise<TaskAccess> {
   const task = await loadTask(db, taskId);
-  const membership = await requireProjectMember(db, request, task.projectId);
-  return { task, membership };
+  const access = await requireTaskVisibility(db, request, task);
+  return { task, ...access };
 }
 
-/** Publish a `task` realtime event for board invalidation (§6.5). */
+/**
+ * Publish a `task` realtime event for board invalidation (§6.5). `projectId` is the
+ * task's project, or null for a no-project (pool) task — a null fans out to every
+ * connected user via the global channel (§8).
+ */
 function publishTaskChange(
   bus: RealtimeBus,
   type: string,
@@ -263,7 +320,8 @@ function publishTaskChange(
 
 /**
  * Return all tasks for a project, ordered for the board (by rank then creation).
- * The client groups by `status` into the three fixed columns (§6.1).
+ * The client groups by `status` into the four fixed columns (§6.1). Every task shares
+ * the same owning project, so its name/key is loaded once and stamped onto each task.
  */
 export async function listBoardTasks(db: Database, projectId: string): Promise<Task[]> {
   const rows = await db
@@ -275,7 +333,77 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
     db,
     rows.map((r) => r.id),
   );
-  return rows.map((row) => serializeTask(row, byTask.get(row.id) ?? []));
+  const project = await loadProjectContext(db, projectId);
+  return rows.map((row) => serializeTask(row, byTask.get(row.id) ?? [], project));
+}
+
+// ---------------------------------------------------------------------------
+// All-projects board read (§8 GET /tasks/all)
+// ---------------------------------------------------------------------------
+
+/**
+ * Every task the caller can see (§8): tasks in the projects they belong to (a global
+ * admin sees every project) UNION all no-project (task-pool) tasks. Each task is
+ * enriched with its owning-project name/key (null for pool tasks) and its claimants.
+ * Ordered by rank then creation, like the per-project board. Avoids N+1 by batching
+ * the claimant and project lookups.
+ */
+export async function listAllVisibleTasks(
+  db: Database,
+  user: UserRow,
+): Promise<Task[]> {
+  // Visible project set: every project for an admin, else the caller's memberships.
+  let visibleProjectIds: string[];
+  if (user.role === 'admin') {
+    const rows = await db.select({ id: projects.id }).from(projects);
+    visibleProjectIds = rows.map((r) => r.id);
+  } else {
+    const rows = await db
+      .select({ projectId: projectMembers.projectId })
+      .from(projectMembers)
+      .where(eq(projectMembers.userId, user.id));
+    visibleProjectIds = rows.map((r) => r.projectId);
+  }
+
+  // No-project (pool) tasks are always visible; project tasks only in-scope ones.
+  const where =
+    visibleProjectIds.length === 0
+      ? isNull(tasks.projectId)
+      : or(isNull(tasks.projectId), inArray(tasks.projectId, visibleProjectIds));
+
+  const rows = await db
+    .select()
+    .from(tasks)
+    .where(where)
+    .orderBy(asc(tasks.rank), asc(tasks.createdAt));
+
+  const byTask = await loadClaimantsForTasks(
+    db,
+    rows.map((r) => r.id),
+  );
+
+  // Batch-load project context (name/key) for every distinct owning project.
+  const projectIds = [
+    ...new Set(rows.map((r) => r.projectId).filter((id): id is string => id !== null)),
+  ];
+  const projectById = new Map<string, TaskProjectContext>();
+  if (projectIds.length > 0) {
+    const projectRows = await db
+      .select({ id: projects.id, name: projects.name, key: projects.key })
+      .from(projects)
+      .where(inArray(projects.id, projectIds));
+    for (const p of projectRows) {
+      projectById.set(p.id, { name: p.name, key: p.key });
+    }
+  }
+
+  return rows.map((row) =>
+    serializeTask(
+      row,
+      byTask.get(row.id) ?? [],
+      row.projectId === null ? null : projectById.get(row.projectId) ?? null,
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -283,20 +411,26 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
 // ---------------------------------------------------------------------------
 
 /**
- * Create a task. Defaults to `open` with no claimants. If `assigneeId` is supplied
- * the task is dispatched on creation → `in_progress` with that user added as a
- * claimant (lifecycle v2 §2/§3). Records `created` (+ `assigned` when dispatched)
+ * Create a task (§6.1/§6.2; no-project tasks §8). `projectId` selects the owning
+ * project, or null to create a no-project (task-pool) task. A project task requires
+ * the caller to be a project member (existing guard); a pool task may be created by
+ * any authenticated user. Defaults to `open` with no claimants; if `assigneeId` is
+ * supplied the task is dispatched on creation → `in_progress` with that user added as
+ * a claimant (lifecycle v2 §2/§3). Records `created` (+ `assigned` when dispatched)
  * and publishes a task event.
  */
 export async function createTask(
   db: Database,
   bus: RealtimeBus,
   request: FastifyRequest,
-  projectId: string,
+  projectId: string | null,
   input: CreateTaskInput,
 ): Promise<Task> {
-  const membership = await requireProjectMember(db, request, projectId);
-  const actor = membership.user;
+  // Project task → member-only; no-project (pool) task → any authenticated user (§8).
+  const actor =
+    projectId === null
+      ? requireAuth(request)
+      : (await requireProjectMember(db, request, projectId)).user;
 
   const dispatched = input.assigneeId != null;
   const status: TaskStatus = dispatched ? 'in_progress' : 'open';
@@ -359,7 +493,7 @@ export async function getTask(
   request: FastifyRequest,
   taskId: string,
 ): Promise<Task> {
-  const { task } = await loadTaskWithMembership(db, request, taskId);
+  const { task } = await loadTaskAccess(db, request, taskId);
   return serializeTaskById(db, task);
 }
 
@@ -381,11 +515,15 @@ export async function updateTask(
   taskId: string,
   input: UpdateTaskInput,
 ): Promise<Task> {
-  const { task, membership } = await loadTaskWithMembership(db, request, taskId);
-  if (!canEditTask(membership, task)) {
+  const { task, user, membership } = await loadTaskAccess(db, request, taskId);
+  // Project task → creator/lead/admin; no-project task → creator or admin (§8).
+  const canEdit = membership
+    ? canEditTask(membership, task)
+    : canEditNoProjectTask(user, task);
+  if (!canEdit) {
     throw forbidden('只能编辑自己创建或负责的任务');
   }
-  const actor = membership.user;
+  const actor = user;
 
   const patch: Partial<TaskRow> = {};
   if (input.title !== undefined) patch.title = input.title;
@@ -458,9 +596,10 @@ async function loadClaimantIds(db: Database, taskId: string): Promise<string[]> 
 }
 
 /**
- * Claim a task (lifecycle v2 §3): add the caller to the claimants set (idempotent)
- * and, if the task is still `open`, move it to `in_progress`. Any project member
- * may claim an `open` or `in_progress` task; a delivered/done task cannot be claimed.
+ * Claim a task (lifecycle v2 §3; no-project tasks §8): add the caller to the
+ * claimants set (idempotent) and, if the task is still `open`, move it to
+ * `in_progress`. Any project member may claim a project task; any authenticated user
+ * may claim a no-project (pool) task. A delivered/done task cannot be claimed.
  */
 export async function claimTask(
   db: Database,
@@ -468,8 +607,7 @@ export async function claimTask(
   request: FastifyRequest,
   taskId: string,
 ): Promise<Task> {
-  const { task, membership } = await loadTaskWithMembership(db, request, taskId);
-  const actor = membership.user;
+  const { task, user: actor } = await loadTaskAccess(db, request, taskId);
 
   if (task.status !== 'open' && task.status !== 'in_progress') {
     throw conflict('该状态的任务不可认领');
@@ -512,8 +650,9 @@ export async function claimTask(
 // ---------------------------------------------------------------------------
 
 /**
- * Release a task (lifecycle v2 §3): remove a claimant from the set. The caller may
- * remove themselves; a lead/admin may remove any claimant (via `targetUserId`). If
+ * Release a task (lifecycle v2 §3; no-project tasks §8): remove a claimant from the
+ * set. The caller may always remove themselves. Removing another claimant requires a
+ * lead/admin on a project task, or the creator/admin on a no-project (pool) task. If
  * no claimants remain the task returns to `open`.
  */
 export async function releaseTask(
@@ -523,14 +662,14 @@ export async function releaseTask(
   taskId: string,
   targetUserId?: string,
 ): Promise<Task> {
-  const { task, membership } = await loadTaskWithMembership(db, request, taskId);
-  const actor = membership.user;
-  const isLead = membership.projectRole === 'lead' || actor.role === 'admin';
+  const { task, user: actor, isLead } = await loadTaskAccess(db, request, taskId);
 
-  // Default target is the caller (self-release). Removing someone else needs lead.
+  // Default target is the caller (self-release). Removing someone else needs the
+  // lead-equivalent: project lead/admin, or the creator/admin of a pool task (§8) —
+  // both encoded in `isLead` by requireTaskVisibility.
   const userId = targetUserId ?? actor.id;
   if (userId !== actor.id && !isLead) {
-    throw forbidden('只有项目负责人可以移除他人');
+    throw forbidden('没有权限移除该认领者');
   }
 
   const removed = await db
@@ -571,9 +710,10 @@ export async function releaseTask(
 // ---------------------------------------------------------------------------
 
 /**
- * Dispatch a task to a member (lead/admin only, lifecycle v2 §3): add the user to
+ * Dispatch a task to a worker (lifecycle v2 §3; no-project tasks §8): add the user to
  * the claimants set and, if the task is still `open`, move it to `in_progress`.
- * Records `assigned`.
+ * Permitted to a project lead/admin on a project task, or the creator/admin on a
+ * no-project (pool) task. Records `assigned`.
  */
 export async function assignTask(
   db: Database,
@@ -583,9 +723,18 @@ export async function assignTask(
   input: AssignTaskInput,
 ): Promise<Task> {
   const task = await loadTask(db, taskId);
-  // Lead/admin only — enforce via the project lead guard.
-  const membership = await requireProjectLead(db, request, task.projectId);
-  const actor = membership.user;
+
+  let actor: UserRow;
+  if (task.projectId === null) {
+    // No-project (pool) task → creator or global admin (§8).
+    actor = requireAuth(request);
+    if (!canEditNoProjectTask(actor, task)) {
+      throw forbidden('只有任务创建者或管理员可以派发');
+    }
+  } else {
+    // Project task → lead/admin only, via the project lead guard.
+    actor = (await requireProjectLead(db, request, task.projectId)).user;
+  }
 
   if (task.status === 'done') {
     throw conflict('已完成的任务不能再派发');
@@ -640,9 +789,7 @@ export async function deliverTask(
   taskId: string,
   input: DeliverTaskInput,
 ): Promise<Task> {
-  const { task, membership } = await loadTaskWithMembership(db, request, taskId);
-  const actor = membership.user;
-  const isLead = membership.projectRole === 'lead' || actor.role === 'admin';
+  const { task, user: actor, isLead } = await loadTaskAccess(db, request, taskId);
 
   if (task.status !== 'in_progress') {
     throw conflict('只有进行中的任务可以交付');
@@ -653,9 +800,12 @@ export async function deliverTask(
     throw validationError('任务还没有认领者，无法交付');
   }
 
+  // A claimant may deliver; otherwise the lead-equivalent manager (project lead/admin,
+  // or the creator/admin of a pool task, §8 — encoded in `isLead`) may deliver on the
+  // team's behalf.
   const isClaimant = claimantIds.includes(actor.id);
   if (!isClaimant && !isLead) {
-    throw forbidden('只有认领者或项目负责人可以交付');
+    throw forbidden('只有认领者或负责人可以交付');
   }
 
   // Allocations must cover exactly the current claimant set, one entry per user.
@@ -731,11 +881,13 @@ export async function deliverTask(
 // ---------------------------------------------------------------------------
 
 /**
- * Review a delivered task (lifecycle v2 §3, lead/admin only; task must be
- * `pending_review`). `approve` → `done` with `completed_at`/`reviewed_by` set (the
- * shares stay locked) and records `completed`. `reject` → `in_progress`, clears
- * `delivered_at`/`delivered_by` and every claimant's points, sets `reviewed_by`,
- * and records `rejected` (the optional `comment` is the rejection reason).
+ * Review a delivered task (lifecycle v2 §3; task must be `pending_review`). Permitted
+ * to a project lead/admin on a project task, or the task creator/admin on a no-project
+ * (pool) task (§8 — pool tasks have no project lead). `approve` → `done` with
+ * `completed_at`/`reviewed_by` set (the shares stay locked) and records `completed`.
+ * `reject` → `in_progress`, clears `delivered_at`/`delivered_by` and every claimant's
+ * points, sets `reviewed_by`, and records `rejected` (the optional `comment` is the
+ * rejection reason).
  */
 export async function reviewTask(
   db: Database,
@@ -745,9 +897,18 @@ export async function reviewTask(
   input: ReviewTaskInput,
 ): Promise<Task> {
   const task = await loadTask(db, taskId);
-  // Lead/admin only.
-  const membership = await requireProjectLead(db, request, task.projectId);
-  const actor = membership.user;
+
+  let actor: UserRow;
+  if (task.projectId === null) {
+    // No-project (pool) task → creator or global admin (§8).
+    actor = requireAuth(request);
+    if (!canReviewNoProjectTask(actor, task)) {
+      throw forbidden('只有任务创建者或管理员可以审阅');
+    }
+  } else {
+    // Project task → lead/admin only, via the project lead guard.
+    actor = (await requireProjectLead(db, request, task.projectId)).user;
+  }
 
   if (task.status !== 'pending_review') {
     throw conflict('只有待审阅的任务可以审阅');
@@ -808,9 +969,10 @@ export async function reviewTask(
 // ---------------------------------------------------------------------------
 
 /**
- * Delete a task. Permitted to the creator, a project lead, or a global admin
- * (§6.3 — canEditTask covers creator/lead/admin). Publishes a deletion event; no
- * activity row is recorded since the task (and its activities) cease to exist.
+ * Delete a task. For a project task: creator, project lead, or global admin (§6.3).
+ * For a no-project (pool) task: creator or global admin (§8). Publishes a deletion
+ * event; no activity row is recorded since the task (and its activities) cease to
+ * exist.
  */
 export async function deleteTask(
   db: Database,
@@ -818,8 +980,11 @@ export async function deleteTask(
   request: FastifyRequest,
   taskId: string,
 ): Promise<void> {
-  const { task, membership } = await loadTaskWithMembership(db, request, taskId);
-  if (!canEditTask(membership, task)) {
+  const { task, user, membership } = await loadTaskAccess(db, request, taskId);
+  const canDelete = membership
+    ? canEditTask(membership, task)
+    : canEditNoProjectTask(user, task);
+  if (!canDelete) {
     throw forbidden('只能删除自己创建或负责的任务');
   }
 

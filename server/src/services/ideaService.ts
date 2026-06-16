@@ -141,7 +141,8 @@ export async function listVisibleIdeas(
 
 export interface CreateIdeaParams {
   taskId: string;
-  projectId: string;
+  /** Owning project, or null for an idea on a no-project (pool) task (§8). */
+  projectId: string | null;
   authorId: string;
   body: string;
 }
@@ -194,7 +195,7 @@ export async function createIdea(
 export async function adoptIdea(
   db: Database,
   idea: IdeaRow,
-  projectId: string,
+  projectId: string | null,
   adopterId: string,
   rewardPoints: number,
   realtimeBus: RealtimeBus = bus,
@@ -224,7 +225,7 @@ export async function adoptIdea(
 export async function rejectIdea(
   db: Database,
   idea: IdeaRow,
-  projectId: string,
+  projectId: string | null,
   reviewerId: string,
   realtimeBus: RealtimeBus = bus,
 ): Promise<Idea> {
@@ -257,7 +258,7 @@ function publishIdeaChange(
   realtimeBus: RealtimeBus,
   type: string,
   idea: IdeaRow,
-  projectId: string,
+  projectId: string | null,
 ): void {
   publishChange(
     {

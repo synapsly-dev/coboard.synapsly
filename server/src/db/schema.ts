@@ -175,9 +175,12 @@ export const tasks = pgTable(
   'tasks',
   {
     id: primaryId,
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    // Nullable (§8): a NULL project_id is a "no-project" / task-pool task, shared
+    // with every logged-in user. Project tasks reference their owning project and
+    // are visible only to its members.
+    projectId: uuid('project_id').references(() => projects.id, {
+      onDelete: 'cascade',
+    }),
     title: text('title').notNull(),
     description: text('description'),
     status: taskStatusEnum('status').notNull().default('open'),
@@ -283,9 +286,11 @@ export const activities = pgTable(
     taskId: uuid('task_id')
       .notNull()
       .references(() => tasks.id, { onDelete: 'cascade' }),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    // Nullable (§8): mirrors tasks.project_id — a no-project task's activities
+    // carry a NULL project_id and fan out on the global (null-project) channel.
+    projectId: uuid('project_id').references(() => projects.id, {
+      onDelete: 'cascade',
+    }),
     actorId: uuid('actor_id')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),

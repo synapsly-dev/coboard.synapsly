@@ -57,6 +57,8 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 'task-1',
     projectId: 'project-1',
+    projectName: '示例项目',
+    projectKey: 'DEMO',
     title: '完成登录页面',
     description: null,
     status: 'open',
@@ -123,5 +125,30 @@ describe('TaskCard', () => {
   it('omits the points badge when points are null', () => {
     render(<TaskCard task={makeTask({ points: null })} projectId="project-1" permCtx={permCtx} />);
     expect(screen.queryByText(/点$/)).toBeNull();
+  });
+
+  it('shows the project badge only in all-projects mode (§8)', () => {
+    const { rerender } = render(
+      <TaskCard task={makeTask()} projectId="project-1" permCtx={permCtx} />,
+    );
+    // Default (per-project board): no project badge.
+    expect(screen.queryByText('示例项目')).toBeNull();
+
+    rerender(
+      <TaskCard task={makeTask()} projectId="all" permCtx={permCtx} showProjectBadge />,
+    );
+    expect(screen.getByText('示例项目')).toBeTruthy();
+  });
+
+  it('labels a no-project (pool) task 无项目 when showing the badge (§8)', () => {
+    render(
+      <TaskCard
+        task={makeTask({ projectId: null, projectName: null, projectKey: null })}
+        projectId="all"
+        permCtx={permCtx}
+        showProjectBadge
+      />,
+    );
+    expect(screen.getByText('无项目')).toBeTruthy();
   });
 });

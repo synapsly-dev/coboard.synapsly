@@ -16,6 +16,8 @@ export interface SortableTaskCardProps {
   task: Task;
   projectId: string;
   permCtx: TaskPermissionContext;
+  /** Show the owning-project badge (the 全部项目 view, §8). */
+  showProjectBadge?: boolean;
   onOpen?: (taskId: string) => void;
 }
 
@@ -23,6 +25,7 @@ export function SortableTaskCard({
   task,
   projectId,
   permCtx,
+  showProjectBadge = false,
   onOpen,
 }: SortableTaskCardProps): JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -41,7 +44,13 @@ export function SortableTaskCard({
       {...attributes}
       {...listeners}
     >
-      <TaskCard task={task} projectId={projectId} permCtx={permCtx} onOpen={onOpen} />
+      <TaskCard
+        task={task}
+        projectId={projectId}
+        permCtx={permCtx}
+        showProjectBadge={showProjectBadge}
+        onOpen={onOpen}
+      />
     </div>
   );
 }

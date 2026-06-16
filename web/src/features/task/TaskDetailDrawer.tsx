@@ -122,7 +122,10 @@ interface DrawerInnerProps {
 function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProps): JSX.Element {
   const { user } = useAuth();
   const { data: task, isLoading } = useTask(taskId);
-  const { data: members } = useProjectMembers(projectId);
+  // Resolve members from the task's OWN project, not the board's `projectId` (which
+  // is the "all" sentinel in the 全部项目 view). A no-project (pool) task has no
+  // members, so the members query stays disabled (§8).
+  const { data: members } = useProjectMembers(task?.projectId ?? undefined);
   const { data: comments, isLoading: commentsLoading } = useComments(taskId);
   const { data: ideas } = useTaskIdeas(taskId);
   const { data: activities, isLoading: activitiesLoading } = useActivities(taskId);
@@ -155,8 +158,8 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
 
   const editable = canEditTask(permCtx, task);
   const deletable = canDeleteTask(permCtx, task);
-  const assignable = canAssign(permCtx);
-  const manager = isManager(permCtx);
+  const assignable = canAssign(permCtx, task);
+  const manager = isManager(permCtx, task);
   const showDeliver = canDeliver(permCtx, task);
   const showReview = canReview(permCtx, task);
   const meClaimant = isClaimant(permCtx, task);
@@ -387,7 +390,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
         </div>
 
         {/* Attachments — used to deliver file content (§7.2) */}
-        <AttachmentSection taskId={task.id} permCtx={permCtx} />
+        <AttachmentSection task={task} permCtx={permCtx} />
 
         {/* Tabs: comments / activity */}
         <div>
@@ -415,7 +418,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           {tab === 'comments' ? (
             <div className="flex flex-col gap-4">
               <CommentList
-                taskId={task.id}
+                task={task}
                 comments={comments ?? []}
                 isLoading={commentsLoading}
                 members={memberList}
@@ -424,7 +427,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               <CommentComposer taskId={task.id} members={memberList} />
             </div>
           ) : tab === 'ideas' ? (
-            <IdeaSection taskId={task.id} permCtx={permCtx} />
+            <IdeaSection task={task} permCtx={permCtx} />
           ) : (
             <ActivityTimeline activities={activities ?? []} isLoading={activitiesLoading} />
           )}

@@ -38,13 +38,27 @@ import { queryKeys } from '../lib/query';
 // Low-level fetchers — shared by hooks and mutation reconciliation.
 // ---------------------------------------------------------------------------
 
+/**
+ * Sentinel projectId for the "全部项目" board (§8). Used as the `:projectId` route
+ * param and as the cache key for {@link useAllTasks}; `queryKeys.allTasks()` is
+ * `queryKeys.board(ALL_PROJECTS)` so the optimistic helpers reuse that cache.
+ */
+export const ALL_PROJECTS = 'all';
+
 export const tasksApi = {
   board: (projectId: string, signal?: AbortSignal): Promise<BoardResponse> =>
     api.get<BoardResponse>(`/projects/${projectId}/tasks`, { signal }),
+  /** Every task the caller can see across projects + the no-project pool (§8). */
+  all: (signal?: AbortSignal): Promise<BoardResponse> =>
+    api.get<BoardResponse>('/tasks/all', { signal }),
   get: (taskId: string, signal?: AbortSignal): Promise<TaskResponse> =>
     api.get<TaskResponse>(`/tasks/${taskId}`, { signal }),
-  create: (projectId: string, body: CreateTaskInput): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/projects/${projectId}/tasks`, body),
+  /**
+   * Unified create (§8 POST /tasks). With `projectId` → a project task (caller
+   * must be a member); without → a no-project (pool) task.
+   */
+  create: (body: CreateTaskInput): Promise<TaskResponse> =>
+    api.post<TaskResponse>('/tasks', body),
   update: (taskId: string, body: UpdateTaskInput): Promise<TaskResponse> =>
     api.patch<TaskResponse>(`/tasks/${taskId}`, body),
   claim: (taskId: string): Promise<TaskResponse> =>
@@ -78,6 +92,22 @@ export function useBoardTasks(projectId: string | undefined): UseQueryResult<Tas
       return res.tasks;
     },
     enabled: projectId !== undefined,
+  });
+}
+
+/**
+ * All tasks visible to the current user — their member projects' tasks plus every
+ * no-project (pool) task (§8 GET /tasks/all). Powers the "全部项目" board; each
+ * task carries `projectName`/`projectKey` (null for pool tasks) for the badge.
+ */
+export function useAllTasks(enabled = true): UseQueryResult<Task[]> {
+  return useQuery<Task[]>({
+    queryKey: queryKeys.allTasks(),
+    queryFn: async ({ signal }) => {
+      const res = await tasksApi.all(signal);
+      return res.tasks;
+    },
+    enabled,
   });
 }
 
@@ -169,6 +199,10 @@ function invalidateTask(
   taskId: string,
 ): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.board(projectId) });
+  // The "全部项目" board (§8) aggregates every visible task, so a mutation issued
+  // from a project board must also refresh it (and vice-versa). Idempotent when
+  // projectId === ALL_PROJECTS (same key).
+  void queryClient.invalidateQueries({ queryKey: queryKeys.allTasks() });
   void queryClient.invalidateQueries({ queryKey: queryKeys.task(taskId) });
   void queryClient.invalidateQueries({ queryKey: queryKeys.activities(taskId) });
   // Completing/reopening shifts contribution stats.
@@ -180,17 +214,21 @@ function invalidateTask(
 // ---------------------------------------------------------------------------
 
 /**
- * Create a task (§7 POST /projects/:id/tasks). No optimistic insert (the server
- * mints id/rank/timestamps); we simply refetch the board on success.
+ * Create a task via the unified endpoint (§8 POST /tasks). The body carries an
+ * optional `projectId`: present → a project task (caller must be a member);
+ * absent/null → a no-project (pool) task. No optimistic insert (the server mints
+ * id/rank/timestamps); we refetch the affected project board (when scoped) and the
+ * "全部项目" board on success.
  */
-export function useCreateTask(
-  projectId: string,
-): UseMutationResult<TaskResponse, Error, CreateTaskInput> {
+export function useCreateTask(): UseMutationResult<TaskResponse, Error, CreateTaskInput> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, CreateTaskInput>({
-    mutationFn: (body) => tasksApi.create(projectId, body),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.board(projectId) });
+    mutationFn: (body) => tasksApi.create(body),
+    onSuccess: (_data, body) => {
+      if (body.projectId) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.board(body.projectId) });
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.allTasks() });
     },
   });
 }

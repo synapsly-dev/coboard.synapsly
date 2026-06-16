@@ -10,7 +10,8 @@ import {
   type IdeasWithContextResponse,
 } from 'shared';
 import { projectMembers, type UserRow } from '../db/schema.js';
-import { requireAuth, requireProjectLead, requireProjectMember } from '../lib/guards.js';
+import { forbidden } from '../lib/errors.js';
+import { requireAuth, requireTaskVisibility } from '../lib/guards.js';
 import { parseBody, parseParams, parseQuery } from '../lib/validate.js';
 import { loadTaskOrThrow } from '../services/commentService.js';
 import {
@@ -60,8 +61,8 @@ const ideasRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/tasks/:id/ideas', async (request): Promise<IdeasResponse> => {
     const { id } = parseParams(idParamSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
-    // Project membership (admins included) gates visibility.
-    await requireProjectMember(db, request, task.projectId);
+    // Project membership (project task) or any authenticated user (pool task, §8).
+    await requireTaskVisibility(db, request, task);
 
     const ideas = await listTaskIdeas(db, id);
     return { ideas };
@@ -73,8 +74,8 @@ const ideasRoutes: FastifyPluginAsync = async (fastify) => {
     const input = parseBody(createIdeaInputSchema, request.body);
 
     const task = await loadTaskOrThrow(db, id);
-    // Any project member may post an idea (§7.1).
-    const { user } = await requireProjectMember(db, request, task.projectId);
+    // Any project member (project task) or any authenticated user (pool task, §8).
+    const { user } = await requireTaskVisibility(db, request, task);
 
     const idea = await createIdea(
       db,
@@ -108,8 +109,12 @@ const ideasRoutes: FastifyPluginAsync = async (fastify) => {
 
     const idea = await loadIdeaOrThrow(db, id);
     const task = await loadTaskOrThrow(db, idea.taskId);
-    // Project lead / global admin only.
-    const { user } = await requireProjectLead(db, request, task.projectId);
+    // Project lead / global admin (project task), or the task creator / admin (pool
+    // task, §8) — the lead-equivalent is carried in `isLead`.
+    const { user, isLead } = await requireTaskVisibility(db, request, task);
+    if (!isLead) {
+      throw forbidden('需要项目负责人权限');
+    }
 
     const adopted = await adoptIdea(
       db,
@@ -128,8 +133,12 @@ const ideasRoutes: FastifyPluginAsync = async (fastify) => {
 
     const idea = await loadIdeaOrThrow(db, id);
     const task = await loadTaskOrThrow(db, idea.taskId);
-    // Project lead / global admin only.
-    const { user } = await requireProjectLead(db, request, task.projectId);
+    // Project lead / global admin (project task), or the task creator / admin (pool
+    // task, §8) — the lead-equivalent is carried in `isLead`.
+    const { user, isLead } = await requireTaskVisibility(db, request, task);
+    if (!isLead) {
+      throw forbidden('需要项目负责人权限');
+    }
 
     const rejected = await rejectIdea(db, idea, task.projectId, user.id, bus);
     return { idea: rejected };

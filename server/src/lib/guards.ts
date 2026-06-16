@@ -116,16 +116,71 @@ export async function requireProjectLead(
 }
 
 /**
- * Whether `user` may edit/delete `task` within `membership` (§6.3):
+ * Resolved access context for a task (§6.3 / §8), produced by
+ * {@link requireTaskVisibility}. For a project task `membership` is the caller's
+ * project membership; for a no-project (pool) task it is null (any authenticated user
+ * may see it). `isLead` is the lead-equivalent manager flag: a project lead/admin for
+ * a project task, or the creator/admin for a no-project task.
+ */
+export interface TaskAccessContext {
+  user: UserRow;
+  membership: ProjectMembership | null;
+  isLead: boolean;
+}
+
+/**
+ * Resolve who the caller is relative to `task`, enforcing visibility (§6.3 / §8):
+ * - project task: the caller must be a member (or global admin) → 403 otherwise.
+ * - no-project (pool) task: visible to every authenticated active user.
+ *
+ * `isLead` carries the lead-equivalent manage flag so callers can gate reviews /
+ * dispatch / member-removal uniformly across project and pool tasks.
+ */
+export async function requireTaskVisibility(
+  db: Database,
+  request: FastifyRequest,
+  task: TaskRow,
+): Promise<TaskAccessContext> {
+  if (task.projectId === null) {
+    const user = requireAuth(request);
+    return { user, membership: null, isLead: canEditNoProjectTask(user, task) };
+  }
+  const membership = await requireProjectMember(db, request, task.projectId);
+  const isLead =
+    membership.projectRole === 'lead' || membership.user.role === 'admin';
+  return { user: membership.user, membership, isLead };
+}
+
+/**
+ * Whether `user` may edit/delete a *project* `task` within `membership` (§6.3):
  * - global admin: yes
  * - project lead: yes (any task in the project)
- * - member: only tasks they created or are assigned to
+ * - member: only tasks they created
+ *
+ * No-project (task-pool) tasks have no project/lead and are governed by
+ * {@link canEditNoProjectTask} instead (§8); this helper assumes a project task.
  */
 export function canEditTask(membership: ProjectMembership, task: TaskRow): boolean {
   const { user, projectRole } = membership;
   if (user.role === 'admin') return true;
   if (projectRole === 'lead') return true;
-  return task.createdBy === user.id || task.assigneeId === user.id;
+  return task.createdBy === user.id;
+}
+
+/**
+ * Whether `user` may edit/delete/assign a no-project (task-pool) task (§8). With no
+ * project lead, the gate is: the task creator OR a global admin.
+ */
+export function canEditNoProjectTask(user: UserRow, task: TaskRow): boolean {
+  return user.role === 'admin' || task.createdBy === user.id;
+}
+
+/**
+ * Whether `user` may review (approve/reject) a no-project task (§8): the task
+ * creator OR a global admin (no project lead exists for pool tasks).
+ */
+export function canReviewNoProjectTask(user: UserRow, task: TaskRow): boolean {
+  return user.role === 'admin' || task.createdBy === user.id;
 }
 
 /** Throwing variant of canEditTask. */

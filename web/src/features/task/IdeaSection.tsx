@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Lightbulb, Send, X } from 'lucide-react';
-import type { Idea, IdeaStatus } from 'shared';
+import type { Idea, IdeaStatus, Task } from 'shared';
 import { adoptIdeaInputSchema, createIdeaInputSchema } from 'shared';
 import {
   Avatar,
@@ -40,13 +40,14 @@ const IDEA_STATUS_VARIANT: Record<IdeaStatus, BadgeVariant> = {
 };
 
 export interface IdeaSectionProps {
-  taskId: string;
+  task: Task;
   permCtx: TaskPermissionContext;
 }
 
-export function IdeaSection({ taskId, permCtx }: IdeaSectionProps): JSX.Element {
+export function IdeaSection({ task, permCtx }: IdeaSectionProps): JSX.Element {
+  const taskId = task.id;
   const { data: ideas, isLoading } = useTaskIdeas(taskId);
-  const manager = isManager(permCtx);
+  const manager = isManager(permCtx, task);
 
   return (
     <div className="flex flex-col gap-4">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarClock, PackageCheck } from 'lucide-react';
+import { CalendarClock, FolderKanban, PackageCheck } from 'lucide-react';
 import type { Task } from 'shared';
 import { Badge, Button } from '../../components/ui';
 import { cn } from '../../lib/utils';
@@ -29,6 +29,11 @@ export interface TaskCardProps {
   projectId: string;
   /** Current user + project role; drives which actions appear. */
   permCtx?: TaskPermissionContext;
+  /**
+   * Show the owning-project badge (§8). Only set in the 全部项目 view; uses the
+   * task's `projectName`/`projectKey`, or 「无项目」 for a no-project (pool) task.
+   */
+  showProjectBadge?: boolean;
   /** Open the detail drawer. */
   onOpen?: (taskId: string) => void;
   /** True while this card is the active drag overlay (subtle elevation). */
@@ -40,6 +45,7 @@ export function TaskCard({
   task,
   projectId,
   permCtx,
+  showProjectBadge = false,
   onOpen,
   dragging = false,
   className,
@@ -72,6 +78,20 @@ export function TaskCard({
         }
       }}
     >
+      {/* Owning-project badge (全部项目 view only, §8). */}
+      {showProjectBadge && (
+        <Badge
+          variant="outline"
+          className="self-start gap-1"
+          title={task.projectName ?? '无项目（任务池）'}
+        >
+          <FolderKanban className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="max-w-[10rem] truncate">
+            {task.projectName ?? '无项目'}
+          </span>
+        </Badge>
+      )}
+
       {/* Priority + points row */}
       <div className="flex items-center justify-between gap-2">
         <Badge variant={priority.variant} className="gap-1">

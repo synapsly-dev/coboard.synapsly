@@ -31,7 +31,8 @@ function safeParse(raw: string): RealtimeEvent | null {
     const parsed = JSON.parse(raw) as Partial<RealtimeEvent>;
     if (
       parsed &&
-      typeof parsed.projectId === 'string' &&
+      // §8: a no-project (pool) event carries projectId === null.
+      (typeof parsed.projectId === 'string' || parsed.projectId === null) &&
       typeof parsed.entity === 'string'
     ) {
       return parsed as RealtimeEvent;
@@ -53,8 +54,12 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
 
   switch (entity) {
     case 'task': {
-      // Board for the project + (if known) the individual task detail.
-      void queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });
+      // Board for the project (when scoped) + the "全部项目" board (§8), which
+      // aggregates project tasks AND no-project pool tasks (projectId === null).
+      if (projectId) {
+        void queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['projects', 'all', 'tasks'] });
       if (taskId) {
         void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
         // A task event also carries attachment changes (§7.2 file upload/delete).

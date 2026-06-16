@@ -42,6 +42,12 @@ export const queryKeys = {
   project: (projectId: string) => ['projects', projectId] as const,
   projectMembers: (projectId: string) => ['projects', projectId, 'members'] as const,
   board: (projectId: string) => ['projects', projectId, 'tasks'] as const,
+  /**
+   * The "全部项目" board (§8 GET /tasks/all). Deliberately shares the
+   * `board('all')` shape so the optimistic-update helpers (which key on a
+   * `projectId`) operate on this cache when the board is in all-projects mode.
+   */
+  allTasks: () => ['projects', 'all', 'tasks'] as const,
   task: (taskId: string) => ['tasks', taskId] as const,
   comments: (taskId: string) => ['tasks', taskId, 'comments'] as const,
   activities: (taskId: string) => ['tasks', taskId, 'activities'] as const,

@@ -53,6 +53,8 @@ function makeTask(overrides: Partial<Task> = {}): Task {
   return {
     id: 'task-1',
     projectId: 'project-1',
+    projectName: '示例项目',
+    projectKey: 'DEMO',
     title: '任务',
     description: null,
     status: 'open',

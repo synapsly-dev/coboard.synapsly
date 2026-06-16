@@ -17,6 +17,8 @@ export interface ColumnProps {
   projectId: string;
   /** Current user + project role; forwarded to each card for action gating. */
   permCtx: TaskPermissionContext;
+  /** Show a per-card owning-project badge (the 全部项目 view, §8). */
+  showProjectBadge?: boolean;
   onOpenTask?: (taskId: string) => void;
 }
 
@@ -32,6 +34,7 @@ export function Column({
   tasks,
   projectId,
   permCtx,
+  showProjectBadge = false,
   onOpenTask,
 }: ColumnProps): JSX.Element {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: 'column', status } });
@@ -66,6 +69,7 @@ export function Column({
               task={task}
               projectId={projectId}
               permCtx={permCtx}
+              showProjectBadge={showProjectBadge}
               onOpen={onOpenTask}
             />
           ))}

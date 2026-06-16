@@ -7,7 +7,7 @@ import {
   type CommentsResponse,
 } from 'shared';
 import { forbidden } from '../lib/errors.js';
-import { requireProjectMember } from '../lib/guards.js';
+import { requireTaskVisibility } from '../lib/guards.js';
 import { parseBody, parseParams } from '../lib/validate.js';
 import {
   createComment,
@@ -37,8 +37,8 @@ const commentsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/tasks/:id/comments', async (request): Promise<CommentsResponse> => {
     const { id } = parseParams(idParamSchema, request.params);
     const task = await loadTaskOrThrow(fastify.db, id);
-    // Project membership (admins included) gates visibility.
-    await requireProjectMember(fastify.db, request, task.projectId);
+    // Project membership (project task) or any authenticated user (pool task, §8).
+    await requireTaskVisibility(fastify.db, request, task);
 
     const comments = await listComments(fastify.db, id);
     return { comments };
@@ -50,8 +50,8 @@ const commentsRoutes: FastifyPluginAsync = async (fastify) => {
     const input = parseBody(createCommentInputSchema, request.body);
 
     const task = await loadTaskOrThrow(fastify.db, id);
-    // Any project member may comment (§6.3).
-    const { user } = await requireProjectMember(fastify.db, request, task.projectId);
+    // Any project member (project task) or any authenticated user (pool task, §8).
+    const { user } = await requireTaskVisibility(fastify.db, request, task);
 
     const comment = await createComment(
       fastify.db,
@@ -75,7 +75,7 @@ const commentsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const comment = await loadCommentOrThrow(fastify.db, id);
     const task = await loadTaskOrThrow(fastify.db, comment.taskId);
-    const { user } = await requireProjectMember(fastify.db, request, task.projectId);
+    const { user } = await requireTaskVisibility(fastify.db, request, task);
 
     // Only the original author may edit their comment (§7).
     if (comment.authorId !== user.id) {
@@ -102,12 +102,12 @@ const commentsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const comment = await loadCommentOrThrow(fastify.db, id);
     const task = await loadTaskOrThrow(fastify.db, comment.taskId);
-    const membership = await requireProjectMember(fastify.db, request, task.projectId);
+    const { user, isLead } = await requireTaskVisibility(fastify.db, request, task);
 
-    // Author, project lead, or global admin may delete (§6.3).
-    const isAuthor = comment.authorId === membership.user.id;
-    const isLeadOrAdmin = membership.projectRole === 'lead';
-    if (!isAuthor && !isLeadOrAdmin) {
+    // Author, project lead/admin, or — for a pool task — the task creator/admin may
+    // delete (§6.3 / §8, the lead-equivalent is carried in `isLead`).
+    const isAuthor = comment.authorId === user.id;
+    if (!isAuthor && !isLead) {
       throw forbidden('只能删除自己发表的评论');
     }
 
@@ -119,7 +119,7 @@ const commentsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/tasks/:id/activities', async (request): Promise<ActivitiesResponse> => {
     const { id } = parseParams(idParamSchema, request.params);
     const task = await loadTaskOrThrow(fastify.db, id);
-    await requireProjectMember(fastify.db, request, task.projectId);
+    await requireTaskVisibility(fastify.db, request, task);
 
     const activities = await listActivities(fastify.db, id);
     return { activities };
