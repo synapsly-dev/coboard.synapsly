@@ -6,7 +6,13 @@ import {
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AuthUserResponse, LoginInput, RegisterInput, User } from 'shared';
+import type {
+  AuthUserResponse,
+  LoginInput,
+  RegisterInput,
+  UpdateProfileInput,
+  User,
+} from 'shared';
 import { api, isApiClientError } from '../api/client';
 import { queryKeys } from './query';
 
@@ -26,6 +32,8 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<User>;
   /** Self-register a member account; logs in on success (§8). */
   register: (input: RegisterInput) => Promise<User>;
+  /** Update the current user's own profile (e.g. display name). */
+  updateProfile: (input: UpdateProfileInput) => Promise<User>;
   logout: () => Promise<void>;
   /** Convenience: is the current user a global admin (§6.3). */
   isAdmin: boolean;
@@ -76,15 +84,27 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     [queryClient],
   );
 
+  const updateProfile = useCallback(
+    async (input: UpdateProfileInput): Promise<User> => {
+      const res = await api.patch<AuthUserResponse>('/auth/profile', input);
+      queryClient.setQueryData(queryKeys.me(), res.user);
+      return res.user;
+    },
+    [queryClient],
+  );
+
   const logout = useCallback(async (): Promise<void> => {
+    // Never throw: a failed logout request must not block clearing local state
+    // (callers navigate to /login afterwards regardless).
     try {
       await api.post('/auth/logout');
-    } finally {
-      // Drop the session locally and clear cached, now-stale data regardless of
-      // the network outcome.
-      queryClient.setQueryData(queryKeys.me(), null);
-      await queryClient.invalidateQueries();
+    } catch {
+      // ignore — the session is cleared locally below.
     }
+    // Drop the session and remove all cached (now-stale) data WITHOUT triggering
+    // a refetch storm that could hang the caller's `await`.
+    queryClient.setQueryData(queryKeys.me(), null);
+    queryClient.removeQueries();
   }, [queryClient]);
 
   const user = meQuery.data ?? null;
@@ -97,9 +117,10 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       isAdmin: user?.role === 'admin',
       login,
       register,
+      updateProfile,
       logout,
     }),
-    [user, meQuery.isLoading, login, register, logout],
+    [user, meQuery.isLoading, login, register, updateProfile, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

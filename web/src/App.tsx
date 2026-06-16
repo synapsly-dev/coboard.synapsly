@@ -24,6 +24,7 @@ import BoardPage from './pages/BoardPage';
 import StatsPage from './pages/StatsPage';
 import AdminPage from './pages/AdminPage';
 import AccountPasswordPage from './pages/AccountPassword';
+import AccountProfilePage from './pages/AccountProfile';
 
 /**
  * App root (§4). Wires providers (Query → Auth → Tooltip), mounts the realtime
@@ -115,6 +116,7 @@ function AuthedRoutes(): JSX.Element {
         />
         {/* Account self-service (e.g. change password) lives under the shell. */}
         <Route path="/account/password" element={<AccountPasswordPage />} />
+        <Route path="/account/profile" element={<AccountProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

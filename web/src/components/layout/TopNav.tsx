@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { LayoutGrid, LogOut, BarChart3, Settings, KeyRound } from 'lucide-react';
+import { LayoutGrid, LogOut, BarChart3, Settings, KeyRound, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -49,7 +49,9 @@ export function TopNav(): JSX.Element {
 
   const handleLogout = async (): Promise<void> => {
     await logout();
-    navigate('/login', { replace: true });
+    // Full reload to /login guarantees a clean app boot (fresh, unauthenticated
+    // state) regardless of any in-flight SPA state.
+    window.location.assign('/login');
   };
 
   return (
@@ -126,6 +128,10 @@ export function TopNav(): JSX.Element {
                   })}
                   <DropdownMenuSeparator />
                 </div>
+                <DropdownMenuItem onSelect={() => navigate('/account/profile')}>
+                  <UserCog className="h-4 w-4" aria-hidden />
+                  修改资料
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate('/account/password')}>
                   <KeyRound className="h-4 w-4" aria-hidden />
                   修改密码

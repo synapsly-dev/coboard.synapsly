@@ -3,6 +3,7 @@ import {
   changePasswordInputSchema,
   loginInputSchema,
   registerInputSchema,
+  updateProfileInputSchema,
   type AuthUserResponse,
   type RegistrationStatus,
 } from 'shared';
@@ -22,7 +23,7 @@ import {
   reloadUser,
 } from '../services/authService.js';
 import { getRegistrationSettings } from '../services/settingsService.js';
-import { serializeUser } from '../services/userService.js';
+import { serializeUser, updateUser } from '../services/userService.js';
 
 /**
  * Auth routes (§7, §8): POST /auth/login (rate-limited; argon2 verify + session
@@ -112,6 +113,16 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/auth/me', async (request): Promise<AuthUserResponse> => {
     const user = requireAuth(request);
     return { user: serializeUser(user) };
+  });
+
+  // Self-service profile update — display name only (cannot change role/status).
+  fastify.patch('/auth/profile', async (request): Promise<AuthUserResponse> => {
+    const user = requireAuth(request);
+    const input = parseBody(updateProfileInputSchema, request.body);
+    const updated = await updateUser(fastify.db, user.id, {
+      displayName: input.displayName,
+    });
+    return { user: serializeUser(updated) };
   });
 
   fastify.post('/auth/password', async (request, reply): Promise<AuthUserResponse> => {

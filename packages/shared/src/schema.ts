@@ -203,6 +203,12 @@ export const changePasswordInputSchema = z.object({
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordInputSchema>;
 
+/** PATCH /auth/profile — update the current user's own profile (display name). */
+export const updateProfileInputSchema = z.object({
+  displayName: displayNameSchema,
+});
+export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>;
+
 // ---------------------------------------------------------------------------
 // Self-registration (admin-gated by an invite code) (§8, §11 moved into v1)
 // ---------------------------------------------------------------------------
