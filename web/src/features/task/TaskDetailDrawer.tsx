@@ -32,6 +32,7 @@ import {
   Textarea,
 } from '../../components/ui';
 import { useAuth } from '../../lib/auth-context';
+import { avatarUrl } from '../../lib/utils';
 import {
   useAssignTask,
   usePatchTask,
@@ -215,7 +216,12 @@ function DrawerInner({ taskId, projectId, onClose }: DrawerInnerProps): JSX.Elem
             <div className="flex flex-1 flex-wrap items-center gap-2">
               {assignee ? (
                 <span className="inline-flex items-center gap-2">
-                  <Avatar name={assignee.displayName} color={assignee.avatarColor} size="xs" />
+                  <Avatar
+                    name={assignee.displayName}
+                    color={assignee.avatarColor}
+                    imageUrl={assignee.hasAvatar ? avatarUrl(assignee.id) : undefined}
+                    size="xs"
+                  />
                   <span className="text-sm">{assignee.displayName}</span>
                 </span>
               ) : task.assigneeId ? (

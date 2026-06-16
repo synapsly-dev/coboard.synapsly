@@ -23,7 +23,6 @@ import RegisterPage from './pages/Register';
 import BoardPage from './pages/BoardPage';
 import StatsPage from './pages/StatsPage';
 import AdminPage from './pages/AdminPage';
-import AccountPasswordPage from './pages/AccountPassword';
 import AccountProfilePage from './pages/AccountProfile';
 
 /**
@@ -114,8 +113,12 @@ function AuthedRoutes(): JSX.Element {
             </RequireAdmin>
           }
         />
-        {/* Account self-service (e.g. change password) lives under the shell. */}
-        <Route path="/account/password" element={<AccountPasswordPage />} />
+        {/* Account self-service (avatar / name / password) lives under the shell. */}
+        {/* Old bookmark: 修改密码 now lives inside the profile page. */}
+        <Route
+          path="/account/password"
+          element={<Navigate to="/account/profile" replace />}
+        />
         <Route path="/account/profile" element={<AccountProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

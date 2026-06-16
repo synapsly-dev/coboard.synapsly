@@ -56,6 +56,8 @@ export const userSchema = z.object({
   avatarColor: avatarColorSchema,
   role: userRoleSchema,
   isActive: z.boolean(),
+  /** Whether the user has uploaded a profile picture (fetch via /users/:id/avatar). */
+  hasAvatar: z.boolean(),
   createdAt: isoDateTimeSchema,
 });
 export type User = z.infer<typeof userSchema>;
@@ -208,6 +210,16 @@ export const updateProfileInputSchema = z.object({
   displayName: displayNameSchema,
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>;
+
+/**
+ * POST /auth/avatar — upload a profile picture. `image` is a data URL such as
+ * `data:image/jpeg;base64,<...>`. The server re-validates the mime + decoded
+ * byte size; the 2 MB string cap here is a coarse upper bound on the request.
+ */
+export const updateAvatarInputSchema = z.object({
+  image: z.string().min(1).max(2_000_000),
+});
+export type UpdateAvatarInput = z.infer<typeof updateAvatarInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Self-registration (admin-gated by an invite code) (§8, §11 moved into v1)

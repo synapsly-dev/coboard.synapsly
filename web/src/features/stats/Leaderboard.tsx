@@ -1,7 +1,7 @@
 import { Medal, Trophy } from 'lucide-react';
 import type { LeaderboardEntry, StatsSort } from 'shared';
 import { Avatar, Badge, EmptyState, Spinner } from '../../components/ui';
-import { cn } from '../../lib/utils';
+import { avatarUrl, cn } from '../../lib/utils';
 
 /**
  * Contribution leaderboard (§6.4 排行榜). Ranked per-user list with avatar,
@@ -105,6 +105,7 @@ export function Leaderboard({
             <Avatar
               name={entry.user.displayName}
               color={entry.user.avatarColor}
+              imageUrl={entry.user.hasAvatar ? avatarUrl(entry.user.id) : undefined}
               size="sm"
               className={medal?.ring}
             />

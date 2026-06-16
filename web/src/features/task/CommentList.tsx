@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react';
 import type { CommentWithAuthor, ProjectMemberWithUser } from 'shared';
 import { updateCommentInputSchema } from 'shared';
 import { Avatar, Button, Spinner, Textarea } from '../../components/ui';
+import { avatarUrl } from '../../lib/utils';
 import { useAuth } from '../../lib/auth-context';
 import { isApiClientError } from '../../api/client';
 import { useDeleteComment, useUpdateComment } from '../../api/comments';
@@ -104,6 +105,7 @@ function CommentItem({ taskId, comment, members, permCtx }: CommentItemProps): J
       <Avatar
         name={comment.author.displayName}
         color={comment.author.avatarColor}
+        imageUrl={comment.author.hasAvatar ? avatarUrl(comment.author.id) : undefined}
         size="sm"
         className="mt-0.5"
       />

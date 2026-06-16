@@ -1,7 +1,7 @@
 import { CalendarClock, MessageSquare } from 'lucide-react';
 import type { User, Task } from 'shared';
 import { Avatar, Badge } from '../../components/ui';
-import { cn } from '../../lib/utils';
+import { avatarUrl, cn } from '../../lib/utils';
 import { ClaimButton } from './ClaimButton';
 import { dueInfo } from './format';
 import { PRIORITY_BADGE, PRIORITY_LABELS } from './labels';
@@ -91,7 +91,12 @@ export function TaskCard({
 
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {task.assigneeId && assignee ? (
-            <Avatar name={assignee.displayName} color={assignee.avatarColor} size="xs" />
+            <Avatar
+              name={assignee.displayName}
+              color={assignee.avatarColor}
+              imageUrl={assignee.hasAvatar ? avatarUrl(assignee.id) : undefined}
+              size="xs"
+            />
           ) : task.assigneeId ? (
             // Assignee present but not resolvable (e.g. not loaded) — neutral dot.
             <span

@@ -25,6 +25,7 @@ import {
 } from '../../api/projects';
 import { useUsers } from '../../api/users';
 import { useAuth } from '../../lib/auth-context';
+import { avatarUrl } from '../../lib/utils';
 import { projectRoleLabels } from './labels';
 
 /**
@@ -185,7 +186,12 @@ function MembersBody({ project }: { project: Project }): JSX.Element {
             const rowPending = pendingUserId === m.userId;
             return (
               <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                <Avatar name={m.user.displayName} color={m.user.avatarColor} size="sm" />
+                <Avatar
+                  name={m.user.displayName}
+                  color={m.user.avatarColor}
+                  imageUrl={m.user.hasAvatar ? avatarUrl(m.user.id) : undefined}
+                  size="sm"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                     <span className="truncate">{m.user.displayName}</span>

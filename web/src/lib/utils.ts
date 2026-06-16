@@ -10,6 +10,16 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
+ * URL of a user's uploaded avatar image (served by GET /api/users/:id/avatar).
+ * Radix Avatar falls back to initials automatically when the user has none and
+ * the request 404s, so callers can pass this unconditionally — but in practice
+ * we only pass it when `user.hasAvatar` is true to avoid a wasted request.
+ */
+export function avatarUrl(userId: string): string {
+  return `/api/users/${userId}/avatar`;
+}
+
+/**
  * Derive up-to-2-character initials from a display name for avatar fallbacks.
  * Handles CJK names (single glyph) and latin names ("Ada Lovelace" -> "AL").
  */

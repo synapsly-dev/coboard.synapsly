@@ -34,6 +34,10 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<User>;
   /** Update the current user's own profile (e.g. display name). */
   updateProfile: (input: UpdateProfileInput) => Promise<User>;
+  /** Upload the current user's avatar (a `data:image/...;base64,...` URL). */
+  updateAvatar: (image: string) => Promise<User>;
+  /** Remove the current user's avatar. */
+  removeAvatar: () => Promise<User>;
   logout: () => Promise<void>;
   /** Convenience: is the current user a global admin (§6.3). */
   isAdmin: boolean;
@@ -93,6 +97,21 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     [queryClient],
   );
 
+  const updateAvatar = useCallback(
+    async (image: string): Promise<User> => {
+      const res = await api.post<AuthUserResponse>('/auth/avatar', { image });
+      queryClient.setQueryData(queryKeys.me(), res.user);
+      return res.user;
+    },
+    [queryClient],
+  );
+
+  const removeAvatar = useCallback(async (): Promise<User> => {
+    const res = await api.delete<AuthUserResponse>('/auth/avatar');
+    queryClient.setQueryData(queryKeys.me(), res.user);
+    return res.user;
+  }, [queryClient]);
+
   const logout = useCallback(async (): Promise<void> => {
     // Never throw: a failed logout request must not block clearing local state
     // (callers navigate to /login afterwards regardless).
@@ -118,9 +137,20 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       login,
       register,
       updateProfile,
+      updateAvatar,
+      removeAvatar,
       logout,
     }),
-    [user, meQuery.isLoading, login, register, updateProfile, logout],
+    [
+      user,
+      meQuery.isLoading,
+      login,
+      register,
+      updateProfile,
+      updateAvatar,
+      removeAvatar,
+      logout,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

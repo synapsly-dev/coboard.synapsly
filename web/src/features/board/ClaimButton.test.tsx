@@ -17,6 +17,7 @@ const mockUser: User = {
   avatarColor: '#3b82f6',
   role: 'member',
   isActive: true,
+  hasAvatar: false,
   createdAt: '2026-06-01T00:00:00.000Z',
 };
 

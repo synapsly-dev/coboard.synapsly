@@ -57,12 +57,32 @@ export const users = pgTable(
     passwordHash: text('password_hash').notNull(),
     displayName: text('display_name').notNull(),
     avatarColor: text('avatar_color').notNull(),
+    // Mime of the uploaded avatar (e.g. 'image/jpeg') when one exists; null
+    // otherwise. Kept on the user row (vs the bytes) so list selects can derive
+    // `hasAvatar` cheaply without ever fetching the image data.
+    avatarMime: text('avatar_mime'),
     role: userRoleEnum('role').notNull().default('member'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt,
   },
   (table) => [uniqueIndex('users_email_uniq').on(table.email)],
 );
+
+// ---------------------------------------------------------------------------
+// user_avatars — uploaded profile-picture bytes, split off the users row so
+// user-list queries never pull big base64 blobs (Change 1).
+// ---------------------------------------------------------------------------
+
+export const userAvatars = pgTable('user_avatars', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  // Base64-encoded image bytes (no `data:` prefix).
+  data: text('data').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 // ---------------------------------------------------------------------------
 // sessions (§5)
@@ -242,6 +262,8 @@ export const settings = pgTable('settings', {
 
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
+export type UserAvatarRow = typeof userAvatars.$inferSelect;
+export type NewUserAvatarRow = typeof userAvatars.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
@@ -260,6 +282,7 @@ export type NewSettingRow = typeof settings.$inferInsert;
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
   users,
+  userAvatars,
   sessions,
   projects,
   projectMembers,

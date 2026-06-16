@@ -1,7 +1,7 @@
 import { CheckCircle2, Hash, TrendingUp } from 'lucide-react';
 import { Avatar, Spinner } from '../../components/ui';
 import { useAuth } from '../../lib/auth-context';
-import { cn } from '../../lib/utils';
+import { avatarUrl, cn } from '../../lib/utils';
 import { useMyStats } from '../../api/stats';
 
 /**
@@ -37,7 +37,12 @@ export function PersonalSummary({
       aria-label="我的贡献"
     >
       <div className="flex items-center gap-3">
-        <Avatar name={user.displayName} color={user.avatarColor} size="md" />
+        <Avatar
+          name={user.displayName}
+          color={user.avatarColor}
+          imageUrl={user.hasAvatar ? avatarUrl(user.id) : undefined}
+          size="md"
+        />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">
             {user.displayName}

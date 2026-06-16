@@ -16,6 +16,7 @@ function makeUser(overrides: Partial<User> & Pick<User, 'id' | 'displayName'>): 
     avatarColor: '#3b82f6',
     role: 'member',
     isActive: true,
+    hasAvatar: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };

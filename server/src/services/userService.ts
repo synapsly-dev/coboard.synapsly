@@ -7,10 +7,16 @@ import type {
   UserWithProjects,
 } from 'shared';
 import type { Database } from '../db/index.js';
-import { projectMembers, projects, users, type UserRow } from '../db/schema.js';
+import {
+  projectMembers,
+  projects,
+  userAvatars,
+  users,
+  type UserRow,
+} from '../db/schema.js';
 import { hashPassword } from '../auth/password.js';
 import { deleteUserSessions } from '../auth/session.js';
-import { conflict, notFound } from '../lib/errors.js';
+import { conflict, notFound, validationError } from '../lib/errors.js';
 
 /**
  * User domain service (§7 users-admin, §8). Owns account creation, listing, and
@@ -52,6 +58,7 @@ export function serializeUser(row: UserRow): User {
     avatarColor: row.avatarColor,
     role: row.role,
     isActive: row.isActive,
+    hasAvatar: row.avatarMime != null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -226,4 +233,149 @@ export async function updateUser(
   }
 
   return row;
+}
+
+// ---------------------------------------------------------------------------
+// Avatar upload (Change 1) — self-service profile pictures. The big base64 bytes
+// live in `user_avatars`; the users row only carries `avatar_mime` so list
+// selects stay light.
+// ---------------------------------------------------------------------------
+
+/** Allowed avatar mime types. */
+const AVATAR_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+type AvatarMime = (typeof AVATAR_MIME_TYPES)[number];
+
+/** Max decoded avatar size in bytes (a 256px JPEG is well under this). */
+const MAX_AVATAR_BYTES = 700_000;
+
+const DATA_URL_RE = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=\s]+)$/;
+
+export interface ParsedAvatar {
+  mime: AvatarMime;
+  /** Base64 body, no `data:` prefix and no whitespace. */
+  base64: string;
+  bytes: number;
+}
+
+/**
+ * Parse + validate an avatar data URL. Throws a 400 AppError when the format,
+ * mime, or decoded size is unacceptable. Returns the clean base64 body to store.
+ */
+export function parseAvatarDataUrl(image: string): ParsedAvatar {
+  const match = DATA_URL_RE.exec(image.trim());
+  if (!match) {
+    throw validationError('图片格式不正确，仅支持 PNG / JPEG / WebP');
+  }
+  const mime = match[1] as AvatarMime;
+  if (!AVATAR_MIME_TYPES.includes(mime)) {
+    throw validationError('不支持的图片类型');
+  }
+  const base64 = match[2]!.replace(/\s+/g, '');
+  let buffer: Buffer;
+  try {
+    buffer = Buffer.from(base64, 'base64');
+  } catch {
+    throw validationError('图片数据无法解析');
+  }
+  if (buffer.length === 0) {
+    throw validationError('图片数据为空');
+  }
+  if (buffer.length > MAX_AVATAR_BYTES) {
+    throw validationError('图片过大，请上传更小的头像');
+  }
+  return { mime, base64, bytes: buffer.length };
+}
+
+/**
+ * Store (or replace) a user's avatar: set `users.avatar_mime` and upsert the
+ * base64 bytes into `user_avatars`. Returns the refreshed user row. Throws 404
+ * if the user no longer exists.
+ */
+export async function setUserAvatar(
+  db: Database,
+  userId: string,
+  image: string,
+): Promise<UserRow> {
+  const parsed = parseAvatarDataUrl(image);
+
+  const updated = await db
+    .update(users)
+    .set({ avatarMime: parsed.mime })
+    .where(eq(users.id, userId))
+    .returning();
+  const row = updated[0];
+  if (!row) {
+    throw notFound('用户不存在');
+  }
+
+  await db
+    .insert(userAvatars)
+    .values({ userId, data: parsed.base64, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: userAvatars.userId,
+      set: { data: parsed.base64, updatedAt: new Date() },
+    });
+
+  return row;
+}
+
+/**
+ * Remove a user's avatar: clear `users.avatar_mime` and delete the bytes row.
+ * Returns the refreshed user row. Throws 404 if the user no longer exists.
+ */
+export async function clearUserAvatar(
+  db: Database,
+  userId: string,
+): Promise<UserRow> {
+  const updated = await db
+    .update(users)
+    .set({ avatarMime: null })
+    .where(eq(users.id, userId))
+    .returning();
+  const row = updated[0];
+  if (!row) {
+    throw notFound('用户不存在');
+  }
+
+  await db.delete(userAvatars).where(eq(userAvatars.userId, userId));
+  return row;
+}
+
+export interface AvatarData {
+  mime: string;
+  /** Raw decoded image bytes. */
+  bytes: Buffer;
+  /** A weak ETag value derived from the row's updated_at. */
+  etag: string;
+}
+
+/**
+ * Load a user's avatar bytes for the GET /users/:id/avatar endpoint. Joins the
+ * mime off `users` with the base64 body in `user_avatars`. Returns null when the
+ * user has no avatar so the route can 404. The base64 never leaks into any other
+ * response — it is only ever read here and decoded to raw bytes.
+ */
+export async function getUserAvatar(
+  db: Database,
+  userId: string,
+): Promise<AvatarData | null> {
+  const rows = await db
+    .select({
+      mime: users.avatarMime,
+      data: userAvatars.data,
+      updatedAt: userAvatars.updatedAt,
+    })
+    .from(users)
+    .innerJoin(userAvatars, eq(userAvatars.userId, users.id))
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row || !row.mime) {
+    return null;
+  }
+
+  const bytes = Buffer.from(row.data, 'base64');
+  const etag = `"${userId}-${row.updatedAt.getTime()}"`;
+  return { mime: row.mime, bytes, etag };
 }

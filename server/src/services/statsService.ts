@@ -43,6 +43,7 @@ function serializeUser(row: UserRow): User {
     avatarColor: row.avatarColor,
     role: row.role,
     isActive: row.isActive,
+    hasAvatar: row.avatarMime != null,
     createdAt: row.createdAt.toISOString(),
   };
 }

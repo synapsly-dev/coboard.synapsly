@@ -15,16 +15,23 @@ export interface AvatarProps {
   name: string;
   /** Hex background color (`users.avatarColor`, §5). */
   color: string;
+  /**
+   * Optional URL of an uploaded profile picture. When set, Radix shows the image
+   * and auto-falls back to initials while loading or on error. Pass it only when
+   * the user actually has one (e.g. `user.hasAvatar ? avatarUrl(user.id) : undefined`).
+   */
+  imageUrl?: string;
   size?: AvatarSize;
   className?: string;
 }
 
 /**
- * User avatar. v1 has no uploaded images, so it always renders initials on a
- * per-user background color (§5 users.avatar_color) with a contrast-safe
- * foreground. Built on Radix Avatar for a clean fallback contract.
+ * User avatar. Renders an uploaded image when `imageUrl` is provided, otherwise
+ * initials on a per-user background color (§5 users.avatar_color) with a
+ * contrast-safe foreground. Built on Radix Avatar, which falls back to the
+ * initials automatically while the image loads or if it fails.
  */
-export function Avatar({ name, color, size = 'md', className }: AvatarProps): JSX.Element {
+export function Avatar({ name, color, imageUrl, size = 'md', className }: AvatarProps): JSX.Element {
   const initials = initialsFromName(name);
   const fg = readableTextColor(color);
 
@@ -37,6 +44,13 @@ export function Avatar({ name, color, size = 'md', className }: AvatarProps): JS
       )}
       title={name}
     >
+      {imageUrl && (
+        <AvatarPrimitive.Image
+          src={imageUrl}
+          alt={name}
+          className="h-full w-full object-cover"
+        />
+      )}
       <AvatarPrimitive.Fallback
         className="flex h-full w-full items-center justify-center"
         style={{ backgroundColor: color, color: fg }}

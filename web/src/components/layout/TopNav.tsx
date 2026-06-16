@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { LayoutGrid, LogOut, BarChart3, Settings, KeyRound, UserCog } from 'lucide-react';
+import { LayoutGrid, LogOut, BarChart3, Settings, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -12,7 +12,7 @@ import {
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { useAuth } from '../../lib/auth-context';
 import { useProjects } from '../../api/projects';
-import { cn } from '../../lib/utils';
+import { avatarUrl, cn } from '../../lib/utils';
 
 /**
  * Top navigation bar (§4). Logo, project switcher, primary nav (看板 / 统计 /
@@ -103,7 +103,12 @@ export function TopNav(): JSX.Element {
                   className="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="用户菜单"
                 >
-                  <Avatar name={user.displayName} color={user.avatarColor} size="sm" />
+                  <Avatar
+                    name={user.displayName}
+                    color={user.avatarColor}
+                    imageUrl={user.hasAvatar ? avatarUrl(user.id) : undefined}
+                    size="sm"
+                  />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
@@ -131,10 +136,6 @@ export function TopNav(): JSX.Element {
                 <DropdownMenuItem onSelect={() => navigate('/account/profile')}>
                   <UserCog className="h-4 w-4" aria-hidden />
                   修改资料
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => navigate('/account/password')}>
-                  <KeyRound className="h-4 w-4" aria-hidden />
-                  修改密码
                 </DropdownMenuItem>
                 <DropdownMenuItem destructive onSelect={() => void handleLogout()}>
                   <LogOut className="h-4 w-4" aria-hidden />

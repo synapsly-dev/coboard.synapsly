@@ -1,5 +1,6 @@
 import type { ActivityWithActor, TaskStatus } from 'shared';
 import { Avatar, Spinner } from '../../components/ui';
+import { avatarUrl } from '../../lib/utils';
 import { formatDateTime } from '../board/format';
 import { ACTIVITY_LABELS, STATUS_LABELS } from '../board/labels';
 
@@ -55,6 +56,7 @@ export function ActivityTimeline({ activities, isLoading }: ActivityTimelineProp
             <Avatar
               name={activity.actor.displayName}
               color={activity.actor.avatarColor}
+              imageUrl={activity.actor.hasAvatar ? avatarUrl(activity.actor.id) : undefined}
               size="xs"
             />
             <div className="min-w-0 flex-1 text-sm">

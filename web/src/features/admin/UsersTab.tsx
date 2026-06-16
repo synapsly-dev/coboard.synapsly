@@ -16,7 +16,7 @@ import {
 import { isApiClientError } from '../../api/client';
 import { useUpdateUser, useUsers } from '../../api/users';
 import { useAuth } from '../../lib/auth-context';
-import { cn } from '../../lib/utils';
+import { avatarUrl, cn } from '../../lib/utils';
 import { CreateUserDialog } from './CreateUserDialog';
 import { AddUserToProjectsDialog } from './AddUserToProjectsDialog';
 import { userRoleLabels } from './labels';
@@ -138,7 +138,12 @@ export function UsersTab(): JSX.Element {
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar name={u.displayName} color={u.avatarColor} size="sm" />
+                        <Avatar
+                          name={u.displayName}
+                          color={u.avatarColor}
+                          imageUrl={u.hasAvatar ? avatarUrl(u.id) : undefined}
+                          size="sm"
+                        />
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 font-medium text-foreground">
                             <span className="truncate">{u.displayName}</span>
