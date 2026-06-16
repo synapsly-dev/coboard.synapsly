@@ -25,7 +25,8 @@ export default function AccountProfilePage(): JSX.Element {
   const navigate = useNavigate();
 
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-8 sm:py-12">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-md px-4 py-8 sm:py-12">
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -49,6 +50,7 @@ export default function AccountProfilePage(): JSX.Element {
         <AvatarSection />
         <DisplayNameSection />
         <PasswordSection />
+      </div>
       </div>
     </div>
   );
