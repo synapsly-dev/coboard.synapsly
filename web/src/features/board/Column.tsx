@@ -1,15 +1,13 @@
-import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import type { Task, TaskStatus } from 'shared';
 import { cn } from '../../lib/utils';
-import { SortableTaskCard } from './SortableTaskCard';
+import { TaskCard } from './TaskCard';
 import { STATUS_LABELS } from './labels';
 import type { TaskPermissionContext } from './permissions';
 
 /**
- * A single board column (lifecycle v2 §5) — a droppable region hosting a vertical
- * sortable list of task cards. Empty columns remain valid drop targets via the
- * `useDroppable` ref on the column id (the column's status).
+ * A single board column (lifecycle v2 §5) — a vertical list of task cards. Cards
+ * are static (no drag); status transitions happen via the card actions
+ * (认领 / 交付 / 审阅) and the detail drawer.
  */
 export interface ColumnProps {
   status: TaskStatus;
@@ -40,8 +38,6 @@ export function Column({
   onOpenTask,
   className,
 }: ColumnProps): JSX.Element {
-  const { setNodeRef, isOver } = useDroppable({ id: status, data: { type: 'column', status } });
-
   return (
     <section
       className={cn(
@@ -61,28 +57,17 @@ export function Column({
         </span>
       </header>
 
-      <div
-        ref={setNodeRef}
-        className={cn(
-          'scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3 pt-0.5 transition-colors',
-          isOver && 'rounded-lg bg-primary/5 ring-2 ring-inset ring-primary/30',
-        )}
-      >
-        <SortableContext
-          items={tasks.map((t) => t.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {tasks.map((task) => (
-            <SortableTaskCard
-              key={task.id}
-              task={task}
-              projectId={projectId}
-              permCtx={permCtx}
-              showProjectBadge={showProjectBadge}
-              onOpen={onOpenTask}
-            />
-          ))}
-        </SortableContext>
+      <div className="scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3 pt-0.5">
+        {tasks.map((task) => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            projectId={projectId}
+            permCtx={permCtx}
+            showProjectBadge={showProjectBadge}
+            onOpen={onOpenTask}
+          />
+        ))}
 
         {tasks.length === 0 && (
           <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 px-3 py-8 text-center text-xs text-muted-foreground">
