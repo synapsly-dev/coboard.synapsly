@@ -18,6 +18,7 @@ import {
 } from './BoardFilters';
 import { useLabels } from '../../api/labels';
 import { COLUMN_ORDER, STATUS_LABELS } from './labels';
+import { compareTasksInColumn } from './sort';
 import { resolveProjectRole } from './permissions';
 import { cn } from '../../lib/utils';
 
@@ -85,7 +86,11 @@ export function Board({
     return list;
   }, [tasks, filter, labelFilter, user?.id]);
 
-  /** Group filtered tasks by column, sorted by rank then creation time. */
+  /**
+   * Group filtered tasks by column, each sorted by its lifecycle-appropriate
+   * order (task-sort): 待认领 by urgency; 进行中/已完成 by status-entry time newest
+   * first; 待审阅 by submit time oldest first. See {@link compareTasksInColumn}.
+   */
   const columns = useMemo(() => {
     const byStatus: Record<TaskStatus, Task[]> = {
       open: [],
@@ -95,10 +100,7 @@ export function Board({
     };
     for (const task of filtered) byStatus[task.status].push(task);
     for (const status of COLUMN_ORDER) {
-      byStatus[status].sort((a, b) => {
-        if (a.rank !== b.rank) return a.rank < b.rank ? -1 : 1;
-        return a.createdAt < b.createdAt ? -1 : 1;
-      });
+      byStatus[status].sort(compareTasksInColumn(status));
     }
     return byStatus;
   }, [filtered]);
