@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { idParamSchema, type TaskFilesResponse } from 'shared';
+import { idParamSchema, isInlinePreviewable, type TaskFilesResponse } from 'shared';
 import { AppError, ErrorCode, forbidden, notFound, validationError } from '../lib/errors.js';
 import { requireTaskVisibility } from '../lib/guards.js';
 import { parseParams } from '../lib/validate.js';
@@ -39,12 +39,13 @@ const fileParamsSchema = z.object({
 /**
  * Build a Content-Disposition value that survives non-ASCII (e.g. Chinese)
  * filenames. Provides an ASCII fallback plus the RFC 5987 `filename*` form so
- * browsers preserve the original name on download.
+ * browsers preserve the original name. `type` is `attachment` (download) by
+ * default, or `inline` for an in-app preview of a whitelisted mime.
  */
-function contentDisposition(filename: string): string {
+function contentDisposition(filename: string, type: 'attachment' | 'inline' = 'attachment'): string {
   const asciiFallback = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
   const encoded = encodeURIComponent(filename);
-  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+  return `${type}; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
 }
 
 const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
@@ -133,8 +134,16 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
       throw notFound('文件不存在');
     }
 
+    // Serve inline only when the client asks (?inline=1) AND the mime is on the
+    // preview whitelist (images + PDF). Anything else is always a download, so an
+    // uploaded HTML/SVG/etc. can never be rendered as a document in our origin.
+    // `nosniff` stops the browser sniffing a different (executable) type.
+    const wantsInline = (request.query as { inline?: string } | undefined)?.inline === '1';
+    const inline = wantsInline && isInlinePreviewable(file.mime);
+
     reply.header('Content-Type', file.mime);
-    reply.header('Content-Disposition', contentDisposition(file.filename));
+    reply.header('X-Content-Type-Options', 'nosniff');
+    reply.header('Content-Disposition', contentDisposition(file.filename, inline ? 'inline' : 'attachment'));
     reply.header('Cache-Control', 'private, max-age=0, must-revalidate');
     return reply.send(file.bytes);
   });

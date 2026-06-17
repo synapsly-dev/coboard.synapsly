@@ -65,3 +65,29 @@ export type ActivityType = (typeof activityTypes)[number];
 export const ideaStatuses = ['pending', 'adopted', 'rejected'] as const;
 export const ideaStatusSchema = z.enum(ideaStatuses);
 export type IdeaStatus = (typeof ideaStatuses)[number];
+
+/**
+ * Attachment mimes Coboard will serve INLINE for in-app preview (image lightbox +
+ * embedded PDF). Anything else is always sent as a download. The list is the single
+ * source of truth shared by the server (which only honours `?inline=1` for these,
+ * with `X-Content-Type-Options: nosniff`, so arbitrary uploads can never be rendered
+ * as a document) and the web client (which decides whether to offer a 预览 control).
+ * SVG is intentionally excluded — it can carry script if ever opened as a document.
+ */
+export const inlinePreviewableMimes = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+] as const;
+
+/** Whether an attachment of this mime may be previewed inline (vs download-only). */
+export function isInlinePreviewable(mime: string): boolean {
+  return (inlinePreviewableMimes as readonly string[]).includes(mime);
+}
+
+/** Whether an attachment of this mime is an image (rendered as a thumbnail/lightbox). */
+export function isImageMime(mime: string): boolean {
+  return mime.startsWith('image/') && mime !== 'image/svg+xml';
+}

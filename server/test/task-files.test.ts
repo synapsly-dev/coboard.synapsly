@@ -213,6 +213,75 @@ describe('task files / attachments', () => {
     expect(Buffer.from(downloadRes.rawPayload).equals(content)).toBe(true);
   });
 
+  it('serves a whitelisted mime inline with ?inline=1 (nosniff); downloads it by default', async () => {
+    const uploader = await makeUser(ctx);
+    const projectId = await makeProject(ctx, uploader.id);
+    await addMember(ctx, projectId, uploader.id, 'member');
+    const taskId = await makeTask(ctx, projectId, uploader.id);
+    const cookie = await authCookie(ctx, uploader.id);
+
+    const { payload, contentType } = multipartBody(
+      'file',
+      '截图.png',
+      'image/png',
+      Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+    );
+    const uploadRes = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/files`,
+      headers: uploadHeaders(cookie, contentType),
+      payload,
+    });
+    const fileId = (uploadRes.json() as TaskFilesResponse).files[0]!.id;
+
+    const inlineRes = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/tasks/${taskId}/files/${fileId}?inline=1`,
+      headers: headers(cookie),
+    });
+    expect(inlineRes.headers['content-disposition']).toContain('inline');
+    expect(inlineRes.headers['x-content-type-options']).toBe('nosniff');
+
+    // Default (no inline param) still downloads.
+    const dlRes = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/tasks/${taskId}/files/${fileId}`,
+      headers: headers(cookie),
+    });
+    expect(dlRes.headers['content-disposition']).toContain('attachment');
+  });
+
+  it('never serves a non-whitelisted mime inline (forced download) even with ?inline=1', async () => {
+    const uploader = await makeUser(ctx);
+    const projectId = await makeProject(ctx, uploader.id);
+    await addMember(ctx, projectId, uploader.id, 'member');
+    const taskId = await makeTask(ctx, projectId, uploader.id);
+    const cookie = await authCookie(ctx, uploader.id);
+
+    // An HTML payload mislabelled as text/html must never render in our origin.
+    const { payload, contentType } = multipartBody(
+      'file',
+      'evil.html',
+      'text/html',
+      Buffer.from('<script>alert(1)</script>'),
+    );
+    const uploadRes = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/files`,
+      headers: uploadHeaders(cookie, contentType),
+      payload,
+    });
+    const fileId = (uploadRes.json() as TaskFilesResponse).files[0]!.id;
+
+    const inlineRes = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/tasks/${taskId}/files/${fileId}?inline=1`,
+      headers: headers(cookie),
+    });
+    expect(inlineRes.headers['content-disposition']).toContain('attachment');
+    expect(inlineRes.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it('rejects a file larger than 5MB', async () => {
     const uploader = await makeUser(ctx);
     const projectId = await makeProject(ctx, uploader.id);

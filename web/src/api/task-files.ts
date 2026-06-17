@@ -27,6 +27,15 @@ export function taskFileUrl(taskId: string, fileId: string): string {
   return `/api/tasks/${taskId}/files/${fileId}`;
 }
 
+/**
+ * URL that asks the server to serve the file INLINE (Content-Disposition: inline)
+ * for in-app preview — used as an <img>/<iframe> src. The server only honours this
+ * for whitelisted mimes (images + PDF); everything else still downloads.
+ */
+export function taskFilePreviewUrl(taskId: string, fileId: string): string {
+  return `${taskFileUrl(taskId, fileId)}?inline=1`;
+}
+
 // ---------------------------------------------------------------------------
 // Fetchers
 // ---------------------------------------------------------------------------

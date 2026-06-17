@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
-import { Download, Paperclip, Trash2, Upload } from 'lucide-react';
+import { Download, Eye, Paperclip, Trash2, Upload } from 'lucide-react';
 import type { Task, TaskFile } from 'shared';
+import { isImageMime, isInlinePreviewable } from 'shared';
 import { Button, Spinner } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import {
   MAX_TASK_FILE_BYTES,
+  taskFilePreviewUrl,
   taskFileUrl,
   useDeleteTaskFile,
   useTaskFiles,
@@ -12,6 +14,7 @@ import {
 } from '../../api/task-files';
 import type { TaskPermissionContext } from '../board/permissions';
 import { isManager } from '../board/permissions';
+import { FilePreviewDialog } from './FilePreviewDialog';
 
 /**
  * Attachment section (§7.2) inside the task detail drawer — "用于交付一些文件内容".
@@ -41,6 +44,8 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
   const uploadFile = useUploadTaskFile(taskId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  // The preview lightbox is shared across rows; `previewFile` is the open file.
+  const [previewFile, setPreviewFile] = useState<TaskFile | null>(null);
 
   const manager = isManager(permCtx, task);
   const myId = permCtx.user?.id;
@@ -68,8 +73,8 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
   }
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-secondary/30 p-3">
-      <div className="flex items-center justify-between gap-2">
+    <div className="grid min-w-0 gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+      <div className="flex min-w-0 items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Paperclip className="h-3.5 w-3.5" aria-hidden />
           附件（用于交付文件内容，单个 ≤ 5MB）
@@ -102,18 +107,45 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
       ) : !files || files.length === 0 ? (
         <p className="py-1 text-sm text-muted-foreground">暂无附件</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-border/60">
+        <ul className="flex min-w-0 flex-col divide-y divide-border/60">
           {files.map((file) => (
             <FileRow
               key={file.id}
               taskId={taskId}
               file={file}
               canDelete={manager || file.uploaderId === myId}
+              onPreview={() => setPreviewFile(file)}
             />
           ))}
         </ul>
       )}
+
+      <FilePreviewDialog
+        taskId={taskId}
+        file={previewFile}
+        open={previewFile !== null}
+        onOpenChange={(open) => {
+          if (!open) setPreviewFile(null);
+        }}
+      />
     </div>
+  );
+}
+
+/**
+ * Render a filename so it truncates without ever hiding the extension: the base
+ * name ellipsizes while the extension (".pdf", ".xlsx", …) stays pinned at the end.
+ */
+function FileName({ name }: { name: string }): JSX.Element {
+  const dot = name.lastIndexOf('.');
+  const hasExt = dot > 0 && dot < name.length - 1 && name.length - dot <= 8;
+  const base = hasExt ? name.slice(0, dot) : name;
+  const ext = hasExt ? name.slice(dot) : '';
+  return (
+    <span className="flex min-w-0 max-w-full items-baseline text-sm text-foreground" title={name}>
+      <span className="truncate">{base}</span>
+      {ext && <span className="shrink-0">{ext}</span>}
+    </span>
   );
 }
 
@@ -121,30 +153,72 @@ function FileRow({
   taskId,
   file,
   canDelete,
+  onPreview,
 }: {
   taskId: string;
   file: TaskFile;
   canDelete: boolean;
+  onPreview: () => void;
 }): JSX.Element {
   const deleteFile = useDeleteTaskFile(taskId);
+  const previewable = isInlinePreviewable(file.mime);
+  const isImage = isImageMime(file.mime);
 
   return (
-    <li className="flex items-center gap-2 py-2">
-      <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm text-foreground" title={file.filename}>
-          {file.filename}
-        </p>
-        <p className="text-xs text-muted-foreground">{formatFileSize(file.sizeBytes)}</p>
-      </div>
+    <li className="flex min-w-0 items-center gap-2 py-2">
+      {/* Leading: image thumbnail (click to preview) or a generic paperclip. */}
+      {isImage ? (
+        <button
+          type="button"
+          onClick={onPreview}
+          className="shrink-0 overflow-hidden rounded border border-border bg-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`预览 ${file.filename}`}
+        >
+          <img
+            src={taskFilePreviewUrl(taskId, file.id)}
+            alt=""
+            loading="lazy"
+            className="h-9 w-9 object-cover"
+          />
+        </button>
+      ) : (
+        <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      )}
+
+      {/* Name + size: the only flexible cell, so the actions never get pushed off. */}
+      <button
+        type="button"
+        onClick={previewable ? onPreview : undefined}
+        className={`min-w-0 flex-1 text-left ${previewable ? 'cursor-pointer' : 'cursor-default'}`}
+        aria-label={previewable ? `预览 ${file.filename}` : file.filename}
+        disabled={!previewable}
+      >
+        <FileName name={file.filename} />
+        <span className="block text-xs text-muted-foreground">{formatFileSize(file.sizeBytes)}</span>
+      </button>
+
+      {/* Actions — icon-only so a long filename can never crowd them out. */}
+      {previewable && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label={`预览 ${file.filename}`}
+          title="预览"
+          onClick={onPreview}
+        >
+          <Eye className="h-3.5 w-3.5" aria-hidden />
+        </Button>
+      )}
       <a
         href={taskFileUrl(taskId, file.id)}
         download={file.filename}
-        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         aria-label={`下载 ${file.filename}`}
+        title="下载"
       >
         <Download className="h-3.5 w-3.5" aria-hidden />
-        下载
       </a>
       {canDelete && (
         <Button
@@ -153,6 +227,7 @@ function FileRow({
           size="icon"
           className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
           aria-label={`删除 ${file.filename}`}
+          title="删除"
           loading={deleteFile.isPending}
           onClick={() => {
             if (window.confirm(`确定删除附件「${file.filename}」？`)) {
