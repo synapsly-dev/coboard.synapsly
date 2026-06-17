@@ -145,10 +145,10 @@ export function UsersTab(): JSX.Element {
                           size="sm"
                         />
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 font-medium text-foreground">
+                          <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
                             <span className="truncate">{u.displayName}</span>
                             {isSelf && (
-                              <span className="text-xs font-normal text-muted-foreground">（我）</span>
+                              <span className="shrink-0 text-xs font-normal text-muted-foreground">（我）</span>
                             )}
                           </div>
                           <div className="truncate text-xs text-muted-foreground">{u.email}</div>

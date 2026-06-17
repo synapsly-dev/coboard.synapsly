@@ -113,12 +113,12 @@ export function ProjectsTab(): JSX.Element {
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
                     <h3 className="truncate font-semibold text-foreground">{project.name}</h3>
-                    <Badge variant="outline" className="font-mono">
+                    <Badge variant="outline" className="shrink-0 font-mono">
                       {project.key}
                     </Badge>
-                    {project.archived && <Badge variant="warning">已归档</Badge>}
+                    {project.archived && <Badge variant="warning" className="shrink-0">已归档</Badge>}
                   </div>
                   {project.description ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">

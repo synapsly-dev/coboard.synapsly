@@ -71,7 +71,7 @@ export function BoardFilters({
   const showLabelFilter = !!onLabelFilterChange && labels.length > 0;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {/* "我的任务" quick toggle */}
       <Button
         type="button"

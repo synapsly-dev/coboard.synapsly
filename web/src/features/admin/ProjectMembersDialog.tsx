@@ -193,11 +193,11 @@ function MembersBody({ project }: { project: Project }): JSX.Element {
                   size="sm"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                  <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
                     <span className="truncate">{m.user.displayName}</span>
-                    {isSelf && <span className="text-xs font-normal text-muted-foreground">（我）</span>}
+                    {isSelf && <span className="shrink-0 text-xs font-normal text-muted-foreground">（我）</span>}
                     {m.user.role === 'admin' && (
-                      <Badge variant="primary" className="ml-1">
+                      <Badge variant="primary" className="ml-1 shrink-0">
                         管理员
                       </Badge>
                     )}

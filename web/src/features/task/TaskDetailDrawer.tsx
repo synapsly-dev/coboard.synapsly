@@ -232,7 +232,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           />
         ) : (
           <div className="flex flex-col gap-3">
-            <DrawerTitle className="text-xl leading-snug">{task.title}</DrawerTitle>
+            <DrawerTitle className="text-xl leading-snug break-words">{task.title}</DrawerTitle>
             {task.labels.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {task.labels.map((label) => (
@@ -241,7 +241,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               </div>
             )}
             {task.description ? (
-              renderMarkdown(task.description)
+              <div className="break-words">{renderMarkdown(task.description)}</div>
             ) : (
               <p className="text-sm italic text-muted-foreground">暂无描述</p>
             )}
@@ -285,9 +285,9 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                         imageUrl={c.hasAvatar ? avatarUrl(c.userId) : undefined}
                         size="xs"
                       />
-                      <span className="text-sm text-foreground">{c.displayName}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{c.displayName}</span>
                       {c.points != null && (
-                        <Badge variant="primary" className="ml-1">
+                        <Badge variant="primary" className="ml-1 shrink-0">
                           {c.points} 点
                         </Badge>
                       )}
@@ -296,7 +296,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="ml-auto h-7 w-7 text-muted-foreground hover:text-destructive"
+                          className="ml-auto h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
                           aria-label={`移除 ${c.displayName}`}
                           loading={releaseTask.isPending}
                           onClick={() =>

@@ -22,7 +22,7 @@ export default function ProjectsPage(): JSX.Element {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex h-full items-center justify-center overflow-y-auto">
         <Spinner />
       </div>
     );
@@ -30,7 +30,7 @@ export default function ProjectsPage(): JSX.Element {
 
   if (isError) {
     return (
-      <div className="px-4 py-6 sm:px-6">
+      <div className="h-full overflow-y-auto px-4 py-6 sm:px-6">
         <EmptyState
           icon={Compass}
           title="加载项目失败"

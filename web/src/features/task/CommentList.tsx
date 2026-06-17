@@ -102,7 +102,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
   }
 
   return (
-    <li className="flex gap-3">
+    <li className="group flex gap-3">
       <Avatar
         name={comment.author.displayName}
         color={comment.author.avatarColor}
@@ -119,7 +119,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
           {comment.editedAt && <span className="text-xs text-muted-foreground">（已编辑）</span>}
 
           {!editing && (canEdit || canDelete) && (
-            <span className="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 sm:opacity-100">
+            <span className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
               {canEdit && (
                 <Button
                   type="button"

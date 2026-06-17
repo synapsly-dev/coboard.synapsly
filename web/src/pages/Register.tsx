@@ -57,7 +57,8 @@ export default function RegisterPage(): JSX.Element {
   const open = statusQuery.data?.enabled === true;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 py-12">
+    <div className="h-full overflow-y-auto bg-background">
+    <main className="flex min-h-full items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
@@ -200,6 +201,7 @@ export default function RegisterPage(): JSX.Element {
         </p>
       </div>
     </main>
+    </div>
   );
 }
 

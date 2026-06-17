@@ -111,8 +111,8 @@ export function TopNav(): JSX.Element {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuLabel className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-foreground">{user.displayName}</span>
+                <DropdownMenuLabel className="flex max-w-[16rem] flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium text-foreground">{user.displayName}</span>
                   <span className="truncate text-xs font-normal text-muted-foreground">
                     {user.email}
                   </span>
