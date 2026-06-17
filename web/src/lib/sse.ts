@@ -24,6 +24,7 @@ const ENTITY_CHANNELS: readonly RealtimeEntity[] = [
   'activity',
   'project',
   'idea',
+  'announcement',
 ];
 
 function safeParse(raw: string): RealtimeEvent | null {
@@ -94,6 +95,11 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       }
       void queryClient.invalidateQueries({ queryKey: ['ideas'] });
       void queryClient.invalidateQueries({ queryKey: ['stats'] });
+      break;
+    }
+    case 'announcement': {
+      // An admin published/edited/removed a 信息 notice — refresh the list.
+      void queryClient.invalidateQueries({ queryKey: ['announcements'] });
       break;
     }
     default: {

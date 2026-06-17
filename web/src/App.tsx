@@ -22,6 +22,7 @@ import RegisterPage from './pages/Register';
 import BoardPage from './pages/BoardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import IdeasPage from './pages/IdeasPage';
+import AnnouncementsPage from './pages/AnnouncementsPage';
 import StatsPage from './pages/StatsPage';
 import AdminPage from './pages/AdminPage';
 import AccountProfilePage from './pages/AccountProfile';
@@ -98,6 +99,7 @@ function AuthedRoutes(): JSX.Element {
         <Route path="/board/:projectId" element={<BoardPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/ideas" element={<IdeasPage />} />
+        <Route path="/info" element={<AnnouncementsPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route
           path="/admin"

@@ -318,6 +318,53 @@ export const ideaResponseSchema = z.object({
 export type IdeaResponse = z.infer<typeof ideaResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// Announcements / 信息 (admin-published notices)
+// ---------------------------------------------------------------------------
+
+/**
+ * An announcement / notice published on the 信息 page. Authored by a global admin;
+ * readable by every logged-in user. `body` is Markdown (rendered safely, like task
+ * descriptions / comments). `updatedAt` differs from `createdAt` after an edit.
+ */
+export const announcementSchema = z.object({
+  id: uuidSchema,
+  title: z.string(),
+  body: z.string(),
+  author: userSummarySchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type Announcement = z.infer<typeof announcementSchema>;
+
+/** POST /announcements — publish a notice (global admin). */
+export const createAnnouncementInputSchema = z.object({
+  title: z.string().trim().min(1, '标题不能为空').max(200),
+  body: z.string().trim().min(1, '内容不能为空').max(20000),
+});
+export type CreateAnnouncementInput = z.infer<typeof createAnnouncementInputSchema>;
+
+/** PATCH /announcements/:id — edit a notice (global admin). At least one field. */
+export const updateAnnouncementInputSchema = z
+  .object({
+    title: z.string().trim().min(1, '标题不能为空').max(200).optional(),
+    body: z.string().trim().min(1, '内容不能为空').max(20000).optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: '至少修改一个字段' });
+export type UpdateAnnouncementInput = z.infer<typeof updateAnnouncementInputSchema>;
+
+/** GET /announcements — all notices, newest first. */
+export const announcementsResponseSchema = z.object({
+  announcements: z.array(announcementSchema),
+});
+export type AnnouncementsResponse = z.infer<typeof announcementsResponseSchema>;
+
+/** POST/PATCH /announcements — single-announcement response wrapper. */
+export const announcementResponseSchema = z.object({
+  announcement: announcementSchema,
+});
+export type AnnouncementResponse = z.infer<typeof announcementResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Task files / attachments (§7.2)
 // ---------------------------------------------------------------------------
 
@@ -866,6 +913,7 @@ export const realtimeEntitySchema = z.enum([
   'activity',
   'project',
   'idea',
+  'announcement',
 ]);
 export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 

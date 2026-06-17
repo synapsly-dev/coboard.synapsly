@@ -424,6 +424,29 @@ export const taskFiles = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// announcements — admin-published notices shown on the 信息 page. Authored by a
+// global admin; readable by every logged-in user. `body` is Markdown. `author_id`
+// uses restrict so a user with notices can't be hard-deleted without reassigning.
+// ---------------------------------------------------------------------------
+
+export const announcements = pgTable(
+  'announcements',
+  {
+    id: primaryId,
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('announcements_created_at_idx').on(table.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
 // settings — key/value store for admin-settable instance config (§8)
 // ---------------------------------------------------------------------------
 
@@ -467,6 +490,8 @@ export type TaskFileRow = typeof taskFiles.$inferSelect;
 export type NewTaskFileRow = typeof taskFiles.$inferInsert;
 export type SettingRow = typeof settings.$inferSelect;
 export type NewSettingRow = typeof settings.$inferInsert;
+export type AnnouncementRow = typeof announcements.$inferSelect;
+export type NewAnnouncementRow = typeof announcements.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -484,6 +509,7 @@ export const schema = {
   ideas,
   taskFiles,
   settings,
+  announcements,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,

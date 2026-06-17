@@ -56,6 +56,8 @@ export const queryKeys = {
   taskIdeas: (taskId: string) => ['tasks', taskId, 'ideas'] as const,
   taskFiles: (taskId: string) => ['tasks', taskId, 'files'] as const,
   ideas: (params: Record<string, string | undefined>) => ['ideas', params] as const,
+  /** Admin-published 信息 notices. */
+  announcements: () => ['announcements'] as const,
   leaderboard: (params: Record<string, string | undefined>) =>
     ['stats', 'leaderboard', params] as const,
   myStats: (params: Record<string, string | undefined>) =>
