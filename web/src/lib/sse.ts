@@ -63,8 +63,10 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       void queryClient.invalidateQueries({ queryKey: ['projects', 'all', 'tasks'] });
       if (taskId) {
         void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
-        // A task event also carries attachment changes (§7.2 file upload/delete).
+        // A task event also carries delivery-content changes (§7.2): file
+        // attachments and text deliverables.
         void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'files'] });
+        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'texts'] });
       }
       // Completing/reopening a task changes contribution stats.
       void queryClient.invalidateQueries({ queryKey: ['stats'] });

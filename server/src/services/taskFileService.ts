@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
-import type { TaskFile } from 'shared';
+import type { TaskFile, UserSummary } from 'shared';
 import type { Database } from '../db/index.js';
-import { taskFiles, type TaskFileRow } from '../db/schema.js';
+import { taskFiles, users, type TaskFileRow, type UserRow } from '../db/schema.js';
 import { notFound } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
@@ -20,12 +20,23 @@ import { bus, type RealtimeBus } from '../realtime/bus.js';
 // Row -> wire mapping
 // ---------------------------------------------------------------------------
 
+function toUserSummary(
+  u: Pick<UserRow, 'id' | 'displayName' | 'avatarColor' | 'avatarMime'>,
+): UserSummary {
+  return {
+    id: u.id,
+    displayName: u.displayName,
+    avatarColor: u.avatarColor,
+    hasAvatar: u.avatarMime != null,
+  };
+}
+
 /**
- * Map a task-file row to the §7.2 `TaskFile` metadata wire shape. The `data` bytea
- * is deliberately omitted — list queries never select it and it never crosses the
- * wire here (it is streamed only by the download route).
+ * Map a task-file row + its uploader to the §7.2 `TaskFile` metadata wire shape. The
+ * `data` bytea is deliberately omitted — list queries never select it and it never
+ * crosses the wire here (it is streamed only by the download route).
  */
-function toTaskFile(row: Omit<TaskFileRow, 'data'>): TaskFile {
+function toTaskFile(row: Omit<TaskFileRow, 'data'>, uploader: UserSummary): TaskFile {
   return {
     id: row.id,
     taskId: row.taskId,
@@ -33,6 +44,7 @@ function toTaskFile(row: Omit<TaskFileRow, 'data'>): TaskFile {
     mime: row.mime,
     sizeBytes: row.sizeBytes,
     uploaderId: row.uploaderId,
+    uploader,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -41,20 +53,20 @@ function toTaskFile(row: Omit<TaskFileRow, 'data'>): TaskFile {
 // Loaders
 // ---------------------------------------------------------------------------
 
-/** Load a task file's metadata by id or throw 404 (no bytes selected). */
+/**
+ * Load the minimal owner/ownership fields of a task file by id, or throw 404. Used
+ * by the download/delete routes for the task-ownership + uploader permission checks
+ * (no bytes, no user join needed).
+ */
 export async function loadTaskFileOrThrow(
   db: Database,
   fileId: string,
-): Promise<TaskFile & { taskId: string }> {
+): Promise<{ id: string; taskId: string; uploaderId: string }> {
   const rows = await db
     .select({
       id: taskFiles.id,
       taskId: taskFiles.taskId,
-      filename: taskFiles.filename,
-      mime: taskFiles.mime,
-      sizeBytes: taskFiles.sizeBytes,
       uploaderId: taskFiles.uploaderId,
-      createdAt: taskFiles.createdAt,
     })
     .from(taskFiles)
     .where(eq(taskFiles.id, fileId))
@@ -63,14 +75,14 @@ export async function loadTaskFileOrThrow(
   if (!row) {
     throw notFound('文件不存在');
   }
-  return toTaskFile(row);
+  return row;
 }
 
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
 
-/** List a task's attachments (oldest first) — metadata only, never the bytes. */
+/** List a task's attachments (oldest first) — metadata + uploader, never the bytes. */
 export async function listTaskFiles(db: Database, taskId: string): Promise<TaskFile[]> {
   const rows = await db
     .select({
@@ -81,11 +93,23 @@ export async function listTaskFiles(db: Database, taskId: string): Promise<TaskF
       sizeBytes: taskFiles.sizeBytes,
       uploaderId: taskFiles.uploaderId,
       createdAt: taskFiles.createdAt,
+      uploaderUserId: users.id,
+      uploaderName: users.displayName,
+      uploaderColor: users.avatarColor,
+      uploaderMime: users.avatarMime,
     })
     .from(taskFiles)
+    .innerJoin(users, eq(users.id, taskFiles.uploaderId))
     .where(eq(taskFiles.taskId, taskId))
     .orderBy(asc(taskFiles.createdAt));
-  return rows.map(toTaskFile);
+  return rows.map((r) =>
+    toTaskFile(r, {
+      id: r.uploaderUserId,
+      displayName: r.uploaderName,
+      avatarColor: r.uploaderColor,
+      hasAvatar: r.uploaderMime != null,
+    }),
+  );
 }
 
 export interface TaskFileBytes {
@@ -169,8 +193,22 @@ export async function createTaskFile(
     throw new Error('上传文件失败：未返回插入行');
   }
 
+  const [uploader] = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      avatarColor: users.avatarColor,
+      avatarMime: users.avatarMime,
+    })
+    .from(users)
+    .where(eq(users.id, params.uploaderId))
+    .limit(1);
+  if (!uploader) {
+    throw new Error('上传文件失败：上传者不存在');
+  }
+
   publishTaskFileChange(realtimeBus, 'file_uploaded', params.projectId, params.taskId);
-  return toTaskFile(inserted);
+  return toTaskFile(inserted, toUserSummary(uploader));
 }
 
 /**

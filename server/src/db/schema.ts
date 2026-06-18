@@ -447,6 +447,28 @@ export const announcements = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// task_texts — text deliverables attached to a task (交付内容 §7.2). Like an
+// attachment but a Markdown text body; multiple per task. Cascades with the task.
+// `author_id` uses restrict (mirrors comments) so authorship is preserved.
+// ---------------------------------------------------------------------------
+
+export const taskTexts = pgTable(
+  'task_texts',
+  {
+    id: primaryId,
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    authorId: uuid('author_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    content: text('content').notNull(),
+    createdAt,
+  },
+  (table) => [index('task_texts_task_id_idx').on(table.taskId)],
+);
+
+// ---------------------------------------------------------------------------
 // settings — key/value store for admin-settable instance config (§8)
 // ---------------------------------------------------------------------------
 
@@ -492,6 +514,8 @@ export type SettingRow = typeof settings.$inferSelect;
 export type NewSettingRow = typeof settings.$inferInsert;
 export type AnnouncementRow = typeof announcements.$inferSelect;
 export type NewAnnouncementRow = typeof announcements.$inferInsert;
+export type TaskTextRow = typeof taskTexts.$inferSelect;
+export type NewTaskTextRow = typeof taskTexts.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -510,6 +534,7 @@ export const schema = {
   taskFiles,
   settings,
   announcements,
+  taskTexts,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,

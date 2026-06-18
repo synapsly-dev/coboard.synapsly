@@ -194,7 +194,9 @@ function FileRow({
         disabled={!previewable}
       >
         <FileName name={file.filename} />
-        <span className="block text-xs text-muted-foreground">{formatFileSize(file.sizeBytes)}</span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {formatFileSize(file.sizeBytes)} · 由 {file.uploader.displayName} 上传
+        </span>
       </button>
 
       {/* Actions — icon-only so a long filename can never crowd them out. */}

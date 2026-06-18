@@ -186,6 +186,8 @@ export const taskSchema = z.object({
   completedAt: isoDateTimeSchema.nullable(),
   deliveredAt: isoDateTimeSchema.nullable(),
   deliveredBy: uuidSchema.nullable(),
+  /** The deliverer (交付人) summary resolved from `deliveredBy`; null until delivered. */
+  deliverer: userSummarySchema.nullable(),
   reviewedBy: uuidSchema.nullable(),
   /**
    * The reviewer (审阅人) summary resolved from `reviewedBy` — who last approved or
@@ -388,9 +390,37 @@ export const taskFileSchema = z.object({
   /** Stored byte size of the file (≤ 5MB). */
   sizeBytes: z.number().int().nonnegative(),
   uploaderId: uuidSchema,
+  /** The uploader (上传者) summary resolved from `uploaderId`. */
+  uploader: userSummarySchema,
   createdAt: isoDateTimeSchema,
 });
 export type TaskFile = z.infer<typeof taskFileSchema>;
+
+/**
+ * A text deliverable attached to a task (交付内容 §7.2). Like an attachment but a
+ * Markdown text body instead of a file; multiple per task, each carrying its author.
+ * Used to deliver written content (notes, links, summaries).
+ */
+export const taskTextSchema = z.object({
+  id: uuidSchema,
+  taskId: uuidSchema,
+  author: userSummarySchema,
+  content: z.string(),
+  createdAt: isoDateTimeSchema,
+});
+export type TaskText = z.infer<typeof taskTextSchema>;
+
+/** POST /tasks/:id/texts — submit a text deliverable. */
+export const createTaskTextInputSchema = z.object({
+  content: z.string().trim().min(1, '交付内容不能为空').max(20000),
+});
+export type CreateTaskTextInput = z.infer<typeof createTaskTextInputSchema>;
+
+/** GET /tasks/:id/texts (and the POST response) — a task's text deliverables. */
+export const taskTextsResponseSchema = z.object({
+  texts: z.array(taskTextSchema),
+});
+export type TaskTextsResponse = z.infer<typeof taskTextsResponseSchema>;
 
 /** GET /tasks/:id/files (and the POST upload response) — a task's attachments. */
 export const taskFilesResponseSchema = z.object({

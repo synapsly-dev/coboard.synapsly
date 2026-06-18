@@ -78,6 +78,13 @@
       "when": 1781713512059,
       "tag": "0010_clumsy_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781757491683,
+      "tag": "0011_noisy_barracuda",
+      "breakpoints": true
     }
   ]
 }

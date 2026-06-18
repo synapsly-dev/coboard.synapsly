@@ -177,6 +177,7 @@ export function serializeTask(
   project: TaskProjectContext | null = null,
   labels: Label[] = [],
   reviewer: UserSummary | null = null,
+  deliverer: UserSummary | null = null,
 ): Task {
   return {
     id: row.id,
@@ -196,6 +197,7 @@ export function serializeTask(
     completedAt: row.completedAt ? row.completedAt.toISOString() : null,
     deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
     deliveredBy: row.deliveredBy,
+    deliverer,
     reviewedBy: row.reviewedBy,
     reviewer,
     claimants: [...claimants]
@@ -294,18 +296,37 @@ function reviewerFor(
   return row.reviewedBy ? byId.get(row.reviewedBy) ?? null : null;
 }
 
-/** Load + serialize a single task with its claimants, project context, labels, reviewer. */
+/** Resolve a task row's deliverer (交付人) summary from `deliveredBy`, or null. */
+function delivererFor(
+  row: Pick<TaskRow, 'deliveredBy'>,
+  byId: Map<string, UserSummary>,
+): UserSummary | null {
+  return row.deliveredBy ? byId.get(row.deliveredBy) ?? null : null;
+}
+
+/** The reviewer + deliverer user ids referenced by a set of task rows (for batch load). */
+function reviewerDelivererIds(rows: Array<Pick<TaskRow, 'reviewedBy' | 'deliveredBy'>>): string[] {
+  const ids: string[] = [];
+  for (const r of rows) {
+    if (r.reviewedBy) ids.push(r.reviewedBy);
+    if (r.deliveredBy) ids.push(r.deliveredBy);
+  }
+  return ids;
+}
+
+/** Load + serialize a single task with its claimants, project, labels, reviewer, deliverer. */
 async function serializeTaskById(db: Database, row: TaskRow): Promise<Task> {
   const byTask = await loadClaimantsForTasks(db, [row.id]);
   const project = await loadProjectContext(db, row.projectId);
   const labelsByTask = await loadLabelsForTasks(db, [row.id]);
-  const reviewers = await loadUserSummaries(db, row.reviewedBy ? [row.reviewedBy] : []);
+  const people = await loadUserSummaries(db, reviewerDelivererIds([row]));
   return serializeTask(
     row,
     byTask.get(row.id) ?? [],
     project,
     labelsByTask.get(row.id) ?? [],
-    reviewerFor(row, reviewers),
+    reviewerFor(row, people),
+    delivererFor(row, people),
   );
 }
 
@@ -394,17 +415,15 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
     db,
     rows.map((r) => r.id),
   );
-  const reviewers = await loadUserSummaries(
-    db,
-    rows.map((r) => r.reviewedBy).filter((id): id is string => id !== null),
-  );
+  const people = await loadUserSummaries(db, reviewerDelivererIds(rows));
   return rows.map((row) =>
     serializeTask(
       row,
       byTask.get(row.id) ?? [],
       project,
       labelsByTask.get(row.id) ?? [],
-      reviewerFor(row, reviewers),
+      reviewerFor(row, people),
+      delivererFor(row, people),
     ),
   );
 }
@@ -474,10 +493,7 @@ export async function listAllVisibleTasks(
     rows.map((r) => r.id),
   );
 
-  const reviewers = await loadUserSummaries(
-    db,
-    rows.map((r) => r.reviewedBy).filter((id): id is string => id !== null),
-  );
+  const people = await loadUserSummaries(db, reviewerDelivererIds(rows));
 
   return rows.map((row) =>
     serializeTask(
@@ -485,7 +501,8 @@ export async function listAllVisibleTasks(
       byTask.get(row.id) ?? [],
       row.projectId === null ? null : projectById.get(row.projectId) ?? null,
       labelsByTask.get(row.id) ?? [],
-      reviewerFor(row, reviewers),
+      reviewerFor(row, people),
+      delivererFor(row, people),
     ),
   );
 }

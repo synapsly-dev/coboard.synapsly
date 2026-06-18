@@ -36,6 +36,7 @@ function task(over: Partial<Task> & { id: string }): Task {
     completedAt: null,
     deliveredAt: null,
     deliveredBy: null,
+    deliverer: null,
     reviewedBy: null,
     reviewer: null,
     claimants: [],

@@ -68,6 +68,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     completedAt: null,
     deliveredAt: null,
     deliveredBy: null,
+    deliverer: null,
     reviewedBy: null,
     reviewer: null,
     claimants: [],

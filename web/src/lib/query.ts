@@ -55,6 +55,8 @@ export const queryKeys = {
   activities: (taskId: string) => ['tasks', taskId, 'activities'] as const,
   taskIdeas: (taskId: string) => ['tasks', taskId, 'ideas'] as const,
   taskFiles: (taskId: string) => ['tasks', taskId, 'files'] as const,
+  /** A task's text deliverables (交付内容). */
+  taskTexts: (taskId: string) => ['tasks', taskId, 'texts'] as const,
   ideas: (params: Record<string, string | undefined>) => ['ideas', params] as const,
   /** Admin-published 信息 notices. */
   announcements: () => ['announcements'] as const,

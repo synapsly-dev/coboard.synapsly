@@ -71,6 +71,7 @@ import { CommentList } from './CommentList';
 import { ActivityTimeline } from './ActivityTimeline';
 import { IdeaSection } from './IdeaSection';
 import { AttachmentSection } from './AttachmentSection';
+import { TextDeliverySection } from './TextDeliverySection';
 import { useTaskIdeas } from '../../api/ideas';
 
 /**
@@ -381,6 +382,26 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               </div>
             </div>
 
+            {/* 交付人 (deliverer) — who submitted the task for review (deliveredBy). */}
+            {task.deliverer && (
+              <div className="flex items-center gap-3">
+                <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">
+                  交付人
+                </span>
+                <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                  <Avatar
+                    name={task.deliverer.displayName}
+                    color={task.deliverer.avatarColor}
+                    imageUrl={task.deliverer.hasAvatar ? avatarUrl(task.deliverer.id) : undefined}
+                    size="xs"
+                  />
+                  <span className="min-w-0 truncate text-foreground">
+                    {task.deliverer.displayName}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* 审阅人 (reviewer) — the review result's reviewer. Shown once a task has
                 been reviewed (done = 通过; reverted to 进行中/待认领 = 驳回); hidden while
                 pending_review so a stale reviewer from an earlier reject isn't shown. */}
@@ -452,6 +473,8 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
         </div>
 
         {/* Attachments — used to deliver file content (§7.2) */}
+        <TextDeliverySection task={task} permCtx={permCtx} />
+
         <AttachmentSection task={task} permCtx={permCtx} />
 
         {/* Tabs: comments / activity */}
