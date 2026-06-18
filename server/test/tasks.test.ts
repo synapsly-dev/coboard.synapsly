@@ -798,6 +798,9 @@ describe('deliver → review lifecycle (§3)', () => {
     expect(task.status).toBe('done');
     expect(task.completedAt).not.toBeNull();
     expect(task.reviewedBy).toBe(lead.id);
+    // The 审阅人 summary is resolved from reviewedBy for the UI.
+    expect(task.reviewer?.id).toBe(lead.id);
+    expect(typeof task.reviewer?.displayName).toBe('string');
     // Shares stay locked at approval.
     const shares = Object.fromEntries(task.claimants.map((c) => [c.userId, c.points]));
     expect(shares[a.id]).toBe(6);
@@ -874,6 +877,87 @@ describe('deliver → review lifecycle (§3)', () => {
         { userId: a.id, points: 6 },
         { userId: b.id, points: 4 },
       ] },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  // --- 撤销通过 (revoke approval) ---------------------------------------------
+
+  /** Drive a fresh deliverable all the way to `done` (delivered + approved). */
+  async function seedDone() {
+    const seeded = await seedDeliverable({ points: 10 });
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${seeded.taskId}/deliver`,
+      headers: { cookie: seeded.a.cookie, ...CSRF },
+      payload: { allocations: [
+        { userId: seeded.a.id, points: 6 },
+        { userId: seeded.b.id, points: 4 },
+      ] },
+    });
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${seeded.taskId}/review`,
+      headers: { cookie: seeded.lead.cookie, ...CSRF },
+      payload: { decision: 'approve' },
+    });
+    return seeded;
+  }
+
+  it('撤销通过: a done task returns to pending_review, keeping the delivery + points', async () => {
+    const { lead, taskId } = await seedDone();
+
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/revoke-approval`,
+      headers: { cookie: lead.cookie, ...CSRF },
+    });
+    expect(res.statusCode).toBe(200);
+    const { task } = res.json() as { task: Task };
+    expect(task.status).toBe('pending_review');
+    expect(task.completedAt).toBeNull();
+    expect(task.reviewedBy).toBeNull(); // awaiting a fresh review
+    expect(task.reviewer).toBeNull();
+    // The delivery stands: deliver state + each claimant's share are kept.
+    expect(task.deliveredAt).not.toBeNull();
+    expect(task.claimants.every((c) => c.points !== null)).toBe(true);
+  });
+
+  it('撤销通过 then 驳回: re-review can reject the re-opened task back to 进行中', async () => {
+    const { lead, taskId } = await seedDone();
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/revoke-approval`,
+      headers: { cookie: lead.cookie, ...CSRF },
+    });
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/review`,
+      headers: { cookie: lead.cookie, ...CSRF },
+      payload: { decision: 'reject' },
+    });
+    expect(res.statusCode).toBe(200);
+    const { task } = res.json() as { task: Task };
+    expect(task.status).toBe('in_progress');
+    expect(task.claimants.every((c) => c.points === null)).toBe(true);
+  });
+
+  it('forbids a plain member from revoking approval (403)', async () => {
+    const { a, taskId } = await seedDone();
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/revoke-approval`,
+      headers: { cookie: a.cookie, ...CSRF },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('rejects revoking approval of a task that is not done (409)', async () => {
+    const { lead, taskId } = await seedDeliverable({ points: 10 }); // still in_progress
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/revoke-approval`,
+      headers: { cookie: lead.cookie, ...CSRF },
     });
     expect(res.statusCode).toBe(409);
   });

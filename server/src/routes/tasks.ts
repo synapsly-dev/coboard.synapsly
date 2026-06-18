@@ -25,6 +25,7 @@ import {
   listBoardTasks,
   releaseTask,
   reviewTask,
+  revokeApproval,
   updateTask,
 } from '../services/taskService.js';
 
@@ -134,6 +135,13 @@ const tasksRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parseParams(idParamSchema, request.params);
     const input = parseBody(reviewTaskInputSchema, request.body);
     const task = await reviewTask(db, bus, request, id, input);
+    return { task };
+  });
+
+  // POST /tasks/:id/revoke-approval — 撤销通过: a done task → pending_review for re-review.
+  fastify.post('/tasks/:id/revoke-approval', async (request): Promise<TaskResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    const task = await revokeApproval(db, bus, request, id);
     return { task };
   });
 

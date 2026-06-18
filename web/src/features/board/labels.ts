@@ -46,7 +46,7 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   released: '释放了任务',
   status_changed: '变更了状态',
   completed: '通过了审阅',
-  reopened: '重新打开了任务',
+  reopened: '撤销了通过（退回待审阅）',
   commented: '发表了评论',
   updated: '更新了任务',
   delivered: '交付了任务',

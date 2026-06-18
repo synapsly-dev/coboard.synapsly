@@ -49,6 +49,7 @@ import { ClaimButton } from '../board/ClaimButton';
 import { ClaimLimitBadge } from '../board/ClaimLimitBadge';
 import { DeliverDialog } from '../board/DeliverDialog';
 import { ReviewActions } from '../board/ReviewActions';
+import { RevokeApprovalButton } from '../board/RevokeApprovalButton';
 import { dueInfo } from '../board/format';
 import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_LABELS } from '../board/labels';
 import {
@@ -57,6 +58,7 @@ import {
   canDeliver,
   canEditTask,
   canReview,
+  canRevokeApproval,
   isClaimant,
   isManager,
   resolveProjectRole,
@@ -165,6 +167,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
   const manager = isManager(permCtx, task);
   const showDeliver = canDeliver(permCtx, task);
   const showReview = canReview(permCtx, task);
+  const showRevoke = canRevokeApproval(permCtx, task);
   const meClaimant = isClaimant(permCtx, task);
 
   const statusVariant =
@@ -249,8 +252,11 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           </div>
         )}
 
-        {/* Deliver / review action bar */}
-        {(showDeliver || showReview || (task.status === 'pending_review' && !showReview)) && (
+        {/* Deliver / review / revoke-approval action bar */}
+        {(showDeliver ||
+          showReview ||
+          showRevoke ||
+          (task.status === 'pending_review' && !showReview)) && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
             {showDeliver && (
               <Button type="button" size="sm" onClick={() => setDeliverOpen(true)}>
@@ -259,6 +265,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               </Button>
             )}
             {showReview && <ReviewActions task={task} projectId={projectId} size="md" />}
+            {showRevoke && <RevokeApprovalButton task={task} projectId={projectId} size="md" />}
             {task.status === 'pending_review' && !showReview && (
               <span className="text-sm text-muted-foreground">已交付，等待项目负责人审阅。</span>
             )}
@@ -373,6 +380,31 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                 )}
               </div>
             </div>
+
+            {/* 审阅人 (reviewer) — the review result's reviewer. Shown once a task has
+                been reviewed (done = 通过; reverted to 进行中/待认领 = 驳回); hidden while
+                pending_review so a stale reviewer from an earlier reject isn't shown. */}
+            {task.reviewer && task.status !== 'pending_review' && (
+              <div className="flex items-center gap-3">
+                <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">
+                  审阅人
+                </span>
+                <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+                  <Avatar
+                    name={task.reviewer.displayName}
+                    color={task.reviewer.avatarColor}
+                    imageUrl={task.reviewer.hasAvatar ? avatarUrl(task.reviewer.id) : undefined}
+                    size="xs"
+                  />
+                  <span className="min-w-0 truncate text-foreground">
+                    {task.reviewer.displayName}
+                  </span>
+                  <Badge variant={task.status === 'done' ? 'success' : 'neutral'} className="shrink-0">
+                    {task.status === 'done' ? '通过' : '驳回'}
+                  </Badge>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Status quick-move (open ↔ in_progress only; editable) */}

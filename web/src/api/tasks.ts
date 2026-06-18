@@ -74,6 +74,8 @@ export const tasksApi = {
     api.post<TaskResponse>(`/tasks/${taskId}/deliver`, body),
   review: (taskId: string, body: ReviewTaskInput): Promise<TaskResponse> =>
     api.post<TaskResponse>(`/tasks/${taskId}/review`, body),
+  revokeApproval: (taskId: string): Promise<TaskResponse> =>
+    api.post<TaskResponse>(`/tasks/${taskId}/revoke-approval`),
   remove: (taskId: string): Promise<void> => api.delete<void>(`/tasks/${taskId}`),
   members: (projectId: string, signal?: AbortSignal): Promise<ProjectMembersResponse> =>
     api.get<ProjectMembersResponse>(`/projects/${projectId}/members`, { signal }),
@@ -470,6 +472,23 @@ export function useReviewTask(
   return useMutation<TaskResponse, Error, ReviewTaskVars>({
     mutationFn: ({ taskId, input }) => tasksApi.review(taskId, input),
     onSettled: (_data, _err, { taskId }) => {
+      invalidateTask(queryClient, projectId, taskId);
+    },
+  });
+}
+
+/**
+ * Revoke a completed task's approval (撤销通过): a `done` task returns to
+ * `pending_review` for re-review. No optimistic mutation; reconciles on settle
+ * (un-completing also shifts contribution stats, which invalidateTask refreshes).
+ */
+export function useRevokeApproval(
+  projectId: string,
+): UseMutationResult<TaskResponse, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation<TaskResponse, Error, string>({
+    mutationFn: (taskId) => tasksApi.revokeApproval(taskId),
+    onSettled: (_data, _err, taskId) => {
       invalidateTask(queryClient, projectId, taskId);
     },
   });

@@ -9,6 +9,7 @@ import type {
   TaskClaimant,
   TaskStatus,
   UpdateTaskInput,
+  UserSummary,
 } from 'shared';
 import type { Database } from '../db/index.js';
 import {
@@ -175,6 +176,7 @@ export function serializeTask(
   claimants: ClaimantWithUser[] = [],
   project: TaskProjectContext | null = null,
   labels: Label[] = [],
+  reviewer: UserSummary | null = null,
 ): Task {
   return {
     id: row.id,
@@ -195,6 +197,7 @@ export function serializeTask(
     deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
     deliveredBy: row.deliveredBy,
     reviewedBy: row.reviewedBy,
+    reviewer,
     claimants: [...claimants]
       .sort((a, b) => a.row.claimedAt.getTime() - b.row.claimedAt.getTime())
       .map(serializeClaimant),
@@ -252,12 +255,58 @@ async function loadProjectContext(
   return row ? { name: row.name, key: row.key } : null;
 }
 
-/** Load + serialize a single task with its claimants, project context, and labels. */
+/**
+ * Batch-load `{ userId → UserSummary }` for a set of user ids (e.g. task reviewers),
+ * deduped. Used to embed the 审阅人 summary without an N+1 per task.
+ */
+async function loadUserSummaries(
+  db: Database,
+  ids: string[],
+): Promise<Map<string, UserSummary>> {
+  const map = new Map<string, UserSummary>();
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return map;
+  const rows = await db
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      avatarColor: users.avatarColor,
+      avatarMime: users.avatarMime,
+    })
+    .from(users)
+    .where(inArray(users.id, unique));
+  for (const r of rows) {
+    map.set(r.id, {
+      id: r.id,
+      displayName: r.displayName,
+      avatarColor: r.avatarColor,
+      hasAvatar: r.avatarMime != null,
+    });
+  }
+  return map;
+}
+
+/** Resolve a task row's reviewer (审阅人) summary from `reviewedBy`, or null. */
+function reviewerFor(
+  row: Pick<TaskRow, 'reviewedBy'>,
+  byId: Map<string, UserSummary>,
+): UserSummary | null {
+  return row.reviewedBy ? byId.get(row.reviewedBy) ?? null : null;
+}
+
+/** Load + serialize a single task with its claimants, project context, labels, reviewer. */
 async function serializeTaskById(db: Database, row: TaskRow): Promise<Task> {
   const byTask = await loadClaimantsForTasks(db, [row.id]);
   const project = await loadProjectContext(db, row.projectId);
   const labelsByTask = await loadLabelsForTasks(db, [row.id]);
-  return serializeTask(row, byTask.get(row.id) ?? [], project, labelsByTask.get(row.id) ?? []);
+  const reviewers = await loadUserSummaries(db, row.reviewedBy ? [row.reviewedBy] : []);
+  return serializeTask(
+    row,
+    byTask.get(row.id) ?? [],
+    project,
+    labelsByTask.get(row.id) ?? [],
+    reviewerFor(row, reviewers),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -345,8 +394,18 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
     db,
     rows.map((r) => r.id),
   );
+  const reviewers = await loadUserSummaries(
+    db,
+    rows.map((r) => r.reviewedBy).filter((id): id is string => id !== null),
+  );
   return rows.map((row) =>
-    serializeTask(row, byTask.get(row.id) ?? [], project, labelsByTask.get(row.id) ?? []),
+    serializeTask(
+      row,
+      byTask.get(row.id) ?? [],
+      project,
+      labelsByTask.get(row.id) ?? [],
+      reviewerFor(row, reviewers),
+    ),
   );
 }
 
@@ -415,12 +474,18 @@ export async function listAllVisibleTasks(
     rows.map((r) => r.id),
   );
 
+  const reviewers = await loadUserSummaries(
+    db,
+    rows.map((r) => r.reviewedBy).filter((id): id is string => id !== null),
+  );
+
   return rows.map((row) =>
     serializeTask(
       row,
       byTask.get(row.id) ?? [],
       row.projectId === null ? null : projectById.get(row.projectId) ?? null,
       labelsByTask.get(row.id) ?? [],
+      reviewerFor(row, reviewers),
     ),
   );
 }
@@ -1085,6 +1150,64 @@ export async function reviewTask(
   }, bus);
 
   publishTaskChange(bus, 'rejected', updated);
+  return serializeTaskById(db, updated);
+}
+
+// ---------------------------------------------------------------------------
+// Revoke approval (撤销通过 — POST /tasks/:id/revoke-approval)
+// ---------------------------------------------------------------------------
+
+/**
+ * Revoke a completed task's approval (撤销通过): a `done` task returns to
+ * `pending_review` so it can be reviewed again — re-approved or 驳回'd back to
+ * 进行中 via the normal review flow. The delivery stands (deliver state + each
+ * claimant's points are kept); only `completed_at`/`reviewed_by` are cleared, so the
+ * task no longer counts toward contribution stats until re-approved. Permitted to the
+ * same manager tier as review (project lead/admin, or the creator/admin of a pool
+ * task, §8). Records `reopened`.
+ */
+export async function revokeApproval(
+  db: Database,
+  bus: RealtimeBus,
+  request: FastifyRequest,
+  taskId: string,
+): Promise<Task> {
+  const task = await loadTask(db, taskId);
+
+  let actor: UserRow;
+  if (task.projectId === null) {
+    actor = requireAuth(request);
+    if (!canReviewNoProjectTask(actor, task)) {
+      throw forbidden('只有任务创建者或管理员可以撤销通过');
+    }
+  } else {
+    actor = (await requireProjectLead(db, request, task.projectId)).user;
+  }
+
+  if (task.status !== 'done') {
+    throw conflict('只有已完成的任务可以撤销通过');
+  }
+
+  const [updated] = await db
+    .update(tasks)
+    .set({ status: 'pending_review', completedAt: null, reviewedBy: null })
+    .where(eq(tasks.id, taskId))
+    .returning();
+  if (!updated) throw notFound('任务不存在');
+
+  await recordActivity(
+    db,
+    {
+      taskId,
+      projectId: task.projectId,
+      actorId: actor.id,
+      type: 'reopened',
+      meta: {},
+    },
+    bus,
+  );
+
+  publishTaskChange(bus, 'reopened', updated);
   return serializeTaskById(db, updated);
 }
 

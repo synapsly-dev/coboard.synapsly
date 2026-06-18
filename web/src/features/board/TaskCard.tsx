@@ -9,12 +9,14 @@ import { LabelChip } from './LabelChip';
 import { ClaimantAvatars } from './ClaimantAvatars';
 import { DeliverDialog } from './DeliverDialog';
 import { ReviewActions } from './ReviewActions';
+import { RevokeApprovalButton } from './RevokeApprovalButton';
 import { dueInfo } from './format';
 import { PRIORITY_BADGE, PRIORITY_LABELS } from './labels';
 import {
   canClaim,
   canDeliver,
   canReview,
+  canRevokeApproval,
   type TaskPermissionContext,
 } from './permissions';
 
@@ -64,6 +66,7 @@ export function TaskCard({
   const showClaim = permCtx ? canClaim(permCtx, task) : false;
   const showDeliver = permCtx ? canDeliver(permCtx, task) : false;
   const showReview = permCtx ? canReview(permCtx, task) : false;
+  const showRevoke = permCtx ? canRevokeApproval(permCtx, task) : false;
   const pendingReview = task.status === 'pending_review';
 
   return (
@@ -157,12 +160,14 @@ export function TaskCard({
       </div>
 
       {/* Actions row (state/role-aware) */}
-      {(showClaim || showDeliver || showReview || (pendingReview && !showReview)) && (
+      {(showClaim || showDeliver || showReview || showRevoke || (pendingReview && !showReview)) && (
         <div
           className="mt-1 flex flex-wrap items-center gap-2"
           onClick={(e) => e.stopPropagation()}
         >
           {showClaim && <ClaimButton task={task} projectId={projectId} size="sm" />}
+
+          {showRevoke && <RevokeApprovalButton task={task} projectId={projectId} size="sm" />}
 
           {showDeliver && (
             <Button

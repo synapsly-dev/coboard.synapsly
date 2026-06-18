@@ -109,3 +109,11 @@ export function canDeliver(ctx: TaskPermissionContext, task: Task): boolean {
 export function canReview(ctx: TaskPermissionContext, task: Task): boolean {
   return task.status === 'pending_review' && isManager(ctx, task);
 }
+
+/**
+ * Can the user 撤销通过 (revoke approval) of this task? a manager, while the task is
+ * `done` — sends it back to 待审阅 for re-review.
+ */
+export function canRevokeApproval(ctx: TaskPermissionContext, task: Task): boolean {
+  return task.status === 'done' && isManager(ctx, task);
+}

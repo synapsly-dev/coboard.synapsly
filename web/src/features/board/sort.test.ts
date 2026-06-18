@@ -37,6 +37,7 @@ function task(over: Partial<Task> & { id: string }): Task {
     deliveredAt: null,
     deliveredBy: null,
     reviewedBy: null,
+    reviewer: null,
     claimants: [],
     labels: [],
     createdAt: '2026-01-01T00:00:00.000Z',

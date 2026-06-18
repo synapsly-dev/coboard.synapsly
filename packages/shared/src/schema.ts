@@ -106,6 +106,20 @@ export const projectMemberWithUserSchema = projectMemberSchema.extend({
 export type ProjectMemberWithUser = z.infer<typeof projectMemberWithUserSchema>;
 
 /**
+ * A user's display summary embedded in other entities (claimant, idea author,
+ * announcement author, task reviewer). Carries only the public display fields, not
+ * the full user row. Defined before `taskSchema` so the task's `reviewer` can use it.
+ */
+export const userSummarySchema = z.object({
+  id: uuidSchema,
+  displayName: displayNameSchema,
+  avatarColor: avatarColorSchema,
+  /** Whether the user has an uploaded avatar (fetch via /users/:id/avatar). */
+  hasAvatar: z.boolean(),
+});
+export type UserSummary = z.infer<typeof userSummarySchema>;
+
+/**
  * A claimant of a task as embedded in the task wire shape (lifecycle v2 §2/§3):
  * the user's display summary plus their points share. `points` is null until the
  * task is delivered (and is reset to null again on a reject). This is a display
@@ -173,6 +187,12 @@ export const taskSchema = z.object({
   deliveredAt: isoDateTimeSchema.nullable(),
   deliveredBy: uuidSchema.nullable(),
   reviewedBy: uuidSchema.nullable(),
+  /**
+   * The reviewer (审阅人) summary resolved from `reviewedBy` — who last approved or
+   * rejected this task; null until it has been reviewed (or after a 撤销通过 returns
+   * it to 待审阅). Lets the UI note the review result's reviewer without a lookup.
+   */
+  reviewer: userSummarySchema.nullable(),
   /** The set of users who have claimed this task, with their points shares. */
   claimants: z.array(taskClaimantSchema),
   /** The task's labels from the global catalog (task-labels feature). */
@@ -223,19 +243,6 @@ export type ActivityWithActor = z.infer<typeof activityWithActorSchema>;
 // ---------------------------------------------------------------------------
 // Ideas / inspiration (§7.1)
 // ---------------------------------------------------------------------------
-
-/**
- * A user's display summary as embedded in an idea (§7.1). Carries only the public
- * display fields, not the full user row (matches the claimant-summary convention).
- */
-export const userSummarySchema = z.object({
-  id: uuidSchema,
-  displayName: displayNameSchema,
-  avatarColor: avatarColorSchema,
-  /** Whether the user has an uploaded avatar (fetch via /users/:id/avatar). */
-  hasAvatar: z.boolean(),
-});
-export type UserSummary = z.infer<typeof userSummarySchema>;
 
 /**
  * An idea (§7.1). Either posted against a task (`taskId` set) or STANDALONE in the
