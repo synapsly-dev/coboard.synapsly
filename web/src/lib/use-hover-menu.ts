@@ -6,9 +6,9 @@ import { useCallback, useRef, useState } from 'react';
  *
  * - **Hover** the trigger → the menu opens as a *transient preview* that closes
  *   shortly after the pointer leaves both the trigger and the menu.
- * - **Click** the trigger → the menu is *pinned* open: it survives the pointer
- *   leaving, until an item is chosen, Escape, an outside click, or another click
- *   on the trigger.
+ * - **Click** the trigger → the menu is *pinned* open and STAYS open: clicking the
+ *   trigger never closes it. It closes only on Escape, an outside click, or when an
+ *   item is chosen.
  *
  * Wire-up:
  *   const menu = useHoverMenu();
@@ -24,8 +24,7 @@ import { useCallback, useRef, useState } from 'react';
  * it. Radix's toggle drives `onOpenChange`; the hook interprets each change using
  * a "did a trigger pointer-down cause this?" flag:
  *   - open  → pin (a real click/keyboard open).
- *   - close caused by a trigger click while only a hover *preview* → pin instead.
- *   - close caused by a trigger click while *pinned* → really close.
+ *   - close caused by a trigger click (preview OR pinned) → keep it pinned open.
  *   - close from Escape / outside-click / item-select → really close.
  * `triggerProps` MUST go on `DropdownMenuTrigger` so its `onPointerDown` runs
  * before Radix's toggle (and thus sets the flag in time).
@@ -78,13 +77,15 @@ export function useHoverMenu(closeDelay = 150) {
         pin();
         return;
       }
-      if (triggerDownRef.current && !pinnedRef.current) {
-        // A click on the trigger while it was only a hover preview → pin it open
-        // instead of letting the toggle close it.
+      if (triggerDownRef.current) {
+        // The close was driven by a click on the trigger itself — keep it open
+        // (pinned). Clicking the avatar / project switcher must NEVER close it
+        // (whether it was a hover preview or already pinned); only Escape, an
+        // outside click, or choosing an item closes it.
         pin();
         return;
       }
-      // Genuine close: trigger click while pinned, Escape, outside-click, select.
+      // Genuine close: Escape, an outside click, or an item selection.
       close();
     },
     [cancelClose, pin, close],
