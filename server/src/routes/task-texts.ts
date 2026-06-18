@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { createTaskTextInputSchema, idParamSchema, type TaskTextsResponse } from 'shared';
-import { forbidden, notFound } from '../lib/errors.js';
+import { conflict, forbidden, notFound } from '../lib/errors.js';
 import { requireTaskVisibility } from '../lib/guards.js';
 import { parseBody, parseParams } from '../lib/validate.js';
 import { loadTaskOrThrow } from '../services/commentService.js';
@@ -43,6 +43,10 @@ const taskTextsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = parseParams(idParamSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
     const { user } = await requireTaskVisibility(db, request, task);
+    // A completed task's delivery content is frozen (撤销通过 first to amend it).
+    if (task.status === 'done') {
+      throw conflict('任务已完成，不能修改交付内容');
+    }
     const input = parseBody(createTaskTextInputSchema, request.body);
 
     const text = await createTaskText(
@@ -58,6 +62,10 @@ const taskTextsRoutes: FastifyPluginAsync = async (fastify) => {
     const { id, textId } = parseParams(textParamsSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
     const { user, isLead } = await requireTaskVisibility(db, request, task);
+    // A completed task's delivery content is frozen (撤销通过 first to amend it).
+    if (task.status === 'done') {
+      throw conflict('任务已完成，不能修改交付内容');
+    }
 
     const meta = await loadTaskTextOrThrow(db, textId);
     if (meta.taskId !== id) {

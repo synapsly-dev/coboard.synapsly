@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { ProjectRole, TaskTextsResponse } from 'shared';
 import type { TestContext } from './helpers.js';
 import { createTestContext } from './helpers.js';
@@ -185,6 +186,38 @@ describe('task text deliverables (交付内容)', () => {
       headers: headers(await authCookie(ctx, lead.id)),
     });
     expect(leadDel.statusCode).toBe(204);
+  });
+
+  it('freezes text deliverables on a completed task — submit + delete both 409', async () => {
+    const { author, taskId } = await setup();
+    const cookie = await authCookie(ctx, author.id);
+    const id = (
+      (
+        await ctx.app.inject({
+          method: 'POST',
+          url: `/api/tasks/${taskId}/texts`,
+          headers: headers(cookie),
+          payload: { content: '交付一' },
+        })
+      ).json() as TaskTextsResponse
+    ).texts[0]!.id;
+
+    await ctx.db.update(tasks).set({ status: 'done' }).where(eq(tasks.id, taskId));
+
+    const submit = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/texts`,
+      headers: headers(cookie),
+      payload: { content: '交付二' },
+    });
+    expect(submit.statusCode).toBe(409);
+
+    const del = await ctx.app.inject({
+      method: 'DELETE',
+      url: `/api/tasks/${taskId}/texts/${id}`,
+      headers: headers(cookie),
+    });
+    expect(del.statusCode).toBe(409);
   });
 
   it('forbids a non-member from reading or submitting (403)', async () => {

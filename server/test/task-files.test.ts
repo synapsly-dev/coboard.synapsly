@@ -343,6 +343,44 @@ describe('task files / attachments', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('freezes attachments on a completed task — upload + delete both 409', async () => {
+    const uploader = await makeUser(ctx);
+    const projectId = await makeProject(ctx, uploader.id);
+    await addMember(ctx, projectId, uploader.id, 'member');
+    const taskId = await makeTask(ctx, projectId, uploader.id);
+    const cookie = await authCookie(ctx, uploader.id);
+
+    // Upload one while the task is still editable, then complete the task.
+    const first = multipartBody('file', 'a.txt', 'text/plain', Buffer.from('a', 'utf8'));
+    const fileId = (
+      (
+        await ctx.app.inject({
+          method: 'POST',
+          url: `/api/tasks/${taskId}/files`,
+          headers: uploadHeaders(cookie, first.contentType),
+          payload: first.payload,
+        })
+      ).json() as TaskFilesResponse
+    ).files[0]!.id;
+    await ctx.db.update(tasks).set({ status: 'done' }).where(eq(tasks.id, taskId));
+
+    const second = multipartBody('file', 'b.txt', 'text/plain', Buffer.from('b', 'utf8'));
+    const upload = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/files`,
+      headers: uploadHeaders(cookie, second.contentType),
+      payload: second.payload,
+    });
+    expect(upload.statusCode).toBe(409);
+
+    const del = await ctx.app.inject({
+      method: 'DELETE',
+      url: `/api/tasks/${taskId}/files/${fileId}`,
+      headers: headers(cookie),
+    });
+    expect(del.statusCode).toBe(409);
+  });
+
   it('forbids a random member from deleting someone else\'s file (403)', async () => {
     const uploader = await makeUser(ctx);
     const other = await makeUser(ctx);

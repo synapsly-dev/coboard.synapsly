@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { idParamSchema, isInlinePreviewable, type TaskFilesResponse } from 'shared';
-import { AppError, ErrorCode, forbidden, notFound, validationError } from '../lib/errors.js';
+import { AppError, ErrorCode, conflict, forbidden, notFound, validationError } from '../lib/errors.js';
 import { requireTaskVisibility } from '../lib/guards.js';
 import { parseParams } from '../lib/validate.js';
 import { loadTaskOrThrow } from '../services/commentService.js';
@@ -69,6 +69,11 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
     const task = await loadTaskOrThrow(db, id);
     // Any project member (project task) or any authenticated user (pool task, §8).
     const { user } = await requireTaskVisibility(db, request, task);
+
+    // A completed task's delivery content is frozen (撤销通过 first to amend it).
+    if (task.status === 'done') {
+      throw conflict('任务已完成，不能修改交付内容');
+    }
 
     if (!request.isMultipart()) {
       throw validationError('请使用 multipart/form-data 上传文件');
@@ -153,6 +158,11 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
     const { id, fileId } = parseParams(fileParamsSchema, request.params);
     const task = await loadTaskOrThrow(db, id);
     const { user, isLead } = await requireTaskVisibility(db, request, task);
+
+    // A completed task's delivery content is frozen (撤销通过 first to amend it).
+    if (task.status === 'done') {
+      throw conflict('任务已完成，不能修改交付内容');
+    }
 
     const meta = await loadTaskFileOrThrow(db, fileId);
     if (meta.taskId !== id) {

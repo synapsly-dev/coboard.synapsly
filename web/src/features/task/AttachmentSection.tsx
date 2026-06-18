@@ -49,6 +49,8 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
 
   const manager = isManager(permCtx, task);
   const myId = permCtx.user?.id;
+  // A completed task's delivery content is frozen (撤销通过 first to amend it).
+  const locked = task.status === 'done';
 
   function handlePick(e: React.ChangeEvent<HTMLInputElement>): void {
     setError(null);
@@ -75,20 +77,26 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
   return (
     <div className="grid min-w-0 gap-2 rounded-lg border border-border bg-secondary/30 p-3">
       <div className="flex min-w-0 items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <Paperclip className="h-3.5 w-3.5" aria-hidden />
-          附件（用于交付文件内容，单个 ≤ 5MB）
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate">
+            附件（用于交付文件内容，单个 ≤ 5MB）
+            {locked && '· 任务已完成，已锁定'}
+          </span>
         </span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          loading={uploadFile.isPending}
-          onClick={() => inputRef.current?.click()}
-        >
-          {!uploadFile.isPending && <Upload className="h-3.5 w-3.5" aria-hidden />}
-          上传文件
-        </Button>
+        {/* Upload — hidden once the task is done (delivery content is frozen). */}
+        {!locked && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            loading={uploadFile.isPending}
+            onClick={() => inputRef.current?.click()}
+          >
+            {!uploadFile.isPending && <Upload className="h-3.5 w-3.5" aria-hidden />}
+            上传文件
+          </Button>
+        )}
         <input
           ref={inputRef}
           type="file"
@@ -113,7 +121,7 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
               key={file.id}
               taskId={taskId}
               file={file}
-              canDelete={manager || file.uploaderId === myId}
+              canDelete={!locked && (manager || file.uploaderId === myId)}
               onPreview={() => setPreviewFile(file)}
             />
           ))}

@@ -31,6 +31,8 @@ export function TextDeliverySection({ task, permCtx }: TextDeliverySectionProps)
 
   const manager = isManager(permCtx, task);
   const myId = permCtx.user?.id;
+  // A completed task's delivery content is frozen (撤销通过 first to amend it).
+  const locked = task.status === 'done';
 
   function submit(): void {
     setError(null);
@@ -51,31 +53,34 @@ export function TextDeliverySection({ task, permCtx }: TextDeliverySectionProps)
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <FileText className="h-3.5 w-3.5" aria-hidden />
         文本交付（用于交付文字内容，可提交多条）
+        {locked && <span className="text-muted-foreground">· 任务已完成，已锁定</span>}
       </span>
 
-      {/* Composer */}
-      <div className="flex flex-col gap-2">
-        <Textarea
-          rows={3}
-          placeholder="填写交付内容…支持 Markdown"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          invalid={!!error}
-        />
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            size="sm"
-            loading={createText.isPending}
-            disabled={!draft.trim()}
-            onClick={submit}
-          >
-            {!createText.isPending && <Send className="h-3.5 w-3.5" aria-hidden />}
-            提交交付
-          </Button>
+      {/* Composer — hidden once the task is done (delivery content is frozen). */}
+      {!locked && (
+        <div className="flex flex-col gap-2">
+          <Textarea
+            rows={3}
+            placeholder="填写交付内容…支持 Markdown"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            invalid={!!error}
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              loading={createText.isPending}
+              disabled={!draft.trim()}
+              onClick={submit}
+            >
+              {!createText.isPending && <Send className="h-3.5 w-3.5" aria-hidden />}
+              提交交付
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* List */}
       {isLoading ? (
@@ -91,7 +96,7 @@ export function TextDeliverySection({ task, permCtx }: TextDeliverySectionProps)
               key={text.id}
               taskId={taskId}
               text={text}
-              canDelete={manager || text.author.id === myId}
+              canDelete={!locked && (manager || text.author.id === myId)}
             />
           ))}
         </ul>
