@@ -183,12 +183,3 @@ export function canReviewNoProjectTask(user: UserRow, task: TaskRow): boolean {
   return user.role === 'admin' || task.createdBy === user.id;
 }
 
-/** Throwing variant of canEditTask. */
-export function requireCanEditTask(
-  membership: ProjectMembership,
-  task: TaskRow,
-): void {
-  if (!canEditTask(membership, task)) {
-    throw forbidden('只能编辑自己创建或负责的任务');
-  }
-}

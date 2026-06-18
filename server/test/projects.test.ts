@@ -366,19 +366,41 @@ describe('projects & membership', () => {
       expect(rows.some((r) => r.userId === newcomer.id)).toBe(true);
     });
 
-    it('rejects adding the same member twice with 409', async () => {
+    it('re-posting an existing member upserts (changes) their role', async () => {
       const { admin, projectId } = await setupProject();
       const newcomer = await seedUser(ctx, { role: 'member' });
-      const add = (): Promise<LightMyRequestResponse> =>
+      const post = (role: string): Promise<LightMyRequestResponse> =>
         ctx.app.inject({
           method: 'POST',
           url: `/api/projects/${projectId}/members`,
           headers: authHeaders(admin),
-          payload: { userId: newcomer.id, role: 'member' },
+          payload: { userId: newcomer.id, role },
         });
 
-      expect((await add()).statusCode).toBe(201);
-      expect((await add()).statusCode).toBe(409);
+      expect((await post('member')).statusCode).toBe(201);
+      // Re-posting the same user with a new role promotes them (the manage-members
+      // dialog's role dropdown relies on this upsert), rather than conflicting.
+      const promote = await post('lead');
+      expect(promote.statusCode).toBe(201);
+      expect(json<{ member: { role: string } }>(promote).member.role).toBe('lead');
+
+      const rows = await ctx.db.select().from(projectMembers);
+      const mine = rows.filter((r) => r.userId === newcomer.id);
+      expect(mine).toHaveLength(1); // still a single membership row
+      expect(mine[0]!.role).toBe('lead');
+    });
+
+    it('refuses to demote the sole lead of a project', async () => {
+      const { admin, projectId } = await setupProject();
+      // The project's only lead is its admin creator. Demoting them to member would
+      // strand the project, so the sole-lead invariant blocks it.
+      const res = await ctx.app.inject({
+        method: 'POST',
+        url: `/api/projects/${projectId}/members`,
+        headers: authHeaders(admin),
+        payload: { userId: admin.id, role: 'member' },
+      });
+      expect(res.statusCode).toBe(403);
     });
 
     it('returns 404 when adding an unknown user', async () => {

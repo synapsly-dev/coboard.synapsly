@@ -74,10 +74,6 @@ export function conflict(message = '操作冲突'): AppError {
   return new AppError(409, ErrorCode.CONFLICT, message);
 }
 
-export function internalError(message = '服务器内部错误'): AppError {
-  return new AppError(500, ErrorCode.INTERNAL, message);
-}
-
 /** Type guard for the global error handler. */
 export function isAppError(err: unknown): err is AppError {
   return err instanceof AppError;

@@ -70,16 +70,6 @@ export function canAssign(ctx: TaskPermissionContext, task: Task): boolean {
   return isManager(ctx, task);
 }
 
-/**
- * Can the user release (themselves from) this task? a claimant, or a manager when
- * there is at least one claimant to remove (lifecycle v2 §3).
- */
-export function canRelease(ctx: TaskPermissionContext, task: Task): boolean {
-  if (!ctx.user) return false;
-  if (isClaimant(ctx, task)) return true;
-  return isManager(ctx, task) && task.claimants.length > 0;
-}
-
 /** Is the task at its claim capacity (claim-limits)? null max ⇒ never full. */
 export function isClaimFull(task: Task): boolean {
   return task.maxClaimants != null && task.claimants.length >= task.maxClaimants;

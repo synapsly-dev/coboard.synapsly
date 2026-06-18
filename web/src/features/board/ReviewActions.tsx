@@ -90,6 +90,14 @@ export function ReviewActions({
         </Button>
       </div>
 
+      {/* Surface an approve failure inline (the reject path shows its own error in
+          the dialog) so a failed 通过 is never a silent no-op. */}
+      {review.isError && !rejectOpen && (
+        <p className="mt-1 text-xs text-destructive">
+          {isApiClientError(review.error) ? review.error.message : '操作失败，请重试'}
+        </p>
+      )}
+
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

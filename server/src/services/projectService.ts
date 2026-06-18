@@ -289,22 +289,32 @@ export async function addProjectMember(
     throw notFound('用户不存在');
   }
 
-  let member: ProjectMemberRow | undefined;
-  try {
-    [member] = await db
-      .insert(projectMembers)
-      .values({
-        projectId,
-        userId: input.userId,
-        role,
-      })
-      .returning();
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      throw conflict('该用户已是项目成员');
-    }
-    throw error;
+  // The manage-members dialog reuses this endpoint to CHANGE an existing member's
+  // role (the role dropdown), so adding an already-member upserts the role rather
+  // than conflicting. Guard the sole-lead invariant before a demotion so a project
+  // can't lose its only lead this way (mirrors removal/leave).
+  const [existing] = await db
+    .select()
+    .from(projectMembers)
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, input.userId)))
+    .limit(1);
+  if (existing && existing.role === 'lead' && role !== 'lead') {
+    await assertNotLastLead(
+      db,
+      projectId,
+      existing,
+      forbidden('项目至少需保留一名负责人，无法降级最后一名负责人'),
+    );
   }
+
+  const [member] = await db
+    .insert(projectMembers)
+    .values({ projectId, userId: input.userId, role })
+    .onConflictDoUpdate({
+      target: [projectMembers.projectId, projectMembers.userId],
+      set: { role },
+    })
+    .returning();
 
   if (!member) {
     throw new Error('添加成员失败：未返回插入行');
