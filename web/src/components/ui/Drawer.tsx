@@ -5,17 +5,14 @@ import { cn } from '../../lib/utils';
 import { Overlay } from './Overlay';
 
 /**
- * Edge sheet (§4). Built on Radix Dialog for the same focus-trap / escape /
- * scroll-lock semantics, but slides in from a screen edge. Defaults to the right
- * (TaskDetailDrawer); `side="left"` powers the mobile navigation menu.
+ * Right-side sheet (§4 — TaskDetailDrawer). Built on Radix Dialog for the same
+ * focus-trap / escape / scroll-lock semantics, but slides in from the right edge.
  */
 export const Drawer = DialogPrimitive.Root;
 export const DrawerTrigger = DialogPrimitive.Trigger;
 
 export interface DrawerContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
-  /** Which edge the sheet slides from. */
-  side?: 'left' | 'right';
   /** Drawer width; defaults to a comfortable detail-panel size. */
   widthClassName?: string;
   hideClose?: boolean;
@@ -25,7 +22,7 @@ export const DrawerContent = forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DrawerContentProps
 >(function DrawerContent(
-  { className, children, side = 'right', widthClassName = 'w-full sm:max-w-xl', hideClose, ...props },
+  { className, children, widthClassName = 'w-full sm:max-w-xl', hideClose, ...props },
   ref,
 ) {
   return (
@@ -34,10 +31,8 @@ export const DrawerContent = forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed inset-y-0 z-50 flex h-full flex-col border-border bg-card text-card-foreground shadow-2xl',
-          side === 'left'
-            ? 'left-0 border-r animate-slide-in-left'
-            : 'right-0 border-l animate-slide-in-right',
+          'fixed inset-y-0 right-0 z-50 flex h-full flex-col border-l border-border bg-card text-card-foreground shadow-2xl',
+          'animate-slide-in-right',
           widthClassName,
           className,
         )}

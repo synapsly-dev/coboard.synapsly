@@ -10,17 +10,16 @@ import {
   DropdownMenuTrigger,
 } from '../ui';
 import { ProjectSwitcher } from './ProjectSwitcher';
-import { MobileNav } from './MobileNav';
 import { buildNavItems } from './nav-items';
 import { useAuth } from '../../lib/auth-context';
 import { avatarUrl, cn } from '../../lib/utils';
 import { useHoverMenu } from '../../lib/use-hover-menu';
 
 /**
- * Top navigation bar (§4). On md+ it shows the logo, project switcher and the
- * primary nav inline; on phones those collapse into a hamburger-triggered sheet
- * (see MobileNav) and the avatar dropdown carries only account actions. Frontend
- * role hiding is a UX nicety; the server enforces real authorization (§6.3).
+ * Top navigation bar (§4). Shows the logo, project switcher, and — on md+ — the
+ * primary nav inline; the avatar dropdown carries account actions. On phones the
+ * primary destinations live in the bottom tab bar (see BottomNav). Frontend role
+ * hiding is a UX nicety; the server enforces real authorization (§6.3).
  */
 export function TopNav(): JSX.Element {
   const { user, isAdmin, logout } = useAuth();
@@ -43,9 +42,6 @@ export function TopNav(): JSX.Element {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex h-14 items-center gap-2 px-4 sm:gap-4 sm:px-6">
-        {/* Mobile: hamburger opens the nav sheet (project switcher + destinations). */}
-        <MobileNav />
-
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2" aria-label="Coboard 首页">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -54,13 +50,12 @@ export function TopNav(): JSX.Element {
           <span className="hidden text-base font-semibold tracking-tight sm:inline">Coboard</span>
         </Link>
 
-        {/* Project switcher + primary nav — desktop only; the mobile sheet carries
-            these on phones. */}
-        <div className="hidden h-5 w-px bg-border md:block" aria-hidden />
-        <div className="hidden md:block">
-          <ProjectSwitcher />
-        </div>
+        {/* Project switcher — visible on every size (primary navigation on phones
+            lives in the bottom tab bar; see BottomNav). */}
+        <div className="h-5 w-px bg-border" aria-hidden />
+        <ProjectSwitcher />
 
+        {/* Primary nav — desktop only; phones use the bottom tab bar. */}
         <nav className="ml-2 hidden items-center gap-1 md:flex" aria-label="主导航">
           {navItems.map((item) => {
             const Icon = item.icon;
