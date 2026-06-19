@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormSetError } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { LayoutDashboard } from 'lucide-react';
 import { loginInputSchema, type LoginInput } from 'shared';
 
-import { isApiClientError, type FieldErrors } from '../api/client';
+import { isApiClientError } from '../api/client';
 import { useRegistrationStatus } from '../api/auth';
 import { useAuth } from '../lib/auth-context';
+import { applyFieldErrors } from '../lib/form-errors';
 import { Button, Input, Label } from '../components/ui';
 
 /**
@@ -16,8 +17,6 @@ import { Button, Input, Label } from '../components/ui';
  * back to wherever the user was headed (the `from` location set by RequireAuth)
  * or to the board home.
  */
-
-const FIELD_NAMES = ['email', 'password'] as const;
 
 interface LocationState {
   from?: { pathname?: string };
@@ -160,7 +159,7 @@ export default function LoginPage(): JSX.Element {
  */
 function handleLoginError(
   err: unknown,
-  setError: (name: (typeof FIELD_NAMES)[number], error: { type: string; message: string }) => void,
+  setError: UseFormSetError<LoginInput>,
   setBanner: (message: string) => void,
 ): void {
   if (isApiClientError(err)) {
@@ -175,16 +174,4 @@ function handleLoginError(
     return;
   }
   setBanner('登录失败，请稍后重试');
-}
-
-function applyFieldErrors(
-  fields: FieldErrors,
-  setError: (name: (typeof FIELD_NAMES)[number], error: { type: string; message: string }) => void,
-): void {
-  for (const name of FIELD_NAMES) {
-    const messages = fields[name];
-    if (messages && messages.length > 0) {
-      setError(name, { type: 'server', message: messages[0]! });
-    }
-  }
 }

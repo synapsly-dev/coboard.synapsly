@@ -112,7 +112,7 @@ export function Board({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-6">
         <BoardFilters
           value={filter}
           onChange={setFilter}
@@ -123,7 +123,7 @@ export function Board({
           labelFilter={labelFilter}
           onLabelFilterChange={setLabelFilter}
         />
-        <div className="ml-auto">
+        <div className="w-full sm:ml-auto sm:w-auto">
           <CreateTaskDialog projectId={projectId} />
         </div>
       </div>
@@ -141,7 +141,7 @@ export function Board({
         <>
           {/* Mobile status pager: tap a status to page to its column. Desktop
               (md+) shows all four columns at once and hides these tabs. */}
-          <div className="flex flex-wrap gap-1.5 px-4 pb-2 sm:px-6 md:hidden">
+          <div className="grid grid-cols-4 gap-1.5 px-4 pb-2 sm:px-6 md:hidden">
             {COLUMN_ORDER.map((status) => {
               const active = status === activeStatus;
               return (
@@ -151,7 +151,7 @@ export function Board({
                   onClick={() => setActiveStatus(status)}
                   aria-pressed={active}
                   className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
+                    'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full px-2 py-2 text-xs font-medium transition-colors',
                     active
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-secondary text-muted-foreground hover:text-foreground',

@@ -24,11 +24,14 @@ const variantClasses: Record<ButtonVariant, string> = {
   link: 'text-primary underline-offset-4 hover:underline',
 };
 
+// Mobile-first: taller hit areas on touch (phones, < sm), restored to the compact
+// desktop sizing from sm up. Keeps ~40px+ tap targets where fingers land while
+// preserving dense toolbars on pointer devices.
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-xs rounded-md gap-1.5',
-  md: 'h-9 px-4 text-sm rounded-md gap-2',
-  lg: 'h-10 px-6 text-sm rounded-lg gap-2',
-  icon: 'h-9 w-9 rounded-md',
+  sm: 'h-9 px-3 text-xs rounded-md gap-1.5 sm:h-8',
+  md: 'h-10 px-4 text-sm rounded-md gap-2 sm:h-9',
+  lg: 'h-11 px-6 text-sm rounded-lg gap-2 sm:h-10',
+  icon: 'h-10 w-10 rounded-md sm:h-9 sm:w-9',
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

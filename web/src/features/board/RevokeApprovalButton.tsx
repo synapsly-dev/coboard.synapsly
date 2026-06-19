@@ -34,6 +34,7 @@ export function RevokeApprovalButton({
         type="button"
         variant="outline"
         size={size}
+        className="w-full sm:w-auto"
         loading={revoke.isPending}
         aria-label="撤销通过"
         onClick={() => {

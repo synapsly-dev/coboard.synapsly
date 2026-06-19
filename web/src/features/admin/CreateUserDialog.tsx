@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../components/ui';
-import { isApiClientError, type FieldErrors } from '../../api/client';
+import { isApiClientError } from '../../api/client';
+import { applyFieldErrors } from '../../lib/form-errors';
 import { useCreateUser } from '../../api/users';
 import { cn } from '../../lib/utils';
 import { avatarColorPalette, pickAvatarColor, userRoleLabels } from './labels';
@@ -78,7 +79,7 @@ export function CreateUserDialog(): JSX.Element {
     } catch (err) {
       if (isApiClientError(err)) {
         if (err.fields) {
-          applyFieldErrors(err.fields);
+          applyFieldErrors(err.fields, setError);
         }
         // 409 = email already taken — surface on the email field.
         if (err.isConflict) {
@@ -91,15 +92,6 @@ export function CreateUserDialog(): JSX.Element {
       }
     }
   });
-
-  function applyFieldErrors(fields: FieldErrors): void {
-    for (const [path, messages] of Object.entries(fields)) {
-      const field = path.split('.')[0] as keyof CreateUserInput;
-      if (messages[0]) {
-        setError(field, { type: 'server', message: messages[0] });
-      }
-    }
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -207,7 +199,7 @@ export function CreateUserDialog(): JSX.Element {
                     aria-label={`选择颜色 ${color}`}
                     aria-pressed={selected}
                     className={cn(
-                      'h-7 w-7 rounded-full ring-offset-2 ring-offset-background transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      'h-9 w-9 rounded-full ring-offset-2 ring-offset-background transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-7 sm:w-7',
                       selected ? 'ring-2 ring-ring scale-110' : 'hover:scale-105',
                     )}
                     style={{ backgroundColor: color }}

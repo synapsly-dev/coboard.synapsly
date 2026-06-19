@@ -9,11 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Spinner,
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
@@ -21,7 +16,7 @@ import { useAddProjectMember, useProjects } from '../../api/projects';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../lib/query';
 import { cn } from '../../lib/utils';
-import { projectRoleLabels } from './labels';
+import { ProjectRoleSelect } from './ProjectRoleSelect';
 
 /**
  * Bulk "add a user to multiple projects" dialog (§6.3). Lets an admin enroll one
@@ -124,15 +119,7 @@ function Body({
         <>
           <div className="grid gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">角色</span>
-            <Select value={role} onValueChange={(v) => setRole(v as ProjectRole)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="member">{projectRoleLabels.member}</SelectItem>
-                <SelectItem value="lead">{projectRoleLabels.lead}</SelectItem>
-              </SelectContent>
-            </Select>
+            <ProjectRoleSelect value={role} onValueChange={setRole} className="w-full sm:w-32" />
           </div>
 
           <ul className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border p-1">

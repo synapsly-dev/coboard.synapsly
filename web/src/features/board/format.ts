@@ -39,6 +39,13 @@ export function formatDateTime(iso: string): string {
   return format(parsed, 'MM-dd HH:mm');
 }
 
+/** Format an ISO date as a plain calendar day (e.g. "2026-06-15"). */
+export function formatDate(iso: string): string {
+  const parsed = parseISO(iso);
+  if (!isValid(parsed)) return '';
+  return format(parsed, 'yyyy-MM-dd');
+}
+
 /** Coarse relative time in Chinese ("刚刚 / 5 分钟前 / 3 小时前 / 06-15"). */
 export function relativeTime(iso: string): string {
   const parsed = parseISO(iso);

@@ -136,7 +136,7 @@ function TextRow({
               type="button"
               variant="ghost"
               size="icon"
-              className="ml-auto h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+              className="ml-auto h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive sm:h-6 sm:w-6"
               aria-label="删除交付内容"
               title="删除"
               loading={deleteText.isPending}

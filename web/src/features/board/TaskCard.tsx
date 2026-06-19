@@ -25,8 +25,7 @@ import {
  * points badge, priority and due date. State/role-aware actions: 认领 (open/
  * in_progress, when not a claimant), 交付 (in_progress claimant/manager → opens the
  * deliver dialog), 审阅 (pending_review lead/admin → approve/reject) with a 待审阅
- * badge for non-leads. Purely presentational w.r.t. dnd — {@link SortableTaskCard}
- * wraps it for drag.
+ * badge for non-leads.
  */
 export interface TaskCardProps {
   task: Task;
@@ -40,8 +39,6 @@ export interface TaskCardProps {
   showProjectBadge?: boolean;
   /** Open the detail drawer. */
   onOpen?: (taskId: string) => void;
-  /** True while this card is the active drag overlay (subtle elevation). */
-  dragging?: boolean;
   className?: string;
 }
 
@@ -51,7 +48,6 @@ export function TaskCard({
   permCtx,
   showProjectBadge = false,
   onOpen,
-  dragging = false,
   className,
 }: TaskCardProps): JSX.Element {
   const priority = PRIORITY_BADGE[task.priority];
@@ -74,7 +70,6 @@ export function TaskCard({
       className={cn(
         'group flex flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-shadow',
         'hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        dragging && 'rotate-1 shadow-lg ring-2 ring-primary/40',
         className,
       )}
       role="button"
@@ -162,7 +157,7 @@ export function TaskCard({
       {/* Actions row (state/role-aware) */}
       {(showClaim || showDeliver || showReview || showRevoke || (pendingReview && !showReview)) && (
         <div
-          className="mt-1 flex flex-wrap items-center gap-2"
+          className="mt-2 flex flex-wrap items-center gap-2 pt-1 sm:mt-1 sm:pt-0"
           onClick={(e) => e.stopPropagation()}
         >
           {showClaim && <ClaimButton task={task} projectId={projectId} size="sm" />}

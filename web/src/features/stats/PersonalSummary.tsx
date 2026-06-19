@@ -57,7 +57,7 @@ export function PersonalSummary({
         )}
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="mt-5 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <SummaryStat
           icon={CheckCircle2}
           label="完成任务"

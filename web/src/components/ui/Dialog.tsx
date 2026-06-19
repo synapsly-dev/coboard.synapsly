@@ -2,6 +2,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { forwardRef, type ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { Overlay } from './Overlay';
 
 /**
  * Modal dialog built on Radix Dialog (focus trap, escape, scroll lock, a11y).
@@ -9,23 +10,6 @@ import { cn } from '../../lib/utils';
  */
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
-export const DialogClose = DialogPrimitive.Close;
-
-const DialogOverlay = forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(function DialogOverlay({ className, ...props }, ref) {
-  return (
-    <DialogPrimitive.Overlay
-      ref={ref}
-      className={cn(
-        'fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] animate-overlay-in',
-        className,
-      )}
-      {...props}
-    />
-  );
-});
 
 export interface DialogContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
@@ -39,7 +23,7 @@ export const DialogContent = forwardRef<
 >(function DialogContent({ className, children, hideClose, ...props }, ref) {
   return (
     <DialogPrimitive.Portal>
-      <DialogOverlay />
+      <Overlay blur />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
@@ -58,7 +42,7 @@ export const DialogContent = forwardRef<
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
-            className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-6 sm:w-6"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />

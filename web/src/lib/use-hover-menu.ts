@@ -34,6 +34,15 @@ import { useCallback, useRef, useState } from 'react';
  */
 export function useHoverMenu(closeDelay = 150) {
   const [open, setOpen] = useState(false);
+  // Hover only makes sense on a fine pointer that can actually hover. On touch
+  // there is no hover, and synthesized mouseenter/leave on tap make the menu feel
+  // like it needs a second tap — so we wire the hover handlers only when the
+  // device genuinely supports hover, leaving plain tap-to-open on touch.
+  const [canHover] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(hover: hover) and (pointer: fine)').matches
+      : true,
+  );
   // Refs (not state) so the pointer/focus event handlers always read the live
   // value without depending on the render closure.
   const openRef = useRef(false);
@@ -127,12 +136,12 @@ export function useHoverMenu(closeDelay = 150) {
     onOpenChange,
     triggerProps: {
       onPointerDown: onTriggerPointerDown,
-      onMouseEnter: openOnHover,
-      onMouseLeave: scheduleClose,
+      onMouseEnter: canHover ? openOnHover : undefined,
+      onMouseLeave: canHover ? scheduleClose : undefined,
     },
     contentProps: {
-      onMouseEnter: cancelClose,
-      onMouseLeave: scheduleClose,
+      onMouseEnter: canHover ? cancelClose : undefined,
+      onMouseLeave: canHover ? scheduleClose : undefined,
       onOpenAutoFocus: onContentOpenAutoFocus,
     },
   };

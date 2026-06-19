@@ -121,7 +121,7 @@ export function Leaderboard({
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-5 text-right">
+            <div className="flex shrink-0 items-center gap-3 text-right sm:gap-5">
               <Metric
                 label="完成"
                 value={entry.completedCount}
@@ -166,14 +166,24 @@ function Metric({
           emphasized
             ? 'text-lg font-bold text-foreground'
             : 'text-base font-semibold text-muted-foreground',
-          breakdown && 'cursor-help underline decoration-dotted underline-offset-4',
+          // The dotted underline only signals a hover tooltip, which never opens
+          // on touch — so only show the affordance from sm+ where the tooltip works.
+          breakdown && 'sm:cursor-help sm:underline sm:decoration-dotted sm:underline-offset-4',
         )}
       >
         {value}
       </span>
       <span className="text-[11px] text-muted-foreground">{label}</span>
+      {/* Phones can't open the hover tooltip, so surface the breakdown inline. */}
+      {breakdown && (
+        <span className="text-[10px] leading-tight tabular-nums text-muted-foreground sm:hidden">
+          {breakdown}
+        </span>
+      )}
     </div>
   );
   if (!breakdown) return cell;
+  // Keep the hover tooltip for sm+ (it's touch-inaccessible); the sm:hidden inline
+  // caption inside `cell` already covers phones, so the tooltip is just a bonus there.
   return <Tooltip content={breakdown}>{cell}</Tooltip>;
 }

@@ -31,7 +31,7 @@ export function FilePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="break-all pr-8 text-base font-medium">
             {file?.filename ?? '预览'}
@@ -40,22 +40,23 @@ export function FilePreviewDialog({
 
         {file && (
           <>
-            <div className="flex max-h-[72vh] min-h-[12rem] items-center justify-center overflow-auto rounded-md bg-secondary/40">
-              {isImage ? (
+            {isImage ? (
+              <div className="flex max-h-[72vh] min-h-[12rem] items-center justify-center overflow-auto rounded-md bg-secondary/40">
                 <img
                   src={src}
                   alt={file.filename}
                   className="max-h-[70vh] max-w-full object-contain"
                 />
-              ) : (
-                // PDF (the only other whitelisted preview type).
-                <iframe
-                  src={src}
-                  title={file.filename}
-                  className="h-[70vh] w-full rounded-md border-0"
-                />
-              )}
-            </div>
+              </div>
+            ) : (
+              // PDF (the only other whitelisted preview type) — the iframe owns its
+              // own scroll, so no competing outer overflow wrapper.
+              <iframe
+                src={src}
+                title={file.filename}
+                className="h-[80vh] w-full rounded-md border-0 bg-secondary/40 sm:h-[70vh]"
+              />
+            )}
             <div className="flex justify-end">
               <a
                 href={taskFileUrl(taskId, file.id)}

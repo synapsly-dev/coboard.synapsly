@@ -71,6 +71,7 @@ export function ReviewActions({
           type="button"
           variant="primary"
           size={size}
+          className="flex-1 sm:flex-none"
           loading={review.isPending && !rejectOpen}
           onClick={approve}
           aria-label="通过审阅"
@@ -82,6 +83,7 @@ export function ReviewActions({
           type="button"
           variant="outline"
           size={size}
+          className="flex-1 sm:flex-none"
           onClick={() => setRejectOpen(true)}
           aria-label="驳回交付"
         >

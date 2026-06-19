@@ -119,13 +119,13 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
           {comment.editedAt && <span className="text-xs text-muted-foreground">（已编辑）</span>}
 
           {!editing && (canEdit || canDelete) && (
-            <span className="ml-auto flex items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
+            <span className="ml-auto flex items-center gap-1 opacity-100 transition-opacity sm:gap-0.5 sm:opacity-0 sm:focus-within:opacity-100 sm:group-hover:opacity-100">
               {canEdit && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="h-9 w-9 sm:h-7 sm:w-7"
                   aria-label="编辑评论"
                   onClick={() => {
                     setDraft(comment.body);
@@ -140,7 +140,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
                   aria-label="删除评论"
                   onClick={() => {
                     if (window.confirm('确定删除这条评论？')) {

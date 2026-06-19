@@ -15,6 +15,7 @@ import { format, parseISO } from 'date-fns';
 import { BarChart3 } from 'lucide-react';
 import type { LeaderboardEntry, StatsSort, TrendBucket, TrendPoint } from 'shared';
 import { EmptyState, Spinner } from '../../components/ui';
+import { useMediaQuery } from '../../lib/use-media-query';
 
 /**
  * Contribution charts (§6.4 视图, Recharts):
@@ -27,6 +28,10 @@ import { EmptyState, Spinner } from '../../components/ui';
 
 const ACCENT = 'hsl(221 83% 53%)'; // primary blue
 const ACCENT_MUTED = 'hsl(221 83% 53% / 0.35)';
+
+/** Tailwind `sm` breakpoint (640px) and up — i.e. not a phone. */
+const DESKTOP_QUERY = '(min-width: 640px)';
+
 /** Distinct, readable hues for per-person bars. */
 const BAR_PALETTE = [
   '#3b82f6',
@@ -98,6 +103,9 @@ export function TrendChart({
 
   const hasData = data.some((d) => d.value > 0);
   const metricLabel = metric === 'points' ? '点数' : '完成数';
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  // On phones a negative left margin clips the Y-axis ticks on the narrow card.
+  const leftMargin = isDesktop ? -16 : 0;
 
   if (isLoading && !points) {
     return <ChartLoading />;
@@ -115,7 +123,7 @@ export function TrendChart({
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+      <LineChart data={data} margin={{ top: 8, right: 12, left: leftMargin, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 16% 90%)" vertical={false} />
         <XAxis
           dataKey="label"
@@ -166,13 +174,18 @@ export function PerPersonChart({
   isLoading,
   limit = 8,
 }: PerPersonChartProps): JSX.Element {
+  // On phones the vertical bars force every Chinese name onto the x-axis where
+  // they collide/clip at ~390px. Render a horizontal bar chart instead (names
+  // on the y-axis) and cap the bar count so each row stays legible.
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const effectiveLimit = isDesktop ? limit : Math.min(limit, 5);
   const data = useMemo(
     () =>
-      (entries ?? []).slice(0, limit).map((e) => ({
+      (entries ?? []).slice(0, effectiveLimit).map((e) => ({
         name: e.user.displayName,
         value: metric === 'points' ? e.pointsSum : e.completedCount,
       })),
-    [entries, metric, limit],
+    [entries, metric, effectiveLimit],
   );
 
   const hasData = data.some((d) => d.value > 0);
@@ -189,6 +202,46 @@ export function PerPersonChart({
         description="所选范围内还没有人完成任务。"
         className="h-full"
       />
+    );
+  }
+
+  // Phone: horizontal bars with names down the y-axis (no overlap/clipping).
+  if (!isDesktop) {
+    return (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          layout="vertical"
+          margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 16% 90%)" horizontal={false} />
+          <XAxis
+            type="number"
+            allowDecimals={false}
+            tick={{ fontSize: 12, fill: 'hsl(215 16% 47%)' }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="name"
+            tick={{ fontSize: 12, fill: 'hsl(215 16% 47%)' }}
+            tickLine={false}
+            axisLine={false}
+            width={72}
+            interval={0}
+          />
+          <Tooltip
+            cursor={{ fill: 'hsl(215 16% 90% / 0.4)' }}
+            content={<ChartTooltip metricLabel={metricLabel} />}
+          />
+          <Bar dataKey="value" name={metricLabel} radius={[0, 4, 4, 0]} maxBarSize={28}>
+            {data.map((_, index) => (
+              <Cell key={index} fill={BAR_PALETTE[index % BAR_PALETTE.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     );
   }
 

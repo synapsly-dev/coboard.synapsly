@@ -2,30 +2,20 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { forwardRef } from 'react';
 import { cn } from '../../lib/utils';
+import { Overlay } from './Overlay';
 
 /**
- * Right-side sheet (§4 — TaskDetailDrawer). Built on Radix Dialog for the same
- * focus-trap / escape / scroll-lock semantics, but slides in from the right edge.
+ * Edge sheet (§4). Built on Radix Dialog for the same focus-trap / escape /
+ * scroll-lock semantics, but slides in from a screen edge. Defaults to the right
+ * (TaskDetailDrawer); `side="left"` powers the mobile navigation menu.
  */
 export const Drawer = DialogPrimitive.Root;
 export const DrawerTrigger = DialogPrimitive.Trigger;
-export const DrawerClose = DialogPrimitive.Close;
-
-const DrawerOverlay = forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(function DrawerOverlay({ className, ...props }, ref) {
-  return (
-    <DialogPrimitive.Overlay
-      ref={ref}
-      className={cn('fixed inset-0 z-50 bg-black/40 animate-overlay-in', className)}
-      {...props}
-    />
-  );
-});
 
 export interface DrawerContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** Which edge the sheet slides from. */
+  side?: 'left' | 'right';
   /** Drawer width; defaults to a comfortable detail-panel size. */
   widthClassName?: string;
   hideClose?: boolean;
@@ -35,17 +25,19 @@ export const DrawerContent = forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DrawerContentProps
 >(function DrawerContent(
-  { className, children, widthClassName = 'w-full sm:max-w-xl', hideClose, ...props },
+  { className, children, side = 'right', widthClassName = 'w-full sm:max-w-xl', hideClose, ...props },
   ref,
 ) {
   return (
     <DialogPrimitive.Portal>
-      <DrawerOverlay />
+      <Overlay />
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed inset-y-0 right-0 z-50 flex h-full flex-col border-l border-border bg-card text-card-foreground shadow-2xl',
-          'animate-slide-in-right',
+          'fixed inset-y-0 z-50 flex h-full flex-col border-border bg-card text-card-foreground shadow-2xl',
+          side === 'left'
+            ? 'left-0 border-r animate-slide-in-left'
+            : 'right-0 border-l animate-slide-in-right',
           widthClassName,
           className,
         )}
@@ -54,7 +46,7 @@ export const DrawerContent = forwardRef<
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
-            className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-6 sm:w-6"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -83,7 +75,12 @@ export function DrawerBody({ className, ...props }: React.HTMLAttributes<HTMLDiv
 export function DrawerFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
     <div
-      className={cn('flex items-center justify-end gap-2 border-t border-border px-6 py-4', className)}
+      className={cn(
+        // Stack full-width on phones (avoids cramped/overflowing button rows on a
+        // full-width mobile drawer); a right-aligned row from sm up.
+        'flex flex-col-reverse gap-2 border-t border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-end',
+        className,
+      )}
       {...props}
     />
   );
@@ -97,19 +94,6 @@ export const DrawerTitle = forwardRef<
     <DialogPrimitive.Title
       ref={ref}
       className={cn('text-base font-semibold leading-tight tracking-tight', className)}
-      {...props}
-    />
-  );
-});
-
-export const DrawerDescription = forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
->(function DrawerDescription({ className, ...props }, ref) {
-  return (
-    <DialogPrimitive.Description
-      ref={ref}
-      className={cn('text-sm text-muted-foreground', className)}
       {...props}
     />
   );

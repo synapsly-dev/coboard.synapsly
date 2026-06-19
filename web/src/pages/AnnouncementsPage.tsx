@@ -120,12 +120,12 @@ function AnnouncementCard({
           {announcement.title}
         </h2>
         {canManage && (
-          <div className="flex shrink-0 items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-0.5">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-9 w-9 sm:h-8 sm:w-8"
               aria-label="编辑信息"
               title="编辑"
               onClick={onEdit}
@@ -136,7 +136,7 @@ function AnnouncementCard({
               type="button"
               variant="ghost"
               size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive sm:h-8 sm:w-8"
               aria-label="删除信息"
               title="删除"
               loading={deleteAnnouncement.isPending}

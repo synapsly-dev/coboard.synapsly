@@ -26,7 +26,7 @@ import {
 import { useUsers } from '../../api/users';
 import { useAuth } from '../../lib/auth-context';
 import { avatarUrl } from '../../lib/utils';
-import { projectRoleLabels } from './labels';
+import { ProjectRoleSelect } from './ProjectRoleSelect';
 
 /**
  * Manage-members dialog (§6.3, §7 GET/POST /projects/:id/members, DELETE
@@ -45,7 +45,7 @@ export function ProjectMembersDialog({
 }): JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="p-4 sm:max-w-lg sm:p-6">
         <DialogHeader>
           <DialogTitle>管理成员 · {project.name}</DialogTitle>
           <DialogDescription>添加成员、设置负责人/成员角色或移除成员。</DialogDescription>
@@ -146,15 +146,7 @@ function MembersBody({ project }: { project: Project }): JSX.Element {
           <label className="text-xs font-medium text-muted-foreground" htmlFor="add-member-role">
             角色
           </label>
-          <Select value={newRole} onValueChange={(v) => setNewRole(v as ProjectRole)}>
-            <SelectTrigger id="add-member-role">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="member">{projectRoleLabels.member}</SelectItem>
-              <SelectItem value="lead">{projectRoleLabels.lead}</SelectItem>
-            </SelectContent>
-          </Select>
+          <ProjectRoleSelect id="add-member-role" value={newRole} onValueChange={setNewRole} />
         </div>
         <Button
           onClick={() => void handleAdd()}
@@ -185,47 +177,49 @@ function MembersBody({ project }: { project: Project }): JSX.Element {
             const isSelf = m.userId === currentUser?.id;
             const rowPending = pendingUserId === m.userId;
             return (
-              <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                <Avatar
-                  name={m.user.displayName}
-                  color={m.user.avatarColor}
-                  imageUrl={m.user.hasAvatar ? avatarUrl(m.user.id) : undefined}
-                  size="sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
-                    <span className="truncate">{m.user.displayName}</span>
-                    {isSelf && <span className="shrink-0 text-xs font-normal text-muted-foreground">（我）</span>}
-                    {m.user.role === 'admin' && (
-                      <Badge variant="primary" className="ml-1 shrink-0">
-                        管理员
-                      </Badge>
-                    )}
+              <li
+                key={m.id}
+                className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Avatar
+                    name={m.user.displayName}
+                    color={m.user.avatarColor}
+                    imageUrl={m.user.hasAvatar ? avatarUrl(m.user.id) : undefined}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
+                      <span className="truncate">{m.user.displayName}</span>
+                      {isSelf && <span className="shrink-0 text-xs font-normal text-muted-foreground">（我）</span>}
+                      {m.user.role === 'admin' && (
+                        <Badge variant="primary" className="ml-1 shrink-0">
+                          管理员
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">{m.user.email}</div>
                   </div>
-                  <div className="truncate text-xs text-muted-foreground">{m.user.email}</div>
                 </div>
-                <Select
-                  value={m.role}
-                  onValueChange={(v) => void handleChangeRole(m.userId, v as ProjectRole)}
-                  disabled={rowPending}
-                >
-                  <SelectTrigger className="h-8 w-24" aria-label={`${m.user.displayName} 的角色`}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="member">{projectRoleLabels.member}</SelectItem>
-                    <SelectItem value="lead">{projectRoleLabels.lead}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`移除 ${m.user.displayName}`}
-                  loading={rowPending}
-                  onClick={() => void handleRemove(m.userId)}
-                >
-                  {!rowPending && <Trash2 className="h-4 w-4 text-destructive" aria-hidden />}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <ProjectRoleSelect
+                    value={m.role}
+                    onValueChange={(role) => void handleChangeRole(m.userId, role)}
+                    disabled={rowPending}
+                    className="h-8 w-full sm:w-24"
+                    aria-label={`${m.user.displayName} 的角色`}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`移除 ${m.user.displayName}`}
+                    loading={rowPending}
+                    onClick={() => void handleRemove(m.userId)}
+                    className="shrink-0"
+                  >
+                    {!rowPending && <Trash2 className="h-4 w-4 text-destructive" aria-hidden />}
+                  </Button>
+                </div>
               </li>
             );
           })}

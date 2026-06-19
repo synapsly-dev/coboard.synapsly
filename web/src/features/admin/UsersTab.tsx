@@ -17,6 +17,7 @@ import { isApiClientError } from '../../api/client';
 import { useUpdateUser, useUsers } from '../../api/users';
 import { useAuth } from '../../lib/auth-context';
 import { avatarUrl, cn } from '../../lib/utils';
+import { formatDate } from '../board/format';
 import { CreateUserDialog } from './CreateUserDialog';
 import { AddUserToProjectsDialog } from './AddUserToProjectsDialog';
 import { userRoleLabels } from './labels';
@@ -86,6 +87,67 @@ export function UsersTab(): JSX.Element {
 
   const list = users ?? [];
 
+  /**
+   * Per-row action menu, shared by the desktop table and the mobile card list so
+   * the items/handlers live in exactly one place.
+   */
+  function renderActionsMenu(u: UserWithProjects): JSX.Element {
+    const isSelf = u.id === currentUser?.id;
+    const rowPending = pendingId === u.id;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`管理 ${u.displayName}`}
+            loading={rowPending}
+          >
+            {!rowPending && <MoreHorizontal className="h-4 w-4" aria-hidden />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem onSelect={() => setAddingTo(u)}>
+            <FolderPlus className="h-4 w-4" aria-hidden />
+            加入项目
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => toggleRole(u)} disabled={isSelf}>
+            {u.role === 'admin' ? (
+              <>
+                <ShieldOff className="h-4 w-4" aria-hidden />
+                降为成员
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="h-4 w-4" aria-hidden />
+                设为管理员
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => toggleActive(u)}
+            disabled={isSelf}
+            destructive={u.isActive}
+          >
+            {u.isActive ? (
+              <>
+                <UserX className="h-4 w-4" aria-hidden />
+                停用账号
+              </>
+            ) : (
+              <>
+                <UserCheck className="h-4 w-4" aria-hidden />
+                启用账号
+              </>
+            )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -112,7 +174,65 @@ export function UsersTab(): JSX.Element {
           action={<CreateUserDialog />}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <>
+        {/* Mobile (< sm): stacked cards — the table forces a 544px min width and
+            horizontal-scrolls the per-row action menu off screen on phones. */}
+        <ul className="space-y-3 sm:hidden">
+          {list.map((u) => {
+            const isSelf = u.id === currentUser?.id;
+            return (
+              <li
+                key={u.id}
+                className={cn(
+                  'rounded-xl border border-border bg-card p-4',
+                  !u.isActive && 'opacity-60',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <Avatar
+                    name={u.displayName}
+                    color={u.avatarColor}
+                    imageUrl={u.hasAvatar ? avatarUrl(u.id) : undefined}
+                    size="sm"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+                      <span className="truncate">{u.displayName}</span>
+                      {isSelf && (
+                        <span className="shrink-0 text-xs font-normal text-muted-foreground">（我）</span>
+                      )}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">{u.email}</div>
+                  </div>
+                  <div className="shrink-0">{renderActionsMenu(u)}</div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                  <Badge variant={u.role === 'admin' ? 'primary' : 'neutral'}>
+                    {userRoleLabels[u.role]}
+                  </Badge>
+                  {u.isActive ? (
+                    <Badge variant="success">已启用</Badge>
+                  ) : (
+                    <Badge variant="outline">已停用</Badge>
+                  )}
+                  {u.projects.length === 0 ? (
+                    <Badge variant="warning">未加入任何项目</Badge>
+                  ) : (
+                    u.projects.map((p) => (
+                      <Badge key={p.projectId} variant={p.role === 'lead' ? 'primary' : 'neutral'}>
+                        {p.projectName}
+                        {p.role === 'lead' && ' · 负责人'}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* Desktop (sm+): the original table, unchanged. */}
+        <div className="hidden overflow-x-auto rounded-xl border border-border bg-card sm:block">
           <table className="w-full min-w-[34rem] text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/40 text-left text-xs font-medium text-muted-foreground">
@@ -127,7 +247,6 @@ export function UsersTab(): JSX.Element {
             <tbody>
               {list.map((u) => {
                 const isSelf = u.id === currentUser?.id;
-                const rowPending = pendingId === u.id;
                 return (
                   <tr
                     key={u.id}
@@ -185,69 +304,16 @@ export function UsersTab(): JSX.Element {
                       )}
                     </td>
                     <td className="hidden px-4 py-3 text-muted-foreground sm:table-cell">
-                      {formatDate(u.createdAt)}
+                      {formatDate(u.createdAt) || '—'}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`管理 ${u.displayName}`}
-                            loading={rowPending}
-                          >
-                            {!rowPending && <MoreHorizontal className="h-4 w-4" aria-hidden />}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          <DropdownMenuItem onSelect={() => setAddingTo(u)}>
-                            <FolderPlus className="h-4 w-4" aria-hidden />
-                            加入项目
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() => toggleRole(u)}
-                            disabled={isSelf}
-                          >
-                            {u.role === 'admin' ? (
-                              <>
-                                <ShieldOff className="h-4 w-4" aria-hidden />
-                                降为成员
-                              </>
-                            ) : (
-                              <>
-                                <ShieldCheck className="h-4 w-4" aria-hidden />
-                                设为管理员
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() => toggleActive(u)}
-                            disabled={isSelf}
-                            destructive={u.isActive}
-                          >
-                            {u.isActive ? (
-                              <>
-                                <UserX className="h-4 w-4" aria-hidden />
-                                停用账号
-                              </>
-                            ) : (
-                              <>
-                                <UserCheck className="h-4 w-4" aria-hidden />
-                                启用账号
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
+                    <td className="px-4 py-3 text-right">{renderActionsMenu(u)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {addingTo && (
@@ -261,14 +327,4 @@ export function UsersTab(): JSX.Element {
       )}
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function pad(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
 }

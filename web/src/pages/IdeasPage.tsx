@@ -34,9 +34,8 @@ import {
 } from '../api/ideas';
 import { useAuth } from '../lib/auth-context';
 import { relativeTime } from '../features/board/format';
-import { IDEA_STATUS_LABELS } from '../features/task/IdeaSection';
+import { IDEA_STATUS_LABELS, IDEA_STATUS_VARIANT } from '../features/task/IdeaSection';
 import { TaskDetailDrawer } from '../features/task/TaskDetailDrawer';
-import type { BadgeVariant } from '../components/ui';
 
 /**
  * 灵感区 (§7.1) — a board of every idea the current user can see (admins: all). Two
@@ -49,12 +48,6 @@ import type { BadgeVariant } from '../components/ui';
  *
  * A status filter narrows the list; adopted ideas credit reward points to the author.
  */
-
-const IDEA_STATUS_VARIANT: Record<IdeaStatus, BadgeVariant> = {
-  pending: 'neutral',
-  adopted: 'success',
-  rejected: 'destructive',
-};
 
 /** Sentinel for "all statuses" in the filter select (Radix needs a non-empty value). */
 const ALL_STATUSES = 'all';
@@ -73,7 +66,7 @@ export default function IdeasPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-base font-semibold">
               <Lightbulb className="h-4 w-4 text-warning-foreground" aria-hidden />
@@ -83,9 +76,9 @@ export default function IdeasPage(): JSX.Element {
               汇集你可见项目下的想法，以及面向所有人的独立灵感。被采纳的想法会为作者计入奖励点数。
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <Select value={status} onValueChange={(v) => setStatus(v as IdeaStatus | typeof ALL_STATUSES)}>
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="min-w-0 flex-1 sm:w-36 sm:flex-none">
                 <SelectValue placeholder="全部状态" />
               </SelectTrigger>
               <SelectContent>
@@ -267,7 +260,7 @@ function IdeaCard({
       type="button"
       variant="ghost"
       size="icon"
-      className="absolute right-2 top-2 z-10 h-7 w-7 bg-card/80 text-muted-foreground hover:text-destructive"
+      className="absolute right-2 top-2 z-10 h-9 w-9 bg-card/80 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
       aria-label="删除想法"
       loading={deleteIdea.isPending}
       onClick={(e) => {
@@ -283,7 +276,7 @@ function IdeaCard({
 
   const head = (
     <>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 pr-9 sm:pr-0">
         {isStandalone ? (
           <Badge variant="primary">独立想法</Badge>
         ) : (
@@ -388,7 +381,7 @@ function StandaloneIdeaActions({ idea }: { idea: IdeaWithContext }): JSX.Element
             type="number"
             min={0}
             inputMode="numeric"
-            className="w-28"
+            className="w-full sm:w-28"
             placeholder="奖励点数"
             aria-label="奖励点数"
             value={reward}

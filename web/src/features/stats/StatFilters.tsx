@@ -54,9 +54,9 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
   };
 
   return (
-    <div className="flex flex-wrap items-end gap-x-5 gap-y-4 rounded-xl border border-border bg-card p-4">
+    <div className="flex flex-col gap-x-5 gap-y-4 rounded-xl border border-border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
       {/* Project filter */}
-      <div className="flex min-w-[10rem] flex-col gap-1.5">
+      <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:min-w-[10rem]">
         <Label htmlFor="stat-project">项目</Label>
         <Select
           value={value.project}
@@ -93,7 +93,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
                 aria-pressed={selected}
                 onClick={() => patch({ range: option.value })}
                 className={cn(
-                  'rounded px-3 py-1 text-sm font-medium transition-colors',
+                  'rounded px-3 py-2 text-sm font-medium transition-colors min-h-[40px] sm:py-1 sm:min-h-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-primary text-primary-foreground shadow-sm'
@@ -109,7 +109,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
 
       {/* Custom range inputs — only when 自定义 is selected */}
       {value.range === 'custom' && (
-        <div className="flex w-full items-end gap-2 sm:w-auto">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-end">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-none">
             <Label htmlFor="stat-from">起</Label>
             <Input
@@ -121,7 +121,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
               onChange={(e) => patch({ customFrom: e.target.value })}
             />
           </div>
-          <span className="pb-2 text-muted-foreground" aria-hidden>
+          <span className="hidden pb-2 text-muted-foreground sm:inline" aria-hidden>
             —
           </span>
           <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:flex-none">
@@ -139,7 +139,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
       )}
 
       {/* Sort */}
-      <div className="ml-auto flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 sm:ml-auto">
         <Label>排序</Label>
         <div
           className="inline-flex rounded-md border border-input bg-background p-0.5"
@@ -156,7 +156,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
                 aria-pressed={selected}
                 onClick={() => patch({ sort: option.value })}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded px-3 py-1 text-sm font-medium transition-colors',
+                  'inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium transition-colors min-h-[40px] sm:py-1 sm:min-h-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-primary text-primary-foreground shadow-sm'

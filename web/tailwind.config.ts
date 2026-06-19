@@ -100,6 +100,14 @@ const config: Config = {
           from: { transform: 'translateX(0)' },
           to: { transform: 'translateX(100%)' },
         },
+        'slide-in-left': {
+          from: { transform: 'translateX(-100%)' },
+          to: { transform: 'translateX(0)' },
+        },
+        'slide-out-left': {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(-100%)' },
+        },
         spin: {
           to: { transform: 'rotate(360deg)' },
         },
@@ -111,6 +119,8 @@ const config: Config = {
         'popover-in': 'popover-in 120ms ease-out',
         'slide-in-right': 'slide-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1)',
         'slide-out-right': 'slide-out-right 200ms ease-in',
+        'slide-in-left': 'slide-in-left 220ms cubic-bezier(0.32, 0.72, 0, 1)',
+        'slide-out-left': 'slide-out-left 200ms ease-in',
         spin: 'spin 0.7s linear infinite',
       },
     },

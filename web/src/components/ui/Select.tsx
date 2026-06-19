@@ -11,7 +11,6 @@ import { cn } from '../../lib/utils';
  * </Select>
  */
 export const Select = SelectPrimitive.Root;
-export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;
 
 export interface SelectTriggerProps
@@ -28,7 +27,8 @@ export const SelectTrigger = forwardRef<
       ref={ref}
       aria-invalid={invalid || undefined}
       className={cn(
-        'flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1 text-sm shadow-sm transition-colors',
+        // text-base on mobile keeps the font >=16px so iOS Safari doesn't auto-zoom on focus; h-10 is a comfier touch height.
+        'flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1 text-base shadow-sm transition-colors sm:h-9 sm:text-sm',
         'placeholder:text-muted-foreground data-[placeholder]:text-muted-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
@@ -83,7 +83,8 @@ export const SelectItem = forwardRef<
     <SelectPrimitive.Item
       ref={ref}
       className={cn(
-        'relative flex cursor-pointer select-none items-center rounded-md py-1.5 pl-7 pr-2 text-sm outline-none transition-colors',
+        // Taller rows on touch (phones) for comfortable tapping; compact from sm up.
+        'relative flex cursor-pointer select-none items-center rounded-md py-2.5 pl-7 pr-2 text-sm outline-none transition-colors sm:py-1.5',
         'focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
@@ -96,31 +97,5 @@ export const SelectItem = forwardRef<
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
-  );
-});
-
-export const SelectSeparator = forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Separator>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
->(function SelectSeparator({ className, ...props }, ref) {
-  return (
-    <SelectPrimitive.Separator
-      ref={ref}
-      className={cn('-mx-1 my-1 h-px bg-border', className)}
-      {...props}
-    />
-  );
-});
-
-export const SelectLabel = forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Label>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
->(function SelectLabel({ className, ...props }, ref) {
-  return (
-    <SelectPrimitive.Label
-      ref={ref}
-      className={cn('px-2 py-1.5 text-xs font-medium text-muted-foreground', className)}
-      {...props}
-    />
   );
 });

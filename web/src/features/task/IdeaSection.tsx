@@ -39,7 +39,7 @@ export const IDEA_STATUS_LABELS: Record<IdeaStatus, string> = {
   rejected: '已驳回',
 };
 
-const IDEA_STATUS_VARIANT: Record<IdeaStatus, BadgeVariant> = {
+export const IDEA_STATUS_VARIANT: Record<IdeaStatus, BadgeVariant> = {
   pending: 'neutral',
   adopted: 'success',
   rejected: 'destructive',
@@ -149,7 +149,7 @@ function IdeaItem({
               type="button"
               variant="ghost"
               size="icon"
-              className="ml-auto h-7 w-7 text-muted-foreground hover:text-destructive"
+              className="ml-auto h-9 w-9 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
               aria-label="删除想法"
               loading={deleteIdea.isPending}
               onClick={() => {
@@ -173,7 +173,7 @@ function IdeaItem({
                   type="number"
                   min={0}
                   inputMode="numeric"
-                  className="w-28"
+                  className="w-full sm:w-28"
                   placeholder="奖励点数"
                   aria-label="奖励点数"
                   value={reward}
@@ -262,12 +262,18 @@ function IdeaComposer({ taskId }: { taskId: string }): JSX.Element {
         }}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Lightbulb className="h-3.5 w-3.5" aria-hidden />
+          <Lightbulb className="h-3.5 w-3.5 shrink-0" aria-hidden />
           想法被采纳后，奖励点数将计入你的贡献
         </span>
-        <Button type="submit" size="sm" loading={createIdea.isPending} disabled={!body.trim()}>
+        <Button
+          type="submit"
+          size="sm"
+          className="w-full shrink-0 sm:w-auto"
+          loading={createIdea.isPending}
+          disabled={!body.trim()}
+        >
           {!createIdea.isPending && <Send className="h-3.5 w-3.5" aria-hidden />}
           发布想法
         </Button>

@@ -20,7 +20,8 @@ import {
   Label,
   Textarea,
 } from '../../components/ui';
-import { isApiClientError, type FieldErrors } from '../../api/client';
+import { isApiClientError } from '../../api/client';
+import { applyFieldErrors } from '../../lib/form-errors';
 import { useCreateProject, useUpdateProject } from '../../api/projects';
 
 /**
@@ -60,18 +61,6 @@ export function ProjectFormDialog(props: ProjectFormDialogProps): JSX.Element {
     );
   }
   return <CreateProjectDialog trigger={props.trigger} onCreated={props.onCreated} />;
-}
-
-function applyFieldErrors<T extends Record<string, unknown>>(
-  fields: FieldErrors,
-  setError: (name: keyof T & string, error: { type: string; message: string }) => void,
-): void {
-  for (const [path, messages] of Object.entries(fields)) {
-    const field = path.split('.')[0] as keyof T & string;
-    if (messages[0]) {
-      setError(field, { type: 'server', message: messages[0] });
-    }
-  }
 }
 
 function CreateProjectDialog({

@@ -91,7 +91,7 @@ export function BoardFilters({
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="outline" size="sm">
             <Filter className="h-3.5 w-3.5" aria-hidden />
-            <span className="max-w-[8rem] truncate">{dropdownLabel}</span>
+            <span className="max-w-[60vw] truncate sm:max-w-[8rem]">{dropdownLabel}</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
@@ -126,7 +126,7 @@ export function BoardFilters({
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="outline" size="sm">
               <Tag className="h-3.5 w-3.5" aria-hidden />
-              <span className="max-w-[8rem] truncate">
+              <span className="max-w-[60vw] truncate sm:max-w-[8rem]">
                 {selectedLabel ? selectedLabel.name : '全部标签'}
               </span>
             </Button>

@@ -16,7 +16,6 @@ export { TooltipProvider, Tooltip, type TooltipProps } from './Tooltip';
 export {
   Dialog,
   DialogTrigger,
-  DialogClose,
   DialogContent,
   DialogHeader,
   DialogFooter,
@@ -28,23 +27,19 @@ export {
 export {
   Drawer,
   DrawerTrigger,
-  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerBody,
   DrawerFooter,
   DrawerTitle,
-  DrawerDescription,
   type DrawerContentProps,
 } from './Drawer';
 
 export {
   DropdownMenu,
   DropdownMenuTrigger,
-  DropdownMenuGroup,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   type DropdownMenuItemProps,
@@ -52,12 +47,9 @@ export {
 
 export {
   Select,
-  SelectGroup,
   SelectValue,
   SelectTrigger,
   SelectContent,
   SelectItem,
-  SelectSeparator,
-  SelectLabel,
   type SelectTriggerProps,
 } from './Select';

@@ -77,7 +77,7 @@ export default function AdminPage(): JSX.Element {
         <div
           role="tablist"
           aria-label="管理分区"
-          className="mb-6 inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/40 p-1"
+          className="mb-6 flex w-full items-center gap-1 rounded-lg border border-border bg-secondary/40 p-1 sm:inline-flex sm:w-auto"
         >
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -90,7 +90,7 @@ export default function AdminPage(): JSX.Element {
                 aria-selected={selected}
                 onClick={() => setActive(tab.id)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                  'inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:justify-start',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-card text-foreground shadow-sm'

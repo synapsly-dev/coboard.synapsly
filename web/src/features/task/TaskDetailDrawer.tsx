@@ -258,7 +258,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           showReview ||
           showRevoke ||
           (task.status === 'pending_review' && !showReview)) && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/30 p-3">
+          <div className="flex flex-col items-stretch gap-2 rounded-lg border border-border bg-secondary/30 p-3 sm:flex-row sm:flex-wrap sm:items-center">
             {/* Submitter line — shown to everyone (reviewer or not) while a task awaits
                 review, on its own row, so 待审阅 tasks prominently show 谁交付的. */}
             {task.status === 'pending_review' && (
@@ -278,13 +278,22 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               </div>
             )}
             {showDeliver && (
-              <Button type="button" size="sm" onClick={() => setDeliverOpen(true)}>
+              <Button
+                type="button"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => setDeliverOpen(true)}
+              >
                 <PackageCheck className="h-4 w-4" aria-hidden />
                 交付（分配点数）
               </Button>
             )}
-            {showReview && <ReviewActions task={task} projectId={projectId} size="md" />}
-            {showRevoke && <RevokeApprovalButton task={task} projectId={projectId} size="md" />}
+            {showReview && (
+              <ReviewActions task={task} projectId={projectId} size="md" className="w-full sm:w-auto" />
+            )}
+            {showRevoke && (
+              <RevokeApprovalButton task={task} projectId={projectId} size="md" className="w-full sm:w-auto" />
+            )}
           </div>
         )}
 
@@ -329,7 +338,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="ml-auto h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                          className="ml-auto h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
                           aria-label={`移除 ${c.displayName}`}
                           loading={releaseTask.isPending}
                           onClick={() =>
@@ -379,7 +388,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                       });
                     }}
                   >
-                    <SelectTrigger className="h-8 w-36 text-xs">
+                    <SelectTrigger className="w-full text-xs sm:w-36">
                       <span className="inline-flex items-center gap-1">
                         <UserPlus className="h-3.5 w-3.5" aria-hidden />
                         <SelectValue placeholder="派发给…" />
@@ -446,6 +455,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                       type="button"
                       variant={task.status === status ? 'primary' : 'outline'}
                       size="sm"
+                      className="flex-1 sm:flex-none"
                       disabled={task.status === status || blockedByMin}
                       title={
                         blockedByMin
@@ -522,7 +532,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
       </DrawerBody>
 
       {deletable && (
-        <DrawerFooter className="justify-between">
+        <DrawerFooter className="sm:justify-between">
           <Button
             type="button"
             variant="ghost"

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormSetError } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { LayoutDashboard } from 'lucide-react';
 import { setupInputSchema, type AuthUserResponse, type SetupInput } from 'shared';
 
-import { api, isApiClientError, type FieldErrors } from '../api/client';
+import { api, isApiClientError } from '../api/client';
 import { queryKeys } from '../lib/query';
+import { applyFieldErrors } from '../lib/form-errors';
 import { Button, Input, Label } from '../components/ui';
 
 /**
@@ -17,8 +18,6 @@ import { Button, Input, Label } from '../components/ui';
  * the first admin lands straight on the board without a second login.
  */
 
-/** Map server field errors onto the form's known field names (§7 `fields`). */
-const FIELD_NAMES = ['email', 'password', 'displayName'] as const;
 
 export default function SetupPage(): JSX.Element {
   const navigate = useNavigate();
@@ -163,7 +162,7 @@ export default function SetupPage(): JSX.Element {
  */
 function handleApiError(
   err: unknown,
-  setError: (name: (typeof FIELD_NAMES)[number], error: { type: string; message: string }) => void,
+  setError: UseFormSetError<SetupInput>,
   setBanner: (message: string) => void,
 ): void {
   if (isApiClientError(err)) {
@@ -174,16 +173,4 @@ function handleApiError(
     return;
   }
   setBanner('创建失败，请稍后重试');
-}
-
-function applyFieldErrors(
-  fields: FieldErrors,
-  setError: (name: (typeof FIELD_NAMES)[number], error: { type: string; message: string }) => void,
-): void {
-  for (const name of FIELD_NAMES) {
-    const messages = fields[name];
-    if (messages && messages.length > 0) {
-      setError(name, { type: 'server', message: messages[0]! });
-    }
-  }
 }

@@ -169,7 +169,7 @@ export function DeliverDialog({
                 type="number"
                 min={0}
                 inputMode="numeric"
-                className="w-24"
+                className="w-24 shrink-0"
                 aria-label={`${c.displayName} 的点数`}
                 value={values[i] ?? ''}
                 onChange={(e) => setValueAt(i, e.target.value)}

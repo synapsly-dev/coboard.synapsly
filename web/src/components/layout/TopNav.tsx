@@ -1,5 +1,5 @@
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom';
-import { LayoutGrid, LogOut, BarChart3, Compass, Lightbulb, Megaphone, Settings, UserCog } from 'lucide-react';
+import { LayoutGrid, LogOut, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -10,23 +10,18 @@ import {
   DropdownMenuTrigger,
 } from '../ui';
 import { ProjectSwitcher } from './ProjectSwitcher';
+import { MobileNav } from './MobileNav';
+import { buildNavItems } from './nav-items';
 import { useAuth } from '../../lib/auth-context';
 import { avatarUrl, cn } from '../../lib/utils';
 import { useHoverMenu } from '../../lib/use-hover-menu';
 
 /**
- * Top navigation bar (§4). Logo, project switcher, primary nav (看板 / 统计 /
- * 管理 — 管理 admin-only), and the user menu with logout. Frontend role hiding is
- * a UX nicety; the server enforces real authorization (§6.3).
+ * Top navigation bar (§4). On md+ it shows the logo, project switcher and the
+ * primary nav inline; on phones those collapse into a hamburger-triggered sheet
+ * (see MobileNav) and the avatar dropdown carries only account actions. Frontend
+ * role hiding is a UX nicety; the server enforces real authorization (§6.3).
  */
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: typeof LayoutGrid;
-  adminOnly?: boolean;
-}
-
 export function TopNav(): JSX.Element {
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
@@ -36,18 +31,7 @@ export function TopNav(): JSX.Element {
   const boardTarget = projectId ?? 'all';
   const userMenu = useHoverMenu();
 
-  const navItems: NavItem[] = [
-    {
-      to: `/board/${boardTarget}`,
-      label: '看板',
-      icon: LayoutGrid,
-    },
-    { to: '/projects', label: '项目', icon: Compass },
-    { to: '/ideas', label: '灵感', icon: Lightbulb },
-    { to: '/info', label: '信息', icon: Megaphone },
-    { to: '/stats', label: '统计', icon: BarChart3 },
-    { to: '/admin', label: '管理', icon: Settings, adminOnly: true },
-  ];
+  const navItems = buildNavItems(boardTarget).filter((item) => !item.adminOnly || isAdmin);
 
   const handleLogout = async (): Promise<void> => {
     await logout();
@@ -59,6 +43,9 @@ export function TopNav(): JSX.Element {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex h-14 items-center gap-2 px-4 sm:gap-4 sm:px-6">
+        {/* Mobile: hamburger opens the nav sheet (project switcher + destinations). */}
+        <MobileNav />
+
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2" aria-label="Coboard 首页">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -67,14 +54,15 @@ export function TopNav(): JSX.Element {
           <span className="hidden text-base font-semibold tracking-tight sm:inline">Coboard</span>
         </Link>
 
-        <div className="h-5 w-px bg-border" aria-hidden />
+        {/* Project switcher + primary nav — desktop only; the mobile sheet carries
+            these on phones. */}
+        <div className="hidden h-5 w-px bg-border md:block" aria-hidden />
+        <div className="hidden md:block">
+          <ProjectSwitcher />
+        </div>
 
-        <ProjectSwitcher />
-
-        {/* Primary nav */}
         <nav className="ml-2 hidden items-center gap-1 md:flex" aria-label="主导航">
           {navItems.map((item) => {
-            if (item.adminOnly && !isAdmin) return null;
             const Icon = item.icon;
             return (
               <NavLink
@@ -102,7 +90,7 @@ export function TopNav(): JSX.Element {
               <DropdownMenuTrigger asChild {...userMenu.triggerProps}>
                 <button
                   type="button"
-                  className="flex items-center gap-2 rounded-full p-0.5 transition-colors hover:bg-accent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full p-1.5 transition-colors hover:bg-accent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-0 sm:min-w-0 sm:p-0.5"
                   aria-label="用户菜单"
                 >
                   <Avatar
@@ -121,20 +109,6 @@ export function TopNav(): JSX.Element {
                   </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {/* Mobile-friendly nav inside the menu. */}
-                <div className="md:hidden">
-                  {navItems.map((item) => {
-                    if (item.adminOnly && !isAdmin) return null;
-                    const Icon = item.icon;
-                    return (
-                      <DropdownMenuItem key={item.label} onSelect={() => navigate(item.to)}>
-                        <Icon className="h-4 w-4" aria-hidden />
-                        {item.label}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  <DropdownMenuSeparator />
-                </div>
                 <DropdownMenuItem onSelect={() => navigate('/account/profile')}>
                   <UserCog className="h-4 w-4" aria-hidden />
                   修改资料

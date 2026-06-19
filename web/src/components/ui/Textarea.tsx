@@ -16,7 +16,8 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
       rows={rows}
       aria-invalid={invalid || undefined}
       className={cn(
-        'flex w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors',
+        // text-base on mobile keeps the font >=16px so iOS Safari doesn't auto-zoom on focus.
+        'flex w-full rounded-md border bg-background px-3 py-2 text-base text-foreground shadow-sm transition-colors sm:text-sm',
         'placeholder:text-muted-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',

@@ -76,7 +76,7 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
 
   return (
     <div className="grid min-w-0 gap-2 rounded-lg border border-border bg-secondary/30 p-3">
-      <div className="flex min-w-0 items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="truncate">
@@ -90,6 +90,7 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
             type="button"
             variant="outline"
             size="sm"
+            className="w-full shrink-0 sm:w-auto"
             loading={uploadFile.isPending}
             onClick={() => inputRef.current?.click()}
           >
@@ -213,7 +214,7 @@ function FileRow({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground sm:h-8 sm:w-8"
           aria-label={`预览 ${file.filename}`}
           title="预览"
           onClick={onPreview}
@@ -224,7 +225,7 @@ function FileRow({
       <a
         href={taskFileUrl(taskId, file.id)}
         download={file.filename}
-        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground sm:h-8 sm:w-8"
         aria-label={`下载 ${file.filename}`}
         title="下载"
       >
@@ -235,7 +236,7 @@ function FileRow({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive sm:h-8 sm:w-8"
           aria-label={`删除 ${file.filename}`}
           title="删除"
           loading={deleteFile.isPending}

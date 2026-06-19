@@ -15,18 +15,8 @@ import { Fragment, type ReactNode } from 'react';
  *  - inline `code`, **bold**, *italic*
  *  - links [text](http(s)://… | mailto:…) — other protocols are dropped
  *  - bullet lists (lines starting with - or *)
- *  - @mentions — highlighted by resolving against a name lookup
+ *  - @mentions — highlighted by a regex (no name lookup needed)
  */
-
-export interface MentionUser {
-  id: string;
-  displayName: string;
-}
-
-interface RenderOptions {
-  /** Lookup of mentioned user ids → display names (for @mention highlight). */
-  mentionNames?: Map<string, string>;
-}
 
 /** Only these URL schemes are allowed in links; everything else is dropped. */
 const SAFE_URL = /^(https?:\/\/|mailto:)/i;
@@ -144,7 +134,7 @@ function renderEmphasisAndMentions(text: string, keyPrefix: string, out: ReactNo
  * Render a full markdown body to safe React nodes. Block-level handling: code
  * fences, bullet lists, and paragraphs.
  */
-export function renderMarkdown(source: string, _options: RenderOptions = {}): ReactNode {
+export function renderMarkdown(source: string): ReactNode {
   const blocks: ReactNode[] = [];
   const lines = source.replace(/\r\n/g, '\n').split('\n');
 

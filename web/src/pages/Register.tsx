@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormSetError } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router-dom';
 import { LayoutDashboard, Lock } from 'lucide-react';
 import { registerInputSchema, type RegisterInput } from 'shared';
 
-import { isApiClientError, type FieldErrors } from '../api/client';
+import { isApiClientError } from '../api/client';
 import { useRegistrationStatus } from '../api/auth';
 import { useAuth } from '../lib/auth-context';
+import { applyFieldErrors } from '../lib/form-errors';
 import { Button, Input, Label } from '../components/ui';
 import { FullPageSpinner } from '../components/ui/Spinner';
 
@@ -21,7 +22,6 @@ import { FullPageSpinner } from '../components/ui/Spinner';
  * session, then we route into the board home.
  */
 
-const FIELD_NAMES = ['email', 'displayName', 'password', 'code'] as const;
 
 export default function RegisterPage(): JSX.Element {
   const navigate = useNavigate();
@@ -212,10 +212,7 @@ export default function RegisterPage(): JSX.Element {
  */
 function handleRegisterError(
   err: unknown,
-  setError: (
-    name: (typeof FIELD_NAMES)[number],
-    error: { type: string; message: string },
-  ) => void,
+  setError: UseFormSetError<RegisterInput>,
   setBanner: (message: string) => void,
 ): void {
   if (isApiClientError(err)) {
@@ -235,19 +232,4 @@ function handleRegisterError(
     return;
   }
   setBanner('注册失败，请稍后重试');
-}
-
-function applyFieldErrors(
-  fields: FieldErrors,
-  setError: (
-    name: (typeof FIELD_NAMES)[number],
-    error: { type: string; message: string },
-  ) => void,
-): void {
-  for (const name of FIELD_NAMES) {
-    const messages = fields[name];
-    if (messages && messages.length > 0) {
-      setError(name, { type: 'server', message: messages[0]! });
-    }
-  }
 }
