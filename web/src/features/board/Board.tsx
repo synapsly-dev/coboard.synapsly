@@ -111,8 +111,9 @@ export function Board({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-6">
+      {/* Toolbar — filters + 新建任务 share one row (wrapping only if they can't
+          fit) so phones don't waste vertical space on a stacked layout. */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 sm:gap-3 sm:px-6">
         <BoardFilters
           value={filter}
           onChange={setFilter}
@@ -123,7 +124,7 @@ export function Board({
           labelFilter={labelFilter}
           onLabelFilterChange={setLabelFilter}
         />
-        <div className="w-full sm:ml-auto sm:w-auto">
+        <div className="ml-auto">
           <CreateTaskDialog projectId={projectId} />
         </div>
       </div>

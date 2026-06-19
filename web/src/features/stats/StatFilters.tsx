@@ -54,7 +54,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
   };
 
   return (
-    <div className="flex flex-col gap-x-5 gap-y-4 rounded-xl border border-border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
+    <div className="flex flex-wrap items-end gap-x-3 gap-y-4 rounded-xl border border-border bg-card p-4 sm:gap-x-5">
       {/* Project filter */}
       <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:min-w-[10rem]">
         <Label htmlFor="stat-project">项目</Label>
@@ -93,7 +93,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
                 aria-pressed={selected}
                 onClick={() => patch({ range: option.value })}
                 className={cn(
-                  'rounded px-3 py-2 text-sm font-medium transition-colors min-h-[40px] sm:py-1 sm:min-h-0',
+                  'rounded px-2.5 py-2 text-sm font-medium transition-colors min-h-[40px] sm:px-3 sm:py-1 sm:min-h-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-primary text-primary-foreground shadow-sm'
@@ -156,7 +156,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
                 aria-pressed={selected}
                 onClick={() => patch({ sort: option.value })}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded px-3 py-2 text-sm font-medium transition-colors min-h-[40px] sm:py-1 sm:min-h-0',
+                  'inline-flex items-center gap-1.5 rounded px-2.5 py-2 text-sm font-medium transition-colors min-h-[40px] sm:px-3 sm:py-1 sm:min-h-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-primary text-primary-foreground shadow-sm'

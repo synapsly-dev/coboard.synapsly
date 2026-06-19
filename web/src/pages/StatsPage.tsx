@@ -71,26 +71,27 @@ export default function StatsPage(): JSX.Element {
           </p>
         </header>
 
+        {/* Personal summary sits above the filter bar (per design); the filters
+            below it drive the range/project it reflects. */}
+        <PersonalSummary
+          from={resolved.from}
+          to={resolved.to}
+          rangeLabel={rangeLabel}
+          rank={myRank}
+        />
+
         <StatFilters value={filters} onChange={setFilters} />
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {/* Left rail: personal summary + leaderboard */}
-          <div className="flex flex-col gap-5 lg:col-span-2">
-            <PersonalSummary
-              from={resolved.from}
-              to={resolved.to}
-              rangeLabel={rangeLabel}
-              rank={myRank}
+          {/* Left rail: leaderboard */}
+          <div className="flex flex-col gap-3 lg:col-span-2">
+            <h2 className="text-sm font-semibold text-foreground">排行榜</h2>
+            <Leaderboard
+              entries={leaderboard.data}
+              sort={filters.sort}
+              isLoading={leaderboard.isLoading}
+              currentUserId={user?.id}
             />
-            <div className="flex flex-col gap-3">
-              <h2 className="text-sm font-semibold text-foreground">排行榜</h2>
-              <Leaderboard
-                entries={leaderboard.data}
-                sort={filters.sort}
-                isLoading={leaderboard.isLoading}
-                currentUserId={user?.id}
-              />
-            </div>
           </div>
 
           {/* Right rail: charts */}
