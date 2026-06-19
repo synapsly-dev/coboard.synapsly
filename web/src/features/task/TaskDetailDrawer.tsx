@@ -105,7 +105,13 @@ export function TaskDetailDrawer({
 }: TaskDetailDrawerProps): JSX.Element {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent widthClassName="w-full sm:max-w-2xl" className="gap-0 p-0" hideClose>
+      <DrawerContent
+        widthClassName="w-full sm:max-w-2xl"
+        className="gap-0 p-0"
+        hideClose
+        // Avoid auto-focusing (and blue-ringing) a header control on open; Tab still focuses normally.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         {taskId ? (
           <DrawerInner taskId={taskId} projectId={projectId} initialTab={initialTab} onClose={() => onOpenChange(false)} />
         ) : (

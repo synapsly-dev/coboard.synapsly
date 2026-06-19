@@ -54,7 +54,13 @@ export function MobileNav(): JSX.Element {
           <Menu className="h-5 w-5" aria-hidden />
         </button>
       </DrawerTrigger>
-      <DrawerContent side="left" widthClassName="w-[82vw] max-w-xs">
+      <DrawerContent
+        side="left"
+        widthClassName="w-[82vw] max-w-xs"
+        // Don't auto-focus (and thus blue-ring) the first nav item when the sheet
+        // opens by tap; keyboard users still get a focus ring once they Tab in.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DrawerHeader>
           <DrawerTitle className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
