@@ -115,14 +115,40 @@ export function useHoverMenu(closeDelay = 150) {
     closeTimer.current = setTimeout(() => setOpenState(false), closeDelay);
   }, [cancelClose, closeDelay, setOpenState]);
 
-  // Flag that the imminent `onOpenChange` (fired by Radix's toggle on the same
-  // pointer-down) was driven by a trigger click. Cleared on the next macrotask,
-  // after the synchronous toggle has read it.
+  // Flag that the close `onOpenChange(false)` about to fire was driven by a click
+  // on the trigger itself — so we keep the menu pinned open instead of closing it.
+  //
+  // On a mouse, Radix's trigger toggle AND the dismissable-layer fire synchronously
+  // during this pointer-down, so the flag is read immediately. On TOUCH, however,
+  // react-dismissable-layer DEFERS its dismiss to the trailing `click` event (not
+  // the pointer-down). If we cleared the flag on the next macrotask it would be
+  // gone by the time that deferred click runs, and a tap on an open trigger would
+  // wrongly close the menu (leaving the trigger stuck in its dark hover state).
+  // So hold the flag until just after the trailing click's dismiss handler runs;
+  // a fallback timer releases it if no click follows (e.g. pointercancel).
   const onTriggerPointerDown = useCallback(() => {
     triggerDownRef.current = true;
-    setTimeout(() => {
+    if (typeof document === 'undefined') {
+      setTimeout(() => {
+        triggerDownRef.current = false;
+      }, 0);
+      return;
+    }
+    let fallback: ReturnType<typeof setTimeout>;
+    // Capture phase so this always runs before the layer's bubble-phase dismiss;
+    // the setTimeout then clears the flag only after that dismiss has been read.
+    const onClick = (): void => {
+      document.removeEventListener('click', onClick, true);
+      clearTimeout(fallback);
+      setTimeout(() => {
+        triggerDownRef.current = false;
+      }, 0);
+    };
+    document.addEventListener('click', onClick, true);
+    fallback = setTimeout(() => {
+      document.removeEventListener('click', onClick, true);
       triggerDownRef.current = false;
-    }, 0);
+    }, 500);
   }, []);
 
   // Don't steal focus for a mere hover preview (would yank focus / scroll on
