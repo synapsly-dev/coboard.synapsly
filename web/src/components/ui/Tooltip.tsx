@@ -12,6 +12,8 @@ export interface TooltipProps {
   align?: 'start' | 'center' | 'end';
   /** Delay before showing, ms. */
   delayDuration?: number;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Lightweight tooltip wrapper around Radix Tooltip. */
@@ -21,9 +23,15 @@ export function Tooltip({
   side = 'top',
   align = 'center',
   delayDuration = 200,
+  open,
+  onOpenChange,
 }: TooltipProps): JSX.Element {
   return (
-    <TooltipPrimitive.Root delayDuration={delayDuration}>
+    <TooltipPrimitive.Root
+      delayDuration={delayDuration}
+      open={open}
+      onOpenChange={onOpenChange}
+    >
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content

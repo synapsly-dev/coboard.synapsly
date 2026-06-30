@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, ImagePlus, KeyRound, Trash2, UserCog } from 'lucide-react';
+import { ArrowLeft, Camera, Check, KeyRound, Trash2, UserCog } from 'lucide-react';
 import {
   passwordSchema,
   updateProfileInputSchema,
@@ -13,7 +13,7 @@ import {
 import { api, isApiClientError } from '../api/client';
 import { useAuth } from '../lib/auth-context';
 import { avatarUrl } from '../lib/utils';
-import { Avatar, Button, Input, Label } from '../components/ui';
+import { Avatar, Button, Input, Label, Tooltip } from '../components/ui';
 
 /**
  * Account self-service page. A single account view with three stacked sections:
@@ -27,30 +27,26 @@ export default function AccountProfilePage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-md px-4 py-8 sm:py-12">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        返回
-      </button>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="mb-5 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          返回
+        </button>
 
-      <div className="mb-6 flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <UserCog className="h-5 w-5" aria-hidden />
-        </span>
-        <div>
+        <div className="mb-5 flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <UserCog className="h-5 w-5" aria-hidden />
+          </span>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">账号设置</h1>
-          <p className="text-sm text-muted-foreground">管理你的头像、显示名称与密码</p>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-6">
-        <AvatarSection />
-        <DisplayNameSection />
-        <PasswordSection />
-      </div>
+        <div className="flex flex-col gap-4">
+          <ProfileSection />
+          <PasswordSection />
+        </div>
       </div>
     </div>
   );
@@ -60,28 +56,17 @@ export default function AccountProfilePage(): JSX.Element {
 // Section: card wrapper
 // ---------------------------------------------------------------------------
 
-function Section({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}): JSX.Element {
+function Section({ title, children }: { title?: string; children: React.ReactNode }): JSX.Element {
   return (
-    <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
-      <div className="mb-4">
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
-      </div>
+    <section className="relative rounded-xl border border-border bg-card p-5 shadow-sm">
+      {title && <h2 className="mb-4 text-base font-semibold text-foreground">{title}</h2>}
       {children}
     </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Section: avatar upload / preview / remove
+// Section: profile
 // ---------------------------------------------------------------------------
 
 /** Max avatar edge in pixels; the client resizes before upload to keep it tiny. */
@@ -124,7 +109,7 @@ async function fileToAvatarDataUrl(file: File): Promise<string> {
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
-function AvatarSection(): JSX.Element {
+function ProfileSection(): JSX.Element {
   const { user, updateAvatar, removeAvatar } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<'upload' | 'remove' | null>(null);
@@ -132,7 +117,7 @@ function AvatarSection(): JSX.Element {
   // Bumped after each change so the preview <img> refreshes past the cache.
   const [version, setVersion] = useState(0);
 
-  if (!user) return <Section title="头像">{null}</Section>;
+  if (!user) return <Section>{null}</Section>;
 
   const previewUrl = user.hasAvatar
     ? `${avatarUrl(user.id)}?t=${version}`
@@ -171,62 +156,73 @@ function AvatarSection(): JSX.Element {
   }
 
   return (
-    <Section title="头像" description="上传一张图片作为头像，未设置时显示姓名首字母。">
+    <Section>
       <div className="flex items-center gap-4">
-        <Avatar
-          name={user.displayName}
-          color={user.avatarColor}
-          imageUrl={previewUrl}
-          size="lg"
-        />
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFile(file);
-              }}
-            />
-            <Button
+        <div className="relative shrink-0">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFile(file);
+            }}
+          />
+          <Tooltip
+            content="上传一张图片作为头像，未设置时显示姓名首字母。支持 PNG / JPEG / WebP，上传后自动压缩。"
+            side="bottom"
+          >
+            <button
               type="button"
-              variant="outline"
-              size="sm"
-              loading={busy === 'upload'}
+              aria-label="上传头像"
+              className="group relative flex h-16 w-16 shrink-0 overflow-hidden rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               onClick={() => fileInputRef.current?.click()}
             >
-              <ImagePlus className="h-4 w-4" aria-hidden />
-              上传头像
+              <Avatar
+                name={user.displayName}
+                color={user.avatarColor}
+                imageUrl={previewUrl}
+                size="lg"
+                className="h-16 w-16 rounded-full text-base"
+              />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                <Camera className="h-4 w-4" aria-hidden />
+              </span>
+              {busy === 'upload' && (
+                <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-xs text-white">
+                  上传中
+                </span>
+              )}
+            </button>
+          </Tooltip>
+          {user.hasAvatar && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="移除头像"
+              className="absolute -bottom-1 -right-1 h-7 w-7 rounded-full border border-border bg-card text-muted-foreground shadow-sm hover:text-destructive"
+              loading={busy === 'remove'}
+              onClick={() => void handleRemove()}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden />
             </Button>
-            {user.hasAvatar && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                loading={busy === 'remove'}
-                onClick={() => void handleRemove()}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-                移除头像
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">支持 PNG / JPEG / WebP，上传后自动压缩。</p>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <DisplayNameForm />
+          {error && (
+            <div
+              role="alert"
+              className="mt-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {error}
+            </div>
+          )}
         </div>
       </div>
-
-      {error && (
-        <div
-          role="alert"
-          className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
-      )}
     </Section>
   );
 }
@@ -235,75 +231,99 @@ function AvatarSection(): JSX.Element {
 // Section: display name
 // ---------------------------------------------------------------------------
 
-function DisplayNameSection(): JSX.Element {
+function DisplayNameForm(): JSX.Element {
   const { user, updateProfile } = useAuth();
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [nameHovered, setNameHovered] = useState(false);
+  const [nameFocused, setNameFocused] = useState(false);
 
   const {
     register,
     handleSubmit,
+    reset,
     setError,
-    formState: { errors, isSubmitting, isDirty },
+    watch,
+    formState: { errors, isSubmitting },
   } = useForm<UpdateProfileInput>({
     resolver: zodResolver(updateProfileInputSchema),
     defaultValues: { displayName: user?.displayName ?? '' },
   });
 
+  const currentName = user?.displayName ?? '';
+  const displayNameValue = watch('displayName');
+  const isSynced = displayNameValue.trim() === currentName;
+  const displayNameField = register('displayName');
+  const showNameTip = nameHovered || nameFocused;
+
+  useEffect(() => {
+    reset({ displayName: currentName });
+  }, [currentName, reset]);
+
   async function onSubmit(values: UpdateProfileInput): Promise<void> {
-    setSubmitError(null);
-    setDone(false);
+    const nextName = values.displayName.trim();
+    if (nextName === currentName) {
+      return;
+    }
+
     try {
-      await updateProfile({ displayName: values.displayName.trim() });
-      setDone(true);
+      const updated = await updateProfile({ displayName: nextName });
+      reset({ displayName: updated.displayName });
     } catch (err) {
       if (isApiClientError(err)) {
         if (err.fields?.displayName?.[0]) {
           setError('displayName', { type: 'server', message: err.fields.displayName[0] });
           return;
         }
-        setSubmitError(err.message);
+        setError('displayName', { type: 'server', message: err.message });
         return;
       }
-      setSubmitError('保存失败，请稍后重试');
+      setError('displayName', { type: 'server', message: '保存失败，请稍后重试' });
     }
   }
 
   return (
-    <Section title="显示名称" description="其他成员看到的名字。">
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="display-name" required>
-            显示名称
-          </Label>
+    <form className="flex flex-col gap-1.5" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <div className="flex items-center gap-2">
+        <Label htmlFor="display-name" required className="sr-only">
+          显示名称
+        </Label>
+        <Tooltip
+          content="其他成员看到的名字。"
+          side="bottom"
+          align="start"
+          open={showNameTip}
+        >
           <Input
             id="display-name"
             placeholder="你的名字"
             invalid={Boolean(errors.displayName)}
-            {...register('displayName', { onChange: () => setDone(false) })}
+            onMouseEnter={() => setNameHovered(true)}
+            onMouseLeave={() => setNameHovered(false)}
+            onFocus={() => setNameFocused(true)}
+            {...displayNameField}
+            onBlur={(event) => {
+              void displayNameField.onBlur(event);
+              setNameFocused(false);
+            }}
           />
-          {errors.displayName && (
-            <p className="text-xs text-destructive">{errors.displayName.message}</p>
+        </Tooltip>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+          {!isSynced && (
+            <Button
+              type="submit"
+              size="icon"
+              aria-label="保存显示名称"
+              loading={isSubmitting}
+              disabled={isSynced}
+            >
+              <Check className="h-4 w-4" aria-hidden />
+            </Button>
           )}
         </div>
-
-        {submitError && (
-          <div
-            role="alert"
-            className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {submitError}
-          </div>
-        )}
-        {done && <p className="text-sm text-emerald-600">名称已更新</p>}
-
-        <div>
-          <Button type="submit" loading={isSubmitting} disabled={!isDirty}>
-            {isSubmitting ? '正在保存…' : '保存'}
-          </Button>
-        </div>
-      </form>
-    </Section>
+      </div>
+      {errors.displayName && (
+        <p className="text-xs text-destructive">{errors.displayName.message}</p>
+      )}
+    </form>
   );
 }
 
@@ -371,7 +391,7 @@ function PasswordSection(): JSX.Element {
   }
 
   return (
-    <Section title="修改密码" description="定期更换密码以保护账号安全。">
+    <Section title="修改密码">
       <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="current-password" required>

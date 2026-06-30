@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom';
-import { LayoutGrid, LogOut, UserCog } from 'lucide-react';
+import { Check, LayoutGrid, LogOut, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -29,6 +30,7 @@ export function TopNav(): JSX.Element {
   const projectId = useMatch('/board/:projectId')?.params.projectId;
   const boardTarget = projectId ?? 'all';
   const userMenu = useHoverMenu();
+  const [confirmLogout, setConfirmLogout] = useState(false);
 
   const navItems = buildNavItems(boardTarget).filter((item) => !item.adminOnly || isAdmin);
 
@@ -81,7 +83,14 @@ export function TopNav(): JSX.Element {
 
         <div className="ml-auto flex items-center gap-2">
           {user && (
-            <DropdownMenu open={userMenu.open} onOpenChange={userMenu.onOpenChange} modal={false}>
+            <DropdownMenu
+              open={userMenu.open}
+              onOpenChange={(open) => {
+                if (!open) setConfirmLogout(false);
+                userMenu.onOpenChange(open);
+              }}
+              modal={false}
+            >
               <DropdownMenuTrigger asChild {...userMenu.triggerProps}>
                 <button
                   type="button"
@@ -108,10 +117,23 @@ export function TopNav(): JSX.Element {
                   <UserCog className="h-4 w-4" aria-hidden />
                   修改资料
                 </DropdownMenuItem>
-                <DropdownMenuItem destructive onSelect={() => void handleLogout()}>
-                  <LogOut className="h-4 w-4" aria-hidden />
-                  退出登录
-                </DropdownMenuItem>
+                {confirmLogout ? (
+                  <DropdownMenuItem destructive onSelect={() => void handleLogout()}>
+                    <Check className="h-4 w-4" aria-hidden />
+                    确认退出
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    destructive
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      setConfirmLogout(true);
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden />
+                    退出登录
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

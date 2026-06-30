@@ -13,11 +13,14 @@
     "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
     "test": "pnpm -r test",
     "dev": "pnpm --filter shared build && pnpm --parallel --filter server --filter web dev",
+    "format": "prettier --write . --ignore-unknown",
+    "format:check": "prettier --check . --ignore-unknown",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "pnpm --filter server migrate"
   },
   "devDependencies": {
     "drizzle-kit": "^0.30.6",
+    "prettier": "^3.6.2",
     "typescript": "^5.7.3"
   }
 }

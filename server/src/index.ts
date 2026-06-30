@@ -1,7 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { buildApp } from './app.js';
-import { createDb, resolveDatabaseUrl } from './db/index.js';
+import { createDb, resolveDatabaseUrl, type DbHandle } from './db/index.js';
+import { createDevPgliteDb } from './db/devPglite.js';
 import { runMigrations } from './db/migrate.js';
 import { maybeSeed } from './db/seed.js';
 
@@ -16,31 +17,52 @@ const here = dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = resolve(here, '../../web/dist');
 
 function readConfig(): {
-  databaseUrl: string;
+  databaseUrl: string | null;
   sessionSecret: string;
   port: number;
   production: boolean;
   seed: boolean;
 } {
-  const sessionSecret = process.env.SESSION_SECRET;
+  const production = process.env.NODE_ENV === 'production';
+  const sessionSecret = process.env.SESSION_SECRET ?? (
+    production ? undefined : 'coboard-local-development-secret'
+  );
   if (!sessionSecret || sessionSecret.length < 16) {
     throw new Error('SESSION_SECRET 未配置或过短（至少 16 字符），请在 .env 中设置');
   }
   return {
-    databaseUrl: resolveDatabaseUrl(),
+    databaseUrl: process.env.DATABASE_URL?.trim() ? resolveDatabaseUrl() : null,
     sessionSecret,
     port: Number.parseInt(process.env.PORT ?? '3000', 10),
-    production: process.env.NODE_ENV === 'production',
+    production,
     seed: process.env.SEED_DEMO === 'true',
   };
 }
 
+async function createDbHandle(config: {
+  databaseUrl: string | null;
+  production: boolean;
+}): Promise<DbHandle> {
+  if (config.databaseUrl) {
+    return createDb(config.databaseUrl);
+  }
+  if (config.production) {
+    throw new Error('DATABASE_URL 未配置：请在 .env 中设置 Postgres 连接串');
+  }
+
+  // Local development fallback: lets `pnpm dev` run without a separate Postgres.
+  // Production and Docker deployments still require DATABASE_URL.
+  return createDevPgliteDb();
+}
+
 async function main(): Promise<void> {
   const config = readConfig();
-  const { db, close } = createDb(config.databaseUrl);
+  const { db, close } = await createDbHandle(config);
 
   // Migrate-on-start so a fresh container is immediately usable (§9).
-  await runMigrations(db);
+  if (config.databaseUrl) {
+    await runMigrations(db);
+  }
   if (config.seed) {
     await maybeSeed(db);
   }
