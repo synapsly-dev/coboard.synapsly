@@ -332,10 +332,10 @@ function DisplayNameForm(): JSX.Element {
 function SynapslyAccountSection(): JSX.Element {
   const { user } = useAuth();
   return (
-    <Section title="Synapsly 账号">
+    <Section title="Syna 账号">
       <div className="flex flex-col gap-4">
         <p className="-mt-2 text-sm text-muted-foreground">
-          密码、邮箱与安全设置由 Synapsly 账号统一管理。
+          密码、邮箱与安全设置由 Syna 账号统一管理。
         </p>
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <div className="min-w-0">
@@ -345,7 +345,7 @@ function SynapslyAccountSection(): JSX.Element {
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
           </div>
           <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            Synapsly ID
+            Syna ID
           </span>
         </div>
         <div>
@@ -357,7 +357,7 @@ function SynapslyAccountSection(): JSX.Element {
             }
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
-            管理 Synapsly 账号
+            管理 Syna 账号
           </Button>
         </div>
       </div>

@@ -101,7 +101,7 @@ export function CreateUserDialog(): JSX.Element {
         <DialogHeader>
           <DialogTitle>添加成员</DialogTitle>
           <DialogDescription>
-            按邮箱预先添加成员并可加入项目；对方用 Synapsly ID 登录后，将按邮箱自动关联到此账号。
+            按邮箱预先添加成员并可加入项目；对方用 Syna ID 登录后，将按邮箱自动关联到此账号。
           </DialogDescription>
         </DialogHeader>
 

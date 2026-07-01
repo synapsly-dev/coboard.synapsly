@@ -51,7 +51,7 @@ export default function JoinPage(): JSX.Element {
               加入 Coboard
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              你的 Synapsly 账号尚未加入本团队，请输入管理员提供的邀请码
+              你的 Syna 账号尚未加入本团队，请输入管理员提供的邀请码
             </p>
           </div>
 

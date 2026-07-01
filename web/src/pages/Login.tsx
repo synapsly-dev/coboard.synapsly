@@ -8,8 +8,8 @@ import { Button, Input, Label } from '../components/ui';
 import { SynapseMark } from '../components/brand/SynapseMark';
 
 /**
- * Login page — Synapsly ID SSO. The primary action hands off to the server-driven
- * OIDC flow ("使用 Synapsly ID 登录"). A dev fake-login box appears only when the
+ * Login page — Syna ID SSO. The primary action hands off to the server-driven
+ * OIDC flow ("使用 Syna ID 登录"). A dev fake-login box appears only when the
  * server reports `devLogin: true` (non-production). Any `?sso_error=` returned by
  * the callback is surfaced as a banner.
  */
@@ -39,7 +39,7 @@ export default function LoginPage(): JSX.Element {
               登录 Coboard
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              使用 Synapsly 账号继续你的团队协作
+              使用 Syna 账号继续你的团队协作
             </p>
           </div>
 
@@ -61,12 +61,12 @@ export default function LoginPage(): JSX.Element {
               onClick={() => loginWithSynapsly(redirectTo)}
             >
               <SynapseMark className="h-4 w-4" />
-              使用 Synapsly ID 登录
+              使用 Syna ID 登录
             </Button>
 
             {config.data && !config.data.synapslyEnabled && (
               <p className="mt-3 text-center text-xs text-muted-foreground">
-                Synapsly 登录尚未配置，请联系管理员
+                Syna ID 登录尚未配置，请联系管理员
               </p>
             )}
 
@@ -75,7 +75,7 @@ export default function LoginPage(): JSX.Element {
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
             登录即表示同意由{' '}
-            <span className="font-medium text-foreground">Synapsly</span> 统一管理你的账号身份
+            <span className="font-medium text-foreground">Syna 账号</span> 统一管理你的身份
           </p>
         </div>
       </main>

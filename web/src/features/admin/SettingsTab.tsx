@@ -91,7 +91,7 @@ export function SettingsTab(): JSX.Element {
       <div>
         <h2 className="text-base font-semibold">设置</h2>
         <p className="text-sm text-muted-foreground">
-          管理自助加入。开启后，用 Synapsly ID 登录的新用户凭邀请码即可加入为「成员」。
+          管理自助加入。开启后，用 Syna ID 登录的新用户凭邀请码即可加入为「成员」。
         </p>
       </div>
 
