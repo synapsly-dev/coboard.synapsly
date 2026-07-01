@@ -3,7 +3,6 @@ import { dirname, resolve } from 'node:path';
 import { buildApp } from './app.js';
 import { loadAuthRuntime } from './auth/config.js';
 import { createDb, resolveDatabaseUrl, type DbHandle } from './db/index.js';
-import { createDevPgliteDb } from './db/devPglite.js';
 import { runMigrations } from './db/migrate.js';
 import { maybeSeed } from './db/seed.js';
 
@@ -55,7 +54,9 @@ async function createDbHandle(config: {
   }
 
   // Local development fallback: lets `pnpm dev` run without a separate Postgres.
-  // Production and Docker deployments still require DATABASE_URL.
+  // Imported lazily so the dev-only `@electric-sql/pglite` dependency (pruned from
+  // the production image) is never resolved on the DATABASE_URL path.
+  const { createDevPgliteDb } = await import('./db/devPglite.js');
   return createDevPgliteDb();
 }
 
