@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { buildApp } from './app.js';
+import { loadAuthRuntime } from './auth/config.js';
 import { createDb, resolveDatabaseUrl, type DbHandle } from './db/index.js';
 import { createDevPgliteDb } from './db/devPglite.js';
 import { runMigrations } from './db/migrate.js';
@@ -21,6 +22,7 @@ function readConfig(): {
   sessionSecret: string;
   port: number;
   production: boolean;
+  publicUrl: string;
   seed: boolean;
 } {
   const production = process.env.NODE_ENV === 'production';
@@ -30,11 +32,13 @@ function readConfig(): {
   if (!sessionSecret || sessionSecret.length < 16) {
     throw new Error('SESSION_SECRET 未配置或过短（至少 16 字符），请在 .env 中设置');
   }
+  const port = Number.parseInt(process.env.PORT ?? '3000', 10);
   return {
     databaseUrl: process.env.DATABASE_URL?.trim() ? resolveDatabaseUrl() : null,
     sessionSecret,
-    port: Number.parseInt(process.env.PORT ?? '3000', 10),
+    port,
     production,
+    publicUrl: process.env.PUBLIC_URL?.trim() || `http://localhost:${port}`,
     seed: process.env.SEED_DEMO === 'true',
   };
 }
@@ -67,10 +71,23 @@ async function main(): Promise<void> {
     await maybeSeed(db);
   }
 
+  const authRuntime = loadAuthRuntime({
+    production: config.production,
+    publicUrl: config.publicUrl,
+  });
+  if (!authRuntime.synapsly) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[auth] 未配置 Synapsly SSO（缺少 SYNAPSLY_CLIENT_ID/SECRET）——' +
+        (authRuntime.devLogin ? '仅开发假登录可用' : '将无法登录'),
+    );
+  }
+
   const app = await buildApp({
     db,
     sessionSecret: config.sessionSecret,
     production: config.production,
+    authRuntime,
     webDistPath: WEB_DIST,
     logger: true,
   });

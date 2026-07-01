@@ -70,7 +70,13 @@ export const users = pgTable(
   {
     id: primaryId,
     email: text('email').notNull(),
-    passwordHash: text('password_hash').notNull(),
+    // Nullable: local password auth was replaced by Synapsly ID SSO. Retained so
+    // historical rows migrate cleanly; never written going forward.
+    passwordHash: text('password_hash'),
+    // Stable Synapsly ID subject (OIDC `sub`) — the identity foreign key. Set on
+    // first SSO login, unique across users. Null for rows an admin pre-provisioned
+    // by email that have not logged in yet.
+    synapslySub: text('synapsly_sub'),
     displayName: text('display_name').notNull(),
     avatarColor: text('avatar_color').notNull(),
     // Mime of the uploaded avatar (e.g. 'image/jpeg') when one exists; null
@@ -81,7 +87,11 @@ export const users = pgTable(
     isActive: boolean('is_active').notNull().default(true),
     createdAt,
   },
-  (table) => [uniqueIndex('users_email_uniq').on(table.email)],
+  (table) => [
+    uniqueIndex('users_email_uniq').on(table.email),
+    // Unique when present; Postgres allows many NULLs so un-linked rows coexist.
+    uniqueIndex('users_synapsly_sub_uniq').on(table.synapslySub),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -117,6 +127,9 @@ export const sessions = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Synapsly ID token captured at login; used as `id_token_hint` for
+    // RP-initiated single logout (/end_session). Null for dev-login sessions.
+    oidcIdToken: text('oidc_id_token'),
   },
   (table) => [index('sessions_user_id_idx').on(table.userId)],
 );

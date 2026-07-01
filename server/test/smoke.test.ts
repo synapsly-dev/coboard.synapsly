@@ -4,7 +4,7 @@ import { createTestContext } from './helpers.js';
 
 /**
  * Smoke test (§10): the server boots against an in-memory PGlite db and the
- * implemented setup-status endpoint responds correctly on a fresh database.
+ * public /auth/config probe responds correctly on a fresh database.
  */
 describe('smoke', () => {
   let ctx: TestContext;
@@ -17,13 +17,13 @@ describe('smoke', () => {
     await ctx.cleanup();
   });
 
-  it('boots and reports needsSetup=true on a fresh database', async () => {
+  it('boots and serves the public /auth/config probe', async () => {
     const res = await ctx.app.inject({
       method: 'GET',
-      url: '/api/setup/status',
+      url: '/api/auth/config',
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ needsSetup: true });
+    expect(res.json()).toEqual({ synapslyEnabled: false, devLogin: false });
   });
 
   it('returns the §7 error shape for unknown API routes', async () => {
@@ -40,8 +40,7 @@ describe('smoke', () => {
   it('rejects unsafe API requests missing the CSRF header', async () => {
     const res = await ctx.app.inject({
       method: 'POST',
-      url: '/api/auth/login',
-      payload: { email: 'a@b.com', password: 'whatever' },
+      url: '/api/auth/logout',
     });
     expect(res.statusCode).toBe(403);
   });

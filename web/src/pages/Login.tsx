@@ -1,21 +1,17 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useForm, type UseFormSetError } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { LayoutDashboard } from 'lucide-react';
-import { loginInputSchema, type LoginInput } from 'shared';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { isApiClientError } from '../api/client';
-import { useRegistrationStatus } from '../api/auth';
+import { useAuthConfig } from '../api/auth';
 import { useAuth } from '../lib/auth-context';
-import { applyFieldErrors } from '../lib/form-errors';
 import { Button, Input, Label } from '../components/ui';
+import { SynapseMark } from '../components/brand/SynapseMark';
 
 /**
- * Login page (§7 POST /auth/login, §8). Authenticates via `useAuth().login`,
- * which posts credentials and syncs the session into the auth cache, then routes
- * back to wherever the user was headed (the `from` location set by RequireAuth)
- * or to the board home.
+ * Login page — Synapsly ID SSO. The primary action hands off to the server-driven
+ * OIDC flow ("使用 Synapsly ID 登录"). A dev fake-login box appears only when the
+ * server reports `devLogin: true` (non-production). Any `?sso_error=` returned by
+ * the callback is surfaced as a banner.
  */
 
 interface LocationState {
@@ -23,155 +19,121 @@ interface LocationState {
 }
 
 export default function LoginPage(): JSX.Element {
-  const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
-  const registrationStatus = useRegistrationStatus();
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const { loginWithSynapsly } = useAuth();
+  const config = useAuthConfig();
 
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginInput>({
-    resolver: zodResolver(loginInputSchema),
-    defaultValues: { email: '', password: '' },
-  });
-
-  // Where to land after a successful login: the originally requested route, or
-  // the app home which redirects to the first visible project's board.
+  const ssoError = searchParams.get('sso_error');
   const redirectTo = (location.state as LocationState | null)?.from?.pathname ?? '/';
-
-  async function onSubmit(values: LoginInput): Promise<void> {
-    setSubmitError(null);
-    try {
-      await login(values);
-      navigate(redirectTo, { replace: true });
-    } catch (err) {
-      handleLoginError(err, setError, setSubmitError);
-    }
-  }
 
   return (
     <div className="h-full overflow-y-auto bg-background">
-    <main className="flex min-h-full items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <LayoutDashboard className="h-6 w-6" aria-hidden />
+      <main className="flex min-h-full items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 flex flex-col items-center text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+              <SynapseMark className="h-7 w-7" />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              登录 Coboard
+            </h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              使用 Synapsly 账号继续你的团队协作
+            </p>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            登录 Coboard
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            使用团队账号登录，继续你的协作
-          </p>
-        </div>
 
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
-          <form
-            className="flex flex-col gap-5"
-            onSubmit={handleSubmit(onSubmit)}
-            noValidate
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="login-email" required>
-                邮箱
-              </Label>
-              <Input
-                id="login-email"
-                type="email"
-                autoComplete="username"
-                placeholder="you@example.com"
-                autoFocus
-                invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? 'login-email-error' : undefined}
-                {...register('email')}
-              />
-              {errors.email && (
-                <p id="login-email-error" className="text-xs text-destructive">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="login-password" required>
-                密码
-              </Label>
-              <Input
-                id="login-password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="请输入密码"
-                invalid={Boolean(errors.password)}
-                aria-describedby={errors.password ? 'login-password-error' : undefined}
-                {...register('password')}
-              />
-              {errors.password && (
-                <p id="login-password-error" className="text-xs text-destructive">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            {submitError && (
+          <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+            {ssoError && (
               <div
                 role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
               >
-                {submitError}
+                {ssoError}
               </div>
             )}
 
-            <Button type="submit" size="lg" className="mt-1 w-full" loading={isSubmitting}>
-              {isSubmitting ? '正在登录…' : '登录'}
-            </Button>
-          </form>
-        </div>
-
-        {registrationStatus.data?.enabled ? (
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            没有账号？
-            <Link
-              to="/register"
-              className="ml-1 text-primary underline-offset-4 hover:underline"
+            <Button
+              type="button"
+              size="lg"
+              className="w-full"
+              disabled={config.data ? !config.data.synapslyEnabled : false}
+              onClick={() => loginWithSynapsly(redirectTo)}
             >
-              注册账号
-            </Link>
-          </p>
-        ) : (
+              <SynapseMark className="h-4 w-4" />
+              使用 Synapsly ID 登录
+            </Button>
+
+            {config.data && !config.data.synapslyEnabled && (
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                Synapsly 登录尚未配置，请联系管理员
+              </p>
+            )}
+
+            {config.data?.devLogin && <DevLoginBox redirectTo={redirectTo} />}
+          </div>
+
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            没有账号？请联系团队管理员创建
+            登录即表示同意由{' '}
+            <span className="font-medium text-foreground">Synapsly</span> 统一管理你的账号身份
           </p>
-        )}
-      </div>
-    </main>
+        </div>
+      </main>
     </div>
   );
 }
 
 /**
- * Map a login failure to inline field errors and/or a banner. 401 is the common
- * "wrong email/password" case (§7) — surface it as a friendly banner rather than
- * leaking which field was wrong.
+ * Local development fake-login (only rendered when the server enables it). Signs
+ * in by email without touching Synapsly, so the app stays runnable offline.
  */
-function handleLoginError(
-  err: unknown,
-  setError: UseFormSetError<LoginInput>,
-  setBanner: (message: string) => void,
-): void {
-  if (isApiClientError(err)) {
-    if (err.isUnauthorized) {
-      setBanner('邮箱或密码错误');
-      return;
+function DevLoginBox({ redirectTo }: { redirectTo: string }): JSX.Element {
+  const navigate = useNavigate();
+  const { devLogin } = useAuth();
+  const [email, setEmail] = useState('admin@coboard.local');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(): Promise<void> {
+    setError(null);
+    setBusy(true);
+    try {
+      await devLogin({ email: email.trim() });
+      navigate(redirectTo, { replace: true });
+    } catch (err) {
+      setError(isApiClientError(err) ? err.message : '假登录失败');
+    } finally {
+      setBusy(false);
     }
-    if (err.fields) {
-      applyFieldErrors(err.fields, setError);
-    }
-    setBanner(err.message);
-    return;
   }
-  setBanner('登录失败，请稍后重试');
+
+  return (
+    <div className="mt-6 border-t border-dashed border-border pt-5">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        开发假登录（Dev only）
+      </p>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="dev-email" className="sr-only">
+          邮箱
+        </Label>
+        <Input
+          id="dev-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
+        />
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          loading={busy}
+          onClick={() => void submit()}
+        >
+          以此邮箱进入
+        </Button>
+      </div>
+    </div>
+  );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom';
-import { Check, LayoutGrid, LogOut, UserCog } from 'lucide-react';
+import { Check, LogOut, Moon, Sun, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -13,8 +13,10 @@ import {
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { buildNavItems } from './nav-items';
 import { useAuth } from '../../lib/auth-context';
+import { useTheme } from '../../lib/theme';
 import { avatarUrl, cn } from '../../lib/utils';
 import { useHoverMenu } from '../../lib/use-hover-menu';
+import { SynapseMark } from '../brand/SynapseMark';
 
 /**
  * Top navigation bar (§4). Shows the logo, project switcher, and — on md+ — the
@@ -24,6 +26,7 @@ import { useHoverMenu } from '../../lib/use-hover-menu';
  */
 export function TopNav(): JSX.Element {
   const { user, isAdmin, logout } = useAuth();
+  const { resolved, toggle } = useTheme();
   const navigate = useNavigate();
   // The nav lives above the /board/:projectId route, so useParams can't see the
   // param — read it from the location. Default the 看板 link to the all view.
@@ -47,7 +50,7 @@ export function TopNav(): JSX.Element {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2" aria-label="Coboard 首页">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <LayoutGrid className="h-4 w-4" aria-hidden />
+            <SynapseMark className="h-4 w-4" />
           </span>
           <span className="hidden text-base font-semibold tracking-tight sm:inline">Coboard</span>
         </Link>
@@ -116,6 +119,20 @@ export function TopNav(): JSX.Element {
                 <DropdownMenuItem onSelect={() => navigate('/account/profile')}>
                   <UserCog className="h-4 w-4" aria-hidden />
                   修改资料
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    // Keep the menu open so the theme flip is visible in place.
+                    e.preventDefault();
+                    toggle();
+                  }}
+                >
+                  {resolved === 'dark' ? (
+                    <Sun className="h-4 w-4" aria-hidden />
+                  ) : (
+                    <Moon className="h-4 w-4" aria-hidden />
+                  )}
+                  {resolved === 'dark' ? '浅色模式' : '深色模式'}
                 </DropdownMenuItem>
                 {confirmLogout ? (
                   <DropdownMenuItem destructive onSelect={() => void handleLogout()}>

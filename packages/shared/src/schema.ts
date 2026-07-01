@@ -443,42 +443,47 @@ export const apiErrorSchema = z.object({
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
 // ---------------------------------------------------------------------------
-// Setup & auth (§7)
+// Auth — Synapsly ID SSO (§7)
 // ---------------------------------------------------------------------------
 
-/** GET /setup/status */
-export const setupStatusResponseSchema = z.object({
-  needsSetup: z.boolean(),
+/**
+ * GET /auth/config — public, unauthenticated probe telling the login page which
+ * sign-in affordances to render. `synapslyEnabled` is true when the server has a
+ * Synapsly OIDC client configured; `devLogin` is true only on a non-production
+ * instance that opted into the local fake-login escape hatch.
+ */
+export const authConfigResponseSchema = z.object({
+  synapslyEnabled: z.boolean(),
+  devLogin: z.boolean(),
 });
-export type SetupStatusResponse = z.infer<typeof setupStatusResponseSchema>;
+export type AuthConfigResponse = z.infer<typeof authConfigResponseSchema>;
 
-/** POST /setup — create first admin when no users exist. */
-export const setupInputSchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
-  displayName: displayNameSchema,
+/**
+ * POST /auth/synapsly/complete-join — finish first-time provisioning for a brand
+ * new Synapsly user by supplying the admin-preset invite code. The pending
+ * identity is carried in a short-lived signed cookie set by the OIDC callback.
+ */
+export const completeJoinInputSchema = z.object({
+  code: z.string().min(1, '请输入邀请码').max(200),
 });
-export type SetupInput = z.infer<typeof setupInputSchema>;
+export type CompleteJoinInput = z.infer<typeof completeJoinInputSchema>;
 
-/** POST /auth/login */
-export const loginInputSchema = z.object({
+/**
+ * POST /auth/dev-login — local development fake login (only served when
+ * DEV_LOGIN=true and NODE_ENV!=='production'). Bypasses Synapsly and logs in (or
+ * creates) the user with the given email so the app stays runnable offline.
+ */
+export const devLoginInputSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1, '请输入密码').max(200),
+  displayName: displayNameSchema.optional(),
 });
-export type LoginInput = z.infer<typeof loginInputSchema>;
+export type DevLoginInput = z.infer<typeof devLoginInputSchema>;
 
 /** Response for login / me — the authenticated user. */
 export const authUserResponseSchema = z.object({
   user: userSchema,
 });
 export type AuthUserResponse = z.infer<typeof authUserResponseSchema>;
-
-/** POST /auth/password — change own password. */
-export const changePasswordInputSchema = z.object({
-  currentPassword: z.string().min(1, '请输入当前密码').max(200),
-  newPassword: passwordSchema,
-});
-export type ChangePasswordInput = z.infer<typeof changePasswordInputSchema>;
 
 /** PATCH /auth/profile — update the current user's own profile (display name). */
 export const updateProfileInputSchema = z.object({
@@ -497,33 +502,14 @@ export const updateAvatarInputSchema = z.object({
 export type UpdateAvatarInput = z.infer<typeof updateAvatarInputSchema>;
 
 // ---------------------------------------------------------------------------
-// Self-registration (admin-gated by an invite code) (§8, §11 moved into v1)
+// Member self-join gate (admin invite code) — reused for Synapsly SSO (§8)
+//
+// A brand-new Synapsly user (no matching account) must supply this admin-preset
+// invite code on first login to be provisioned as a member. `registrationEnabled`
+// toggles whether self-join is open at all; `registrationCode` is the secret.
 // ---------------------------------------------------------------------------
 
-/**
- * POST /auth/register — self-register a `member` account, gated by the admin's
- * invite code. Reuses the shared email/password/displayName rules; `code` is the
- * verification code the admin shares out-of-band.
- */
-export const registerInputSchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
-  displayName: displayNameSchema,
-  code: z.string().min(1, '请输入验证码').max(200),
-});
-export type RegisterInput = z.infer<typeof registerInputSchema>;
-
-/**
- * GET /auth/registration — public probe of whether self-registration is open.
- * Never exposes the code itself: `enabled` is true only when registration is
- * enabled AND a non-empty code is configured.
- */
-export const registrationStatusSchema = z.object({
-  enabled: z.boolean(),
-});
-export type RegistrationStatus = z.infer<typeof registrationStatusSchema>;
-
-/** GET /settings — admin-only registration settings (includes the secret code). */
+/** GET /settings — admin-only join settings (includes the secret invite code). */
 export const registrationSettingsSchema = z.object({
   registrationEnabled: z.boolean(),
   registrationCode: z.string().max(200),
@@ -570,10 +556,13 @@ export const usersListResponseSchema = z.object({
 });
 export type UsersListResponse = z.infer<typeof usersListResponseSchema>;
 
-/** POST /users — admin creates an account with an initial password. */
+/**
+ * POST /users — admin pre-provisions an account by email. There is no password:
+ * the person signs in with their Synapsly ID, which links to this row by email on
+ * first login. Lets admins add people to projects before they ever log in.
+ */
 export const createUserInputSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
   displayName: displayNameSchema,
   role: userRoleSchema.default('member'),
   avatarColor: avatarColorSchema.optional(),

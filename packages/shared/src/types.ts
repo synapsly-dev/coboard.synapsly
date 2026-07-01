@@ -28,15 +28,12 @@ export type {
   ActivityWithActor,
   // errors
   ApiError,
-  // setup & auth
-  SetupStatusResponse,
-  SetupInput,
-  LoginInput,
+  // auth (Synapsly ID SSO)
+  AuthConfigResponse,
+  CompleteJoinInput,
+  DevLoginInput,
   AuthUserResponse,
-  ChangePasswordInput,
-  // self-registration
-  RegisterInput,
-  RegistrationStatus,
+  // member self-join gate
   RegistrationSettings,
   UpdateRegistrationSettingsInput,
   // users

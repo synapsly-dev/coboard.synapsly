@@ -14,7 +14,6 @@ import {
   users,
   type UserRow,
 } from '../db/schema.js';
-import { hashPassword } from '../auth/password.js';
 import { deleteUserSessions } from '../auth/session.js';
 import { conflict, notFound, validationError } from '../lib/errors.js';
 
@@ -135,16 +134,18 @@ export async function listUsersWithProjects(
 
 export interface CreateUserParams {
   email: string;
-  password: string;
   displayName: string;
   role: 'admin' | 'member';
   avatarColor?: string | undefined;
+  /** Optional Synapsly subject to link at creation (SSO provisioning). */
+  synapslySub?: string | undefined;
 }
 
 /**
- * Create a user account with a hashed initial password. Throws 409 on a
- * duplicate email. Used both by first-run setup (forces role=admin) and by the
- * admin user-management endpoint.
+ * Create a passwordless user account. Throws 409 on a duplicate email. Used by
+ * the admin "add by email" flow (pre-provision before first SSO login) and, via
+ * {@link createSsoUser}, by SSO provisioning. Identity is Synapsly ID, not a
+ * password, so `password_hash` is always null.
  */
 export async function createUser(
   db: Database,
@@ -155,14 +156,14 @@ export async function createUser(
     throw conflict('该邮箱已被注册');
   }
 
-  const passwordHash = await hashPassword(params.password);
   const avatarColor = params.avatarColor ?? pickAvatarColor(params.email);
 
   const inserted = await db
     .insert(users)
     .values({
       email: params.email,
-      passwordHash,
+      passwordHash: null,
+      synapslySub: params.synapslySub ?? null,
       displayName: params.displayName,
       avatarColor,
       role: params.role,
@@ -188,11 +189,61 @@ export function createUserParamsFromInput(
 ): CreateUserParams {
   return {
     email: input.email,
-    password: input.password,
     displayName: input.displayName,
     role: input.role ?? 'member',
     avatarColor: input.avatarColor,
   };
+}
+
+/** Look up a user by their Synapsly subject (OIDC `sub`), or null. */
+export async function findUserBySynapslySub(
+  db: Database,
+  sub: string,
+): Promise<UserRow | null> {
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.synapslySub, sub))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export interface CreateSsoUserParams {
+  email: string;
+  displayName: string;
+  role: 'admin' | 'member';
+  synapslySub: string;
+  avatarColor?: string | undefined;
+}
+
+/** Provision a new user from a verified Synapsly identity (link the sub). */
+export async function createSsoUser(
+  db: Database,
+  params: CreateSsoUserParams,
+): Promise<UserRow> {
+  return createUser(db, {
+    email: params.email,
+    displayName: params.displayName,
+    role: params.role,
+    avatarColor: params.avatarColor,
+    synapslySub: params.synapslySub,
+  });
+}
+
+/** Attach a Synapsly subject to an existing (email-matched) user row. */
+export async function linkSynapslySub(
+  db: Database,
+  userId: string,
+  sub: string,
+): Promise<UserRow> {
+  const updated = await db
+    .update(users)
+    .set({ synapslySub: sub })
+    .where(eq(users.id, userId))
+    .returning();
+  const row = updated[0];
+  if (!row) throw notFound('用户不存在');
+  return row;
 }
 
 /**

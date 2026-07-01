@@ -1,35 +1,20 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import type { RegisterInput, RegistrationStatus } from 'shared';
+import type { AuthConfigResponse } from 'shared';
 import { api } from './client';
 import { queryKeys } from '../lib/query';
 
 /**
- * Public auth hooks for self-registration (§8). `useRegistrationStatus` reads the
- * code-free public probe GET /auth/registration; `registerApi.register` posts to
- * POST /auth/register (the server logs the new member in by setting the session
- * cookie). Login/logout/me live in the auth context; these complement them.
+ * Public auth-config hook. `GET /auth/config` is unauthenticated and tells the
+ * login page which sign-in affordances to render: whether Synapsly ID SSO is
+ * configured, and whether the local dev fake-login is available (non-prod only).
  */
-
-/** Low-level fetchers — shared by hooks and components. */
-export const registerApi = {
-  status: (signal?: AbortSignal): Promise<RegistrationStatus> =>
-    api.get<RegistrationStatus>('/auth/registration', { signal }),
-};
-
-/**
- * Whether self-registration is currently open (§8). Public; safe to call without
- * a session. Never returns the code — only `{ enabled }`.
- */
-export function useRegistrationStatus(options?: {
+export function useAuthConfig(options?: {
   enabled?: boolean;
-}): UseQueryResult<RegistrationStatus> {
-  return useQuery<RegistrationStatus>({
-    queryKey: queryKeys.registrationStatus(),
-    queryFn: ({ signal }) => registerApi.status(signal),
-    // Toggled rarely by an admin; keep it fresh for a short window.
-    staleTime: 60_000,
+}): UseQueryResult<AuthConfigResponse> {
+  return useQuery<AuthConfigResponse>({
+    queryKey: queryKeys.authConfig(),
+    queryFn: ({ signal }) => api.get<AuthConfigResponse>('/auth/config', { signal }),
+    staleTime: 5 * 60_000,
     enabled: options?.enabled ?? true,
   });
 }
-
-export type { RegisterInput };

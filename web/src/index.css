@@ -3,47 +3,91 @@
 @tailwind utilities;
 
 /**
- * Design tokens (§3). Clean neutral slate palette expressed as HSL channels so
- * Tailwind's `hsl(var(--token))` can apply opacity modifiers. Light theme only in
- * v1; the variable layer leaves room for a future dark theme.
+ * Design tokens — Synapsly "quiet-luxe" monochrome, expressed as HSL channels so
+ * Tailwind's `hsl(var(--token))` can apply opacity modifiers. Values mirror
+ * syna-core's shipping theme (auth.synapsly.org): near-neutral greys, ink primary
+ * action, warm off-white canvas. Light is the default; a dark override lives
+ * under `[data-theme='dark']` / `.dark` (driven by the ThemeProvider).
  */
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 30% 14%;
+    color-scheme: light;
+
+    --background: 60 11% 98%;
+    --foreground: 240 4% 5%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 30% 14%;
+    --card-foreground: 240 4% 5%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 14%;
+    --popover-foreground: 240 4% 5%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    /* Ink primary action (the one strong colour is black, per the brand). */
+    --primary: 240 4% 5%;
+    --primary-foreground: 60 11% 98%;
 
-    --secondary: 215 25% 95%;
-    --secondary-foreground: 222 25% 22%;
+    --secondary: 60 8% 95%;
+    --secondary-foreground: 240 5% 16%;
 
-    --muted: 215 25% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 60 8% 95%;
+    --muted-foreground: 240 2% 38%;
 
-    --accent: 214 32% 91%;
-    --accent-foreground: 222 30% 18%;
+    --accent: 60 5% 93%;
+    --accent-foreground: 240 4% 5%;
+
+    --destructive: 6 63% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 149 66% 30%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 35 92% 33%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 60 6% 90%;
+    --input: 60 4% 82%;
+    --ring: 240 4% 5%;
+
+    --radius: 0.625rem;
+  }
+
+  :root[data-theme='dark'],
+  .dark {
+    color-scheme: dark;
+
+    --background: 240 4% 5%;
+    --foreground: 60 5% 96%;
+
+    --card: 240 5% 8%;
+    --card-foreground: 60 5% 96%;
+
+    --popover: 240 5% 12%;
+    --popover-foreground: 60 5% 96%;
+
+    --primary: 60 5% 96%;
+    --primary-foreground: 240 4% 5%;
+
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 60 5% 96%;
+
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 3% 64%;
+
+    --accent: 240 5% 15%;
+    --accent-foreground: 60 5% 96%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 40%;
-    --success-foreground: 0 0% 100%;
+    --success: 142 69% 58%;
+    --success-foreground: 240 4% 5%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 24 40% 16%;
+    --warning: 35 92% 33%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 214 25% 88%;
-    --input: 214 25% 86%;
-    --ring: 221 83% 53%;
-
-    --radius: 0.625rem;
+    --border: 240 5% 17%;
+    --input: 240 5% 24%;
+    --ring: 60 5% 96%;
   }
 
   * {

@@ -1,26 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
-import type { AuthUserResponse, UsersListResponse } from 'shared';
+import type { AuthConfigResponse, AuthUserResponse, UsersListResponse } from 'shared';
 import type { TestContext } from './helpers.js';
 import { createTestContext } from './helpers.js';
-import { SESSION_COOKIE } from '../src/auth/session.js';
+import { SESSION_COOKIE, createSession } from '../src/auth/session.js';
+import { users, type UserRow } from '../src/db/schema.js';
 
 /**
- * Auth / setup / users API tests (§7, §8, §10): the setup→login happy path,
- * credential rejection, the /me auth gate, and the admin-only guard on /users.
- * Uses fastify.inject against a fresh PGlite-backed app per test.
+ * Auth / users API tests (§7, §8, §10) for the Synapsly-SSO world. Identity comes
+ * from SSO, so tests authenticate by seeding a user + session row directly and
+ * signing the session cookie — exactly what the production auth pre-handler reads.
+ * Also covers the /auth/config probe, logout, the dev fake-login, and the /users
+ * admin guard (accounts are now created passwordless, by email).
  */
 
-/** Header that satisfies the app's CSRF check for unsafe methods (§8). */
 const CSRF_HEADERS = { 'x-requested-with': 'XMLHttpRequest' } as const;
 
-const ADMIN = {
-  email: 'admin@coboard.local',
-  password: 'admin-password-123',
-  displayName: '管理员',
-} as const;
-
-describe('auth + setup + users', () => {
+describe('auth + users', () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
@@ -31,123 +26,64 @@ describe('auth + setup + users', () => {
     await ctx.cleanup();
   });
 
-  /** Extract the signed session cookie value from a response's set-cookie. */
-  function sessionCookieFrom(res: { cookies: { name: string; value: string }[] }): string {
-    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
-    expect(cookie, '响应应设置会话 Cookie').toBeDefined();
-    return `${SESSION_COOKIE}=${cookie!.value}`;
+  /** Seed a user and return its row plus a signed session cookie header. */
+  async function seedUser(
+    role: 'admin' | 'member',
+    email = `${role}@coboard.local`,
+  ): Promise<{ user: UserRow; cookie: string }> {
+    const [user] = await ctx.db
+      .insert(users)
+      .values({
+        email,
+        passwordHash: null,
+        synapslySub: `sub:${email}`,
+        displayName: role === 'admin' ? '管理员' : '成员',
+        avatarColor: '#0b0b0c',
+        role,
+        isActive: true,
+      })
+      .returning();
+    if (!user) throw new Error('seed user failed');
+    const { token } = await createSession(ctx.db, user.id);
+    return { user, cookie: `${SESSION_COOKIE}=${ctx.app.signCookie(token)}` };
   }
 
-  /** Run setup to create the first admin; returns its session cookie header. */
-  async function setupAdmin(): Promise<string> {
-    const res = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/setup',
-      headers: CSRF_HEADERS,
-      payload: ADMIN,
+  it('/auth/config reports SSO disabled + dev-login off by default', async () => {
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/auth/config' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json() as AuthConfigResponse).toEqual({
+      synapslyEnabled: false,
+      devLogin: false,
     });
-    expect(res.statusCode).toBe(201);
-    return sessionCookieFrom(res);
-  }
-
-  it('setup creates the first admin and logs in, then login works', async () => {
-    // Fresh DB → needs setup.
-    const status0 = await ctx.app.inject({ method: 'GET', url: '/api/setup/status' });
-    expect(status0.json()).toEqual({ needsSetup: true });
-
-    const setupRes = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/setup',
-      headers: CSRF_HEADERS,
-      payload: ADMIN,
-    });
-    expect(setupRes.statusCode).toBe(201);
-    const setupBody = setupRes.json() as AuthUserResponse;
-    expect(setupBody.user.email).toBe(ADMIN.email);
-    expect(setupBody.user.role).toBe('admin');
-    // Public shape never leaks the hash.
-    expect(setupBody.user).not.toHaveProperty('passwordHash');
-
-    const cookie = sessionCookieFrom(setupRes);
-    // The session cookie authenticates /me.
-    const meRes = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/auth/me',
-      headers: { cookie },
-    });
-    expect(meRes.statusCode).toBe(200);
-    expect((meRes.json() as AuthUserResponse).user.email).toBe(ADMIN.email);
-
-    // Now setup reports complete and a second setup is rejected.
-    const status1 = await ctx.app.inject({ method: 'GET', url: '/api/setup/status' });
-    expect(status1.json()).toEqual({ needsSetup: false });
-
-    const setupAgain = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/setup',
-      headers: CSRF_HEADERS,
-      payload: { ...ADMIN, email: 'other@coboard.local' },
-    });
-    expect(setupAgain.statusCode).toBe(409);
-
-    // Login with the right credentials succeeds and sets a session cookie.
-    const loginRes = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: ADMIN.email, password: ADMIN.password },
-    });
-    expect(loginRes.statusCode).toBe(200);
-    const loginCookie = sessionCookieFrom(loginRes);
-    const me2 = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/auth/me',
-      headers: { cookie: loginCookie },
-    });
-    expect(me2.statusCode).toBe(200);
-  });
-
-  it('login rejects a bad password with 401', async () => {
-    await setupAdmin();
-
-    const res = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: ADMIN.email, password: 'wrong-password' },
-    });
-    expect(res.statusCode).toBe(401);
-    expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toBeUndefined();
-  });
-
-  it('login rejects an unknown email with the same generic 401', async () => {
-    await setupAdmin();
-
-    const res = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: 'nobody@coboard.local', password: ADMIN.password },
-    });
-    expect(res.statusCode).toBe(401);
   });
 
   it('/me requires authentication', async () => {
-    await setupAdmin();
-
     const res = await ctx.app.inject({ method: 'GET', url: '/api/auth/me' });
     expect(res.statusCode).toBe(401);
   });
 
-  it('logout deletes the session so /me is no longer authenticated', async () => {
-    const cookie = await setupAdmin();
+  it('a seeded session authenticates /me', async () => {
+    const { cookie, user } = await seedUser('admin');
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as AuthUserResponse;
+    expect(body.user.email).toBe(user.email);
+    expect(body.user).not.toHaveProperty('passwordHash');
+  });
 
+  it('logout deletes the session so /me is no longer authenticated', async () => {
+    const { cookie } = await seedUser('admin');
     const logoutRes = await ctx.app.inject({
       method: 'POST',
       url: '/api/auth/logout',
       headers: { ...CSRF_HEADERS, cookie },
     });
     expect(logoutRes.statusCode).toBe(200);
+    expect((logoutRes.json() as { ok: true }).ok).toBe(true);
 
     const meRes = await ctx.app.inject({
       method: 'GET',
@@ -157,23 +93,17 @@ describe('auth + setup + users', () => {
     expect(meRes.statusCode).toBe(401);
   });
 
-  it('admin can list and create users; new member can log in', async () => {
-    const adminCookie = await setupAdmin();
+  it('admin can list and create users (passwordless, by email)', async () => {
+    const { cookie: adminCookie } = await seedUser('admin');
 
     const created = await ctx.app.inject({
       method: 'POST',
       url: '/api/users',
       headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: {
-        email: 'member@coboard.local',
-        password: 'member-password-1',
-        displayName: '成员甲',
-        role: 'member',
-      },
+      payload: { email: 'member@coboard.local', displayName: '成员甲', role: 'member' },
     });
     expect(created.statusCode).toBe(201);
-    const createdUser = (created.json() as AuthUserResponse).user;
-    expect(createdUser.role).toBe('member');
+    expect((created.json() as AuthUserResponse).user.role).toBe('member');
 
     const listRes = await ctx.app.inject({
       method: 'GET',
@@ -182,54 +112,21 @@ describe('auth + setup + users', () => {
     });
     expect(listRes.statusCode).toBe(200);
     expect((listRes.json() as UsersListResponse).users).toHaveLength(2);
-
-    // The created member can authenticate with the initial password.
-    const memberLogin = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: 'member@coboard.local', password: 'member-password-1' },
-    });
-    expect(memberLogin.statusCode).toBe(200);
   });
 
   it('creating a user with a duplicate email returns 409', async () => {
-    const adminCookie = await setupAdmin();
+    const { cookie: adminCookie, user } = await seedUser('admin');
     const res = await ctx.app.inject({
       method: 'POST',
       url: '/api/users',
       headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: {
-        email: ADMIN.email,
-        password: 'another-password-1',
-        displayName: '重复',
-        role: 'member',
-      },
+      payload: { email: user.email, displayName: '重复', role: 'member' },
     });
     expect(res.statusCode).toBe(409);
   });
 
   it('blocks a non-admin member from the /users endpoints', async () => {
-    const adminCookie = await setupAdmin();
-    await ctx.app.inject({
-      method: 'POST',
-      url: '/api/users',
-      headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: {
-        email: 'member@coboard.local',
-        password: 'member-password-1',
-        displayName: '成员甲',
-        role: 'member',
-      },
-    });
-
-    const memberLogin = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: 'member@coboard.local', password: 'member-password-1' },
-    });
-    const memberCookie = sessionCookieFrom(memberLogin);
+    const { cookie: memberCookie } = await seedUser('member');
 
     const listRes = await ctx.app.inject({
       method: 'GET',
@@ -242,103 +139,102 @@ describe('auth + setup + users', () => {
       method: 'POST',
       url: '/api/users',
       headers: { ...CSRF_HEADERS, cookie: memberCookie },
-      payload: {
-        email: 'x@coboard.local',
-        password: 'whatever-123',
-        displayName: 'X',
-        role: 'member',
-      },
+      payload: { email: 'x@coboard.local', displayName: 'X', role: 'member' },
     });
     expect(createRes.statusCode).toBe(403);
   });
 
   it('admin can deactivate a user, ending their access', async () => {
-    const adminCookie = await setupAdmin();
-    const created = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/users',
-      headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: {
-        email: 'member@coboard.local',
-        password: 'member-password-1',
-        displayName: '成员甲',
-        role: 'member',
-      },
-    });
-    const memberId = (created.json() as AuthUserResponse).user.id;
-
-    const memberLogin = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: 'member@coboard.local', password: 'member-password-1' },
-    });
-    const memberCookie = sessionCookieFrom(memberLogin);
+    const { cookie: adminCookie } = await seedUser('admin');
+    const { cookie: memberCookie, user: member } = await seedUser('member');
 
     const patchRes = await ctx.app.inject({
       method: 'PATCH',
-      url: `/api/users/${memberId}`,
+      url: `/api/users/${member.id}`,
       headers: { ...CSRF_HEADERS, cookie: adminCookie },
       payload: { isActive: false },
     });
     expect(patchRes.statusCode).toBe(200);
     expect((patchRes.json() as AuthUserResponse).user.isActive).toBe(false);
 
-    // Existing session was revoked on deactivation.
+    // The member's session was revoked on deactivation.
     const meRes = await ctx.app.inject({
       method: 'GET',
       url: '/api/auth/me',
       headers: { cookie: memberCookie },
     });
     expect(meRes.statusCode).toBe(401);
-
-    // And a fresh login is refused.
-    const reLogin = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: 'member@coboard.local', password: 'member-password-1' },
-    });
-    expect(reLogin.statusCode).toBe(401);
   });
 
-  it('lets a user change their own password', async () => {
-    const adminCookie = await setupAdmin();
-
+  it('dev-login is 404 when the server has it disabled', async () => {
     const res = await ctx.app.inject({
       method: 'POST',
-      url: '/api/auth/password',
-      headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: { currentPassword: ADMIN.password, newPassword: 'brand-new-password-1' },
+      url: '/api/auth/dev-login',
+      headers: CSRF_HEADERS,
+      payload: { email: 'anyone@coboard.local' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('the complete-join endpoint 401s without a pending-join cookie', async () => {
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/auth/synapsly/complete-join',
+      headers: CSRF_HEADERS,
+      payload: { code: 'whatever' },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('dev fake-login (DEV_LOGIN enabled)', () => {
+  let ctx: TestContext;
+
+  beforeEach(async () => {
+    ctx = await createTestContext({
+      authRuntime: { devLogin: true, adminEmails: ['boss@coboard.local'] },
+    });
+  });
+
+  afterEach(async () => {
+    await ctx.cleanup();
+  });
+
+  it('config advertises dev-login', async () => {
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/auth/config' });
+    expect((res.json() as AuthConfigResponse).devLogin).toBe(true);
+  });
+
+  it('creates + authenticates a member by email', async () => {
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/auth/dev-login',
+      headers: CSRF_HEADERS,
+      payload: { email: 'newbie@coboard.local' },
     });
     expect(res.statusCode).toBe(200);
+    const body = res.json() as AuthUserResponse;
+    expect(body.user.email).toBe('newbie@coboard.local');
+    expect(body.user.role).toBe('member');
+    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
+    expect(cookie).toBeDefined();
 
-    // Old password no longer works; new one does.
-    const oldLogin = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: ADMIN.email, password: ADMIN.password },
+    const me = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/auth/me',
+      headers: { cookie: `${SESSION_COOKIE}=${cookie!.value}` },
     });
-    expect(oldLogin.statusCode).toBe(401);
-
-    const newLogin = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/login',
-      headers: CSRF_HEADERS,
-      payload: { email: ADMIN.email, password: 'brand-new-password-1' },
-    });
-    expect(newLogin.statusCode).toBe(200);
+    expect(me.statusCode).toBe(200);
   });
 
-  it('rejects a wrong current password on change with 400', async () => {
-    const adminCookie = await setupAdmin();
+  it('makes an allowlisted email an admin', async () => {
     const res = await ctx.app.inject({
       method: 'POST',
-      url: '/api/auth/password',
-      headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: { currentPassword: 'not-the-current', newPassword: 'brand-new-password-1' },
+      url: '/api/auth/dev-login',
+      headers: CSRF_HEADERS,
+      payload: { email: 'boss@coboard.local' },
     });
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as AuthUserResponse).user.role).toBe('admin');
   });
 });

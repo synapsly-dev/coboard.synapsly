@@ -1,6 +1,7 @@
 import type { Database } from '../db/index.js';
 import type { RealtimeBus } from '../realtime/bus.js';
 import type { UserRow } from '../db/schema.js';
+import type { AuthRuntime } from '../auth/config.js';
 
 /**
  * Fastify type augmentation. The bootstrap decorates the instance with `db` and
@@ -13,6 +14,8 @@ declare module 'fastify' {
     bus: RealtimeBus;
     /** True when NODE_ENV === 'production' (drives Secure cookies). */
     isProduction: boolean;
+    /** Resolved Synapsly SSO / admin-allowlist / dev-login runtime config. */
+    authRuntime: AuthRuntime;
   }
 
   interface FastifyRequest {

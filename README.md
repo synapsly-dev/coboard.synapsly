@@ -1,4 +1,4 @@
-# Coboard · 团队协作工具（自部署）
+# Coboard, by Synapsly · 团队协作工具（自部署）
 
 Coboard 是一款**自部署**的轻量团队协作 Web 应用，面向 16–50 人的小团队：
 
@@ -7,6 +7,7 @@ Coboard 是一款**自部署**的轻量团队协作 Web 应用，面向 16–50 
 - **评论 / 讨论**：任务内讨论与动态时间线
 - **贡献统计**：完成数 / 点数排行榜与个人趋势图
 - **真实时**：看板、评论、统计通过 SSE 即时联动
+- **单点登录**：使用 Synapsly ID（Synapsly 账号）单点登录（SSO），无需在 coboard 内单独管理密码
 
 技术栈：单个应用容器（Node 22 + Fastify，内置打包后的 React 前端）+ 一个 Postgres 数据库。**备份只需备份这一个数据库**，零件越少越省心。
 
@@ -31,11 +32,15 @@ docker compose up -d
 
 启动后打开浏览器访问 `http://<服务器IP>:3000`：
 
-- 首次访问会进入 **初始化 (setup)** 页面，创建第一个**管理员**账号。
-- 之后由管理员在后台创建成员账号（邮箱 + 初始密码，成员可自行改密）。
-- v1 暂无开放注册 / 邀请链接。
+- Coboard 现已改为 **Synapsly ID 单点登录（SSO）**，不再有 `/setup` 页面或密码登录。
+- 首次登录统一使用 **Synapsly ID**（在 https://auth.synapsly.org 完成认证）。
+- `ADMIN_EMAILS` 中列出的邮箱首次登录即**自动成为管理员**，无需邀请码。
+- 其他新用户首次登录，需输入管理员在「**后台设置**」里预设的**邀请码**才能加入为成员。
+- 已有账号（历史用户）在登录时会按邮箱**自动关联**到既有账号。
 
-> **可选：体验演示数据**。在 `.env` 中设置 `SEED_DEMO=true` 后首次启动（空库时）会写入一个演示项目与样例任务。演示账号：`admin@coboard.local` / `changeme123`（生产环境请勿开启）。
+> 部署前需先在 Synapsly 注册 coboard 为 OIDC client 并填好 `SYNAPSLY_CLIENT_ID` / `SYNAPSLY_CLIENT_SECRET`，详见下文「[接入 Synapsly ID](#接入-synapsly-id)」。
+
+> **可选：体验演示数据**。在 `.env` 中设置 `SEED_DEMO=true` 后首次启动（空库时）会写入一个演示项目与样例任务（生产环境请勿开启）。
 
 ### 环境变量说明（`.env`）
 
@@ -47,6 +52,25 @@ docker compose up -d
 | `NODE_ENV` | `production` / `development`。 |
 | `PUBLIC_URL` | 对外访问地址（反代场景填写完整域名）。 |
 | `SEED_DEMO` | 设为 `true` 时空库首启写入演示数据。 |
+| `SYNAPSLY_ISSUER` | OIDC 签发方，默认 `https://auth.synapsly.org`（一般无需修改）。 |
+| `SYNAPSLY_CLIENT_ID` | 在 Synapsly 管理台注册 coboard client 后获得。**生产必填**。 |
+| `SYNAPSLY_CLIENT_SECRET` | confidential client 密钥。**生产必填**，妥善保管、勿入库。 |
+| `SYNAPSLY_REDIRECT_URI` | 回调地址，默认 `${PUBLIC_URL}/api/auth/synapsly/callback`（一般无需显式设置；若设置须与注册的 redirect URI 完全一致）。 |
+| `SYNAPSLY_SINGLE_LOGOUT` | `true` / `false`，默认 `true`：退出 coboard 时一并结束 Synapsly 会话（RP-initiated logout）。 |
+| `ADMIN_EMAILS` | 逗号分隔的邮箱白名单；名单内邮箱首次通过 Synapsly ID 登录即成为管理员（无需邀请码）。 |
+| `DEV_LOGIN` | `true` / `false`，默认 `false`：仅在 `NODE_ENV!=production` 下生效，开启后提供本地假登录入口用于开发调试（生产环境无效且必须关闭）。 |
+
+### 接入 Synapsly ID
+
+Coboard 是一个 **confidential OIDC client**，登录流程委托给 Synapsly ID 完成。部署前需在 Synapsly 管理台注册一个 client：
+
+1. 打开 https://auth.synapsly.org/admin ，新建一个 client（应用类型选 confidential / web）。
+2. 填写回调与登出地址（把 `<你的域名>` 换成实际域名）：
+   - **Redirect URI**：`https://<你的域名>/api/auth/synapsly/callback`
+   - **Post-logout redirect URI**：`https://<你的域名>/`
+   - **Scopes**：`openid profile email`
+3. 保存后拿到 `client_id` 与 `client_secret`，填入 `.env` 的 `SYNAPSLY_CLIENT_ID` / `SYNAPSLY_CLIENT_SECRET`。
+4. `SYNAPSLY_ISSUER` 保持默认 `https://auth.synapsly.org` 即可；`SYNAPSLY_REDIRECT_URI` 一般无需显式设置（默认由 `PUBLIC_URL` 推导），若设置须与上面注册的 redirect URI 完全一致。
 
 ---
 
@@ -93,6 +117,8 @@ docker compose up -d --build
 ```
 
 > 升级前建议先执行一次备份（见上）。迁移是向前兼容的，但生产环境养成「先备份再升级」的习惯最稳妥。
+
+> **本项目的部署路径**：本地 `git push origin main` 后，经跳板登录到部署主机（`ssh dev` → `ssh hk-01`），在项目目录内拉取最新代码并重建：`git pull && docker compose up -d --build`。
 
 ---
 
@@ -146,8 +172,8 @@ A: 使用默认密钥存在安全风险（会话可被伪造）。请用 `openss
 **Q: 端口 3000 被占用 / 想换端口？**
 A: 修改 `.env` 的 `PORT`（例如 `PORT=8080`），重启即可。映射形如 `8080:3000`。
 
-**Q: 怎么重置忘记的管理员密码？**
-A: v1 未提供 UI 重置入口。可进入数据库手动更新 `users.password_hash`（argon2id 哈希），或在仅有该管理员时清库后重新走 setup。后续版本将提供更友好的方式。
+**Q: 登录 / 权限相关怎么处理？**
+A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://auth.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 `ADMIN_EMAILS`（逗号分隔的邮箱白名单）决定：名单内邮箱首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
 
 **Q: 数据存在哪里？删除容器会丢吗？**
 A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。日常升级用 `up -d --build` 不影响数据。

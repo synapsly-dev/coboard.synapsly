@@ -8,6 +8,7 @@ import staticPlugin from '@fastify/static';
 import autoload from '@fastify/autoload';
 import { registerRoutes as registerRoutesExplicit } from './route-registry.js';
 import type { Database } from './db/index.js';
+import { loadAuthRuntime, type AuthRuntime } from './auth/config.js';
 import { bus, type RealtimeBus } from './realtime/bus.js';
 import {
   SESSION_COOKIE,
@@ -34,6 +35,12 @@ export interface BuildAppOptions {
   production: boolean;
   /** Realtime bus (defaults to the process singleton; tests can inject). */
   realtimeBus?: RealtimeBus;
+  /**
+   * Auth runtime (Synapsly SSO / admin allowlist / dev-login). Defaults to an
+   * env-derived config; tests that don't exercise SSO can omit it (SSO disabled,
+   * dev-login off).
+   */
+  authRuntime?: AuthRuntime;
   /** Absolute path to the built web SPA (web/dist). Omit to skip static serving. */
   webDistPath?: string | undefined;
   /** Fastify logger toggle. */
@@ -61,6 +68,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorate('db', options.db);
   app.decorate('bus', options.realtimeBus ?? bus);
   app.decorate('isProduction', options.production);
+  app.decorate(
+    'authRuntime',
+    options.authRuntime ??
+      loadAuthRuntime({ production: options.production, publicUrl: '' }),
+  );
 
   // Per-request auth context defaults.
   app.decorateRequest('user', null);

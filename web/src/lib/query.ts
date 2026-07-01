@@ -32,8 +32,8 @@ export const queryClient = new QueryClient({
  * invalidation (e.g. invalidate all of a project's tasks).
  */
 export const queryKeys = {
-  setupStatus: () => ['setup', 'status'] as const,
-  registrationStatus: () => ['auth', 'registration'] as const,
+  /** Public probe of which sign-in affordances the login page should show. */
+  authConfig: () => ['auth', 'config'] as const,
   settings: () => ['settings'] as const,
   me: () => ['auth', 'me'] as const,
   users: () => ['users'] as const,

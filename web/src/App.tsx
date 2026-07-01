@@ -11,14 +11,12 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/query';
 import { AuthProvider, useAuth } from './lib/auth-context';
 import { RealtimeListener } from './lib/sse';
-import { useSetupStatus } from './api/setup';
 import { AppShell } from './components/layout/AppShell';
 import { TooltipProvider } from './components/ui';
 import { FullPageSpinner } from './components/ui/Spinner';
 
-import SetupPage from './pages/Setup';
 import LoginPage from './pages/Login';
-import RegisterPage from './pages/Register';
+import JoinPage from './pages/Join';
 import BoardPage from './pages/BoardPage';
 import ProjectsPage from './pages/ProjectsPage';
 import IdeasPage from './pages/IdeasPage';
@@ -35,27 +33,19 @@ import AccountProfilePage from './pages/AccountProfile';
  */
 
 /**
- * Gate for authenticated areas. While auth/setup status is loading, render a
- * spinner. If the instance still needs setup and nobody is logged in, send the
- * user to /setup. Otherwise, unauthenticated users go to /login.
+ * Gate for authenticated areas. While the session query is loading, render a
+ * spinner. Unauthenticated users are sent to /login (which drives Synapsly SSO),
+ * preserving where they were headed so login can return them there.
  */
 function RequireAuth({ children }: { children: ReactNode }): JSX.Element {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
-  // Only check setup state when there's no session yet (cheap, cached forever).
-  const setupStatus = useSetupStatus({ enabled: !isAuthenticated && !loading });
 
   if (loading) {
     return <FullPageSpinner />;
   }
 
   if (!isAuthenticated) {
-    if (setupStatus.isLoading) {
-      return <FullPageSpinner />;
-    }
-    if (setupStatus.data?.needsSetup) {
-      return <Navigate to="/setup" replace />;
-    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -126,14 +116,6 @@ function AppRoutes(): JSX.Element {
   return (
     <Routes>
       <Route
-        path="/setup"
-        element={
-          <PublicOnly>
-            <SetupPage />
-          </PublicOnly>
-        }
-      />
-      <Route
         path="/login"
         element={
           <PublicOnly>
@@ -141,11 +123,12 @@ function AppRoutes(): JSX.Element {
           </PublicOnly>
         }
       />
+      {/* First-time SSO join (has a pending-join cookie, not a session yet). */}
       <Route
-        path="/register"
+        path="/join"
         element={
           <PublicOnly>
-            <RegisterPage />
+            <JoinPage />
           </PublicOnly>
         }
       />

@@ -2,24 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { ArrowLeft, Camera, Check, KeyRound, Trash2, UserCog } from 'lucide-react';
-import {
-  passwordSchema,
-  updateProfileInputSchema,
-  type UpdateProfileInput,
-} from 'shared';
+import { ArrowLeft, Camera, Check, ExternalLink, Trash2, UserCog } from 'lucide-react';
+import { updateProfileInputSchema, type UpdateProfileInput } from 'shared';
 
-import { api, isApiClientError } from '../api/client';
+import { isApiClientError } from '../api/client';
 import { useAuth } from '../lib/auth-context';
 import { avatarUrl } from '../lib/utils';
 import { Avatar, Button, Input, Label, Tooltip } from '../components/ui';
 
+/** Synapsly account self-service (password / email / security) lives in core. */
+const SYNAPSLY_ACCOUNT_URL = 'https://auth.synapsly.org/account';
+
 /**
- * Account self-service page. A single account view with three stacked sections:
- * (1) 头像 — upload/preview/remove an avatar (§ Change 1); (2) 显示名称 — edit own
- * display name (§7 PATCH /auth/profile); (3) 修改密码 — change own password (§7
- * POST /auth/password). The server only lets a user change their own data.
+ * Account self-service page. With Synapsly ID SSO, password / email / security are
+ * managed in the Synapsly account (linked out below). Coboard keeps the local
+ * profile knobs: avatar upload/preview/remove and the display name (§7 PATCH
+ * /auth/profile). The server only lets a user change their own data.
  */
 export default function AccountProfilePage(): JSX.Element {
   const navigate = useNavigate();
@@ -45,7 +43,7 @@ export default function AccountProfilePage(): JSX.Element {
 
         <div className="flex flex-col gap-4">
           <ProfileSection />
-          <PasswordSection />
+          <SynapslyAccountSection />
         </div>
       </div>
     </div>
@@ -328,137 +326,41 @@ function DisplayNameForm(): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Section: password
+// Section: Synapsly account (password / email / security live in core)
 // ---------------------------------------------------------------------------
 
-const passwordFormSchema = z
-  .object({
-    currentPassword: z.string().min(1, '请输入当前密码'),
-    newPassword: passwordSchema,
-    confirmPassword: z.string().min(1, '请再次输入新密码'),
-  })
-  .refine((d) => d.newPassword === d.confirmPassword, {
-    message: '两次输入的新密码不一致',
-    path: ['confirmPassword'],
-  })
-  .refine((d) => d.newPassword !== d.currentPassword, {
-    message: '新密码不能与当前密码相同',
-    path: ['newPassword'],
-  });
-
-type PasswordFormValues = z.infer<typeof passwordFormSchema>;
-
-function PasswordSection(): JSX.Element {
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<PasswordFormValues>({
-    resolver: zodResolver(passwordFormSchema),
-    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
-  });
-
-  async function onSubmit(values: PasswordFormValues): Promise<void> {
-    setSubmitError(null);
-    setDone(false);
-    try {
-      await api.post('/auth/password', {
-        currentPassword: values.currentPassword,
-        newPassword: values.newPassword,
-      });
-      setDone(true);
-      reset();
-    } catch (err) {
-      if (isApiClientError(err)) {
-        if (err.status === 400 || err.status === 401) {
-          setError('currentPassword', { type: 'server', message: '当前密码不正确' });
-          return;
-        }
-        if (err.fields?.newPassword?.[0]) {
-          setError('newPassword', { type: 'server', message: err.fields.newPassword[0] });
-          return;
-        }
-        setSubmitError(err.message);
-        return;
-      }
-      setSubmitError('修改失败，请稍后重试');
-    }
-  }
-
+function SynapslyAccountSection(): JSX.Element {
+  const { user } = useAuth();
   return (
-    <Section title="修改密码">
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="current-password" required>
-            当前密码
-          </Label>
-          <Input
-            id="current-password"
-            type="password"
-            autoComplete="current-password"
-            invalid={Boolean(errors.currentPassword)}
-            {...register('currentPassword')}
-          />
-          {errors.currentPassword && (
-            <p className="text-xs text-destructive">{errors.currentPassword.message}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="new-password" required>
-            新密码
-          </Label>
-          <Input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            placeholder="至少 8 位"
-            invalid={Boolean(errors.newPassword)}
-            {...register('newPassword')}
-          />
-          {errors.newPassword && (
-            <p className="text-xs text-destructive">{errors.newPassword.message}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="confirm-password" required>
-            确认新密码
-          </Label>
-          <Input
-            id="confirm-password"
-            type="password"
-            autoComplete="new-password"
-            invalid={Boolean(errors.confirmPassword)}
-            {...register('confirmPassword')}
-          />
-          {errors.confirmPassword && (
-            <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
-          )}
-        </div>
-
-        {submitError && (
-          <div
-            role="alert"
-            className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {submitError}
+    <Section title="Synapsly 账号">
+      <div className="flex flex-col gap-4">
+        <p className="-mt-2 text-sm text-muted-foreground">
+          密码、邮箱与安全设置由 Synapsly 账号统一管理。
+        </p>
+        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">
+              {user?.displayName}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
           </div>
-        )}
-        {done && <p className="text-sm text-emerald-600">密码已更新</p>}
-
+          <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            Synapsly ID
+          </span>
+        </div>
         <div>
-          <Button type="submit" loading={isSubmitting}>
-            <KeyRound className="h-4 w-4" aria-hidden />
-            {isSubmitting ? '正在更新…' : '更新密码'}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              window.open(SYNAPSLY_ACCOUNT_URL, '_blank', 'noopener,noreferrer')
+            }
+          >
+            <ExternalLink className="h-4 w-4" aria-hidden />
+            管理 Synapsly 账号
           </Button>
         </div>
-      </form>
+      </div>
     </Section>
   );
 }

@@ -65,7 +65,7 @@ export function SettingsTab(): JSX.Element {
     setSaved(false);
     // Registration is meaningless without a code; don't let it be turned on then.
     if (next && codeEmpty) {
-      setActionError('请先设置验证码，再开启自助注册');
+      setActionError('请先设置邀请码，再开启自助加入');
       return;
     }
     setActionError(null);
@@ -91,7 +91,7 @@ export function SettingsTab(): JSX.Element {
       <div>
         <h2 className="text-base font-semibold">设置</h2>
         <p className="text-sm text-muted-foreground">
-          管理自助注册。开启后，知道验证码的人可自助注册为「成员」。
+          管理自助加入。开启后，用 Synapsly ID 登录的新用户凭邀请码即可加入为「成员」。
         </p>
       </div>
 
@@ -103,12 +103,12 @@ export function SettingsTab(): JSX.Element {
             </span>
             <div className="min-w-0">
               <Label htmlFor="registration-enabled" className="text-sm font-medium">
-                自助注册
+                自助加入
               </Label>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {enabled
-                  ? '已开启：知道验证码的人可注册为成员。'
-                  : '已关闭：账号仅由管理员创建。'}
+                  ? '已开启：知道邀请码的人登录后可加入为成员。'
+                  : '已关闭：成员仅由管理员按邮箱预先添加。'}
               </p>
             </div>
           </div>
@@ -117,17 +117,17 @@ export function SettingsTab(): JSX.Element {
             checked={enabled}
             onCheckedChange={toggleEnabled}
             disabled={updateSettings.isPending || (!enabled && codeEmpty)}
-            aria-label="开启或关闭自助注册"
+            aria-label="开启或关闭自助加入"
           />
         </section>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="registration-code">验证码</Label>
+          <Label htmlFor="registration-code">邀请码</Label>
           <Input
             id="registration-code"
             type="text"
             autoComplete="off"
-            placeholder="设置一个验证码，分享给要加入的成员"
+            placeholder="设置一个邀请码，分享给要加入的成员"
             value={code}
             onChange={(e) => {
               setSaved(false);
@@ -137,10 +137,10 @@ export function SettingsTab(): JSX.Element {
             disabled={updateSettings.isPending}
           />
           <p className="text-xs text-muted-foreground">
-            注册者需输入此验证码才能创建账号。留空将无法开启注册。
+            新用户首次登录后需输入此邀请码才能加入。留空将无法开启自助加入。
           </p>
           {enabled && codeEmpty && (
-            <p className="text-xs text-destructive">开启注册前必须设置验证码。</p>
+            <p className="text-xs text-destructive">开启自助加入前必须设置邀请码。</p>
           )}
         </div>
 

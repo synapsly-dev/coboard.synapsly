@@ -47,8 +47,6 @@ export function useUpdateSettings(): UseMutationResult<
     mutationFn: (input) => settingsApi.update(input),
     onSuccess: (settings) => {
       queryClient.setQueryData<RegistrationSettings>(queryKeys.settings(), settings);
-      // The toggle/code may have changed whether registration is open publicly.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.registrationStatus() });
     },
   });
 }

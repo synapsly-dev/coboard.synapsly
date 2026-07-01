@@ -8,8 +8,8 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AuthUserResponse,
-  LoginInput,
-  RegisterInput,
+  CompleteJoinInput,
+  DevLoginInput,
   UpdateProfileInput,
   User,
 } from 'shared';
@@ -17,10 +17,12 @@ import { api, isApiClientError } from '../api/client';
 import { queryKeys } from './query';
 
 /**
- * Auth context (§8). Source of truth for the current session: a TanStack query
- * against `GET /api/auth/me`. `login`/`logout` call the API then sync the cache,
- * so the whole tree re-renders with the new auth state. A 401 from `me` simply
- * means "not logged in" (user = null), not an error to surface.
+ * Auth context. Source of truth for the current session: a TanStack query against
+ * `GET /auth/me`. Identity now comes from Synapsly ID SSO — `loginWithSynapsly`
+ * hands off to the server-driven OIDC flow (a full-page redirect), while
+ * `completeJoin` finishes first-time provisioning and `devLogin` is the local
+ * escape hatch. `logout` clears the local session and, when single logout is on,
+ * follows the server-provided end-session URL.
  */
 
 interface AuthContextValue {
@@ -29,9 +31,12 @@ interface AuthContextValue {
   loading: boolean;
   /** True once the `me` query has settled (success or known-unauthenticated). */
   isAuthenticated: boolean;
-  login: (input: LoginInput) => Promise<User>;
-  /** Self-register a member account; logs in on success (§8). */
-  register: (input: RegisterInput) => Promise<User>;
+  /** Begin Synapsly ID SSO by navigating to the server start endpoint. */
+  loginWithSynapsly: (returnTo?: string) => void;
+  /** Finish first-time member provisioning with the admin invite code. */
+  completeJoin: (input: CompleteJoinInput) => Promise<User>;
+  /** Local dev fake-login (only works when the server has DEV_LOGIN enabled). */
+  devLogin: (input: DevLoginInput) => Promise<User>;
   /** Update the current user's own profile (e.g. display name). */
   updateProfile: (input: UpdateProfileInput) => Promise<User>;
   /** Upload the current user's avatar (a `data:image/...;base64,...` URL). */
@@ -68,20 +73,28 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     retry: false,
   });
 
-  const login = useCallback(
-    async (input: LoginInput): Promise<User> => {
-      const res = await api.post<AuthUserResponse>('/auth/login', input);
+  const loginWithSynapsly = useCallback((returnTo?: string): void => {
+    // Full-page navigation into the server-driven OIDC flow. The `?returnTo`
+    // lands the user back where they came from after login.
+    const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
+    window.location.assign(`/api/auth/synapsly/start${suffix}`);
+  }, []);
+
+  const completeJoin = useCallback(
+    async (input: CompleteJoinInput): Promise<User> => {
+      const res = await api.post<AuthUserResponse>(
+        '/auth/synapsly/complete-join',
+        input,
+      );
       queryClient.setQueryData(queryKeys.me(), res.user);
       return res.user;
     },
     [queryClient],
   );
 
-  const register = useCallback(
-    async (input: RegisterInput): Promise<User> => {
-      // The server creates a member, mints a session cookie, and returns the
-      // user. Prime the `me` cache so the app reflects the new session at once.
-      const res = await api.post<AuthUserResponse>('/auth/register', input);
+  const devLogin = useCallback(
+    async (input: DevLoginInput): Promise<User> => {
+      const res = await api.post<AuthUserResponse>('/auth/dev-login', input);
       queryClient.setQueryData(queryKeys.me(), res.user);
       return res.user;
     },
@@ -113,17 +126,21 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, [queryClient]);
 
   const logout = useCallback(async (): Promise<void> => {
-    // Never throw: a failed logout request must not block clearing local state
-    // (callers navigate to /login afterwards regardless).
+    let endSessionUrl: string | undefined;
+    // Never throw: a failed logout request must not block clearing local state.
     try {
-      await api.post('/auth/logout');
+      const res = await api.post<{ ok: true; endSessionUrl?: string }>('/auth/logout');
+      endSessionUrl = res?.endSessionUrl;
     } catch {
       // ignore — the session is cleared locally below.
     }
-    // Drop the session and remove all cached (now-stale) data WITHOUT triggering
-    // a refetch storm that could hang the caller's `await`.
     queryClient.setQueryData(queryKeys.me(), null);
     queryClient.removeQueries();
+    // If the server asked for RP-initiated single logout, follow it so the
+    // Synapsly session ends too; it redirects back to the app root.
+    if (endSessionUrl) {
+      window.location.assign(endSessionUrl);
+    }
   }, [queryClient]);
 
   const user = meQuery.data ?? null;
@@ -134,8 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       loading: meQuery.isLoading,
       isAuthenticated: user !== null,
       isAdmin: user?.role === 'admin',
-      login,
-      register,
+      loginWithSynapsly,
+      completeJoin,
+      devLogin,
       updateProfile,
       updateAvatar,
       removeAvatar,
@@ -144,8 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     [
       user,
       meQuery.isLoading,
-      login,
-      register,
+      loginWithSynapsly,
+      completeJoin,
+      devLogin,
       updateProfile,
       updateAvatar,
       removeAvatar,

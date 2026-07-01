@@ -47,7 +47,6 @@ export function CreateUserDialog(): JSX.Element {
     resolver: zodResolver(createUserInputSchema),
     defaultValues: {
       email: '',
-      password: '',
       displayName: '',
       role: 'member',
       avatarColor: avatarColorPalette[0],
@@ -62,7 +61,6 @@ export function CreateUserDialog(): JSX.Element {
     if (open) {
       reset({
         email: '',
-        password: '',
         displayName: '',
         role: 'member',
         avatarColor: avatarColorPalette[0],
@@ -101,9 +99,9 @@ export function CreateUserDialog(): JSX.Element {
       </Button>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>新建账号</DialogTitle>
+          <DialogTitle>添加成员</DialogTitle>
           <DialogDescription>
-            为团队成员创建账号并设置初始密码，成员登录后可自行修改密码。
+            按邮箱预先添加成员并可加入项目；对方用 Synapsly ID 登录后，将按邮箱自动关联到此账号。
           </DialogDescription>
         </DialogHeader>
 
@@ -146,27 +144,6 @@ export function CreateUserDialog(): JSX.Element {
             />
             {errors.displayName && (
               <p className="text-xs text-destructive">{errors.displayName.message}</p>
-            )}
-          </div>
-
-          <div className="grid gap-1.5">
-            <Label htmlFor="new-user-password" required>
-              初始密码
-            </Label>
-            <Input
-              id="new-user-password"
-              type="text"
-              autoComplete="off"
-              placeholder="至少 8 位"
-              invalid={Boolean(errors.password)}
-              {...register('password')}
-            />
-            {errors.password ? (
-              <p className="text-xs text-destructive">{errors.password.message}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                请记录并安全地告知成员，登录后可自行修改。
-              </p>
             )}
           </div>
 

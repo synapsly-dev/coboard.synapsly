@@ -1,27 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AuthUserResponse, RegistrationStatus } from 'shared';
+import type { RegistrationSettings } from 'shared';
 import type { TestContext } from './helpers.js';
 import { createTestContext } from './helpers.js';
-import { SESSION_COOKIE } from '../src/auth/session.js';
+import { SESSION_COOKIE, createSession } from '../src/auth/session.js';
+import { users, type UserRow } from '../src/db/schema.js';
+import { updateRegistrationSettings } from '../src/services/settingsService.js';
+import {
+  completeSsoJoin,
+  type SsoIdentity,
+} from '../src/services/authService.js';
 
 /**
- * Self-registration API tests (§8): registration is disabled by default and only
- * works when an admin enables it AND configures a non-empty code that matches.
- * Self-registered users are always `member`. The public status endpoint never
- * leaks the code. Uses fastify.inject against a fresh PGlite-backed app per test.
+ * Member self-join gate (§8). With Synapsly SSO, a brand-new identity can only be
+ * provisioned as a member by supplying the admin-preset invite code. Tests cover
+ * the admin-only /settings guard and the `completeSsoJoin` gate directly (disabled
+ * by default, wrong code rejected, correct code provisions a linked member).
  */
 
 const CSRF_HEADERS = { 'x-requested-with': 'XMLHttpRequest' } as const;
-
-const ADMIN = {
-  email: 'admin@coboard.local',
-  password: 'admin-password-123',
-  displayName: '管理员',
-} as const;
-
 const CODE = 'team-secret-2026';
 
-describe('self-registration', () => {
+function identity(sub: string, email: string): SsoIdentity {
+  return {
+    sub,
+    email,
+    emailVerified: true,
+    name: '新成员',
+    picture: null,
+    role: null,
+    idToken: 'test-id-token',
+  };
+}
+
+describe('member self-join gate', () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
@@ -32,204 +43,96 @@ describe('self-registration', () => {
     await ctx.cleanup();
   });
 
-  function sessionCookieFrom(res: {
-    cookies: { name: string; value: string }[];
-  }): string {
-    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
-    expect(cookie, '响应应设置会话 Cookie').toBeDefined();
-    return `${SESSION_COOKIE}=${cookie!.value}`;
+  async function seedUser(
+    role: 'admin' | 'member',
+  ): Promise<{ user: UserRow; cookie: string }> {
+    const [user] = await ctx.db
+      .insert(users)
+      .values({
+        email: `${role}@coboard.local`,
+        passwordHash: null,
+        synapslySub: `sub:${role}`,
+        displayName: role,
+        avatarColor: '#0b0b0c',
+        role,
+        isActive: true,
+      })
+      .returning();
+    if (!user) throw new Error('seed failed');
+    const { token } = await createSession(ctx.db, user.id);
+    return { user, cookie: `${SESSION_COOKIE}=${ctx.app.signCookie(token)}` };
   }
 
-  /** Run setup to create the first admin; returns its session cookie header. */
-  async function setupAdmin(): Promise<string> {
-    const res = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/setup',
-      headers: CSRF_HEADERS,
-      payload: ADMIN,
+  it('blocks non-admins from reading or writing /settings', async () => {
+    const { cookie: memberCookie } = await seedUser('member');
+    const get = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/settings',
+      headers: { cookie: memberCookie },
     });
-    expect(res.statusCode).toBe(201);
-    return sessionCookieFrom(res);
-  }
+    expect(get.statusCode).toBe(403);
+    const patch = await ctx.app.inject({
+      method: 'PATCH',
+      url: '/api/settings',
+      headers: { ...CSRF_HEADERS, cookie: memberCookie },
+      payload: { registrationCode: CODE },
+    });
+    expect(patch.statusCode).toBe(403);
+  });
 
-  /** Enable registration + set the code via the admin /settings endpoint. */
-  async function enableRegistration(adminCookie: string): Promise<void> {
-    const res = await ctx.app.inject({
+  it('admin can read + set the invite-code settings', async () => {
+    const { cookie: adminCookie } = await seedUser('admin');
+    const patch = await ctx.app.inject({
       method: 'PATCH',
       url: '/api/settings',
       headers: { ...CSRF_HEADERS, cookie: adminCookie },
       payload: { registrationEnabled: true, registrationCode: CODE },
     });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({
-      registrationEnabled: true,
-      registrationCode: CODE,
-    });
-  }
+    expect(patch.statusCode).toBe(200);
+    expect((patch.json() as RegistrationSettings).registrationCode).toBe(CODE);
+  });
 
-  function register(payload: Record<string, unknown>) {
-    return ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/register',
-      headers: CSRF_HEADERS,
-      payload,
-    });
-  }
-
-  it('rejects registration with 403 when disabled (the default)', async () => {
-    await setupAdmin();
-
-    const res = await register({
-      email: 'newbie@coboard.local',
-      password: 'newbie-password-1',
-      displayName: '新成员',
-      code: CODE,
-    });
-    expect(res.statusCode).toBe(403);
-    // Generic gate message must not reveal whether registration is closed or the
-    // code was wrong, and must not leak any account state.
-    expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toBeUndefined();
+  it('rejects a join when self-join is disabled (the default)', async () => {
+    await expect(
+      completeSsoJoin(ctx.db, identity('sub:a', 'a@coboard.local'), CODE),
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('rejects a wrong code with 403 even when enabled', async () => {
-    const adminCookie = await setupAdmin();
-    await enableRegistration(adminCookie);
-
-    const res = await register({
-      email: 'newbie@coboard.local',
-      password: 'newbie-password-1',
-      displayName: '新成员',
-      code: 'wrong-code',
+    await updateRegistrationSettings(ctx.db, {
+      registrationEnabled: true,
+      registrationCode: CODE,
     });
-    expect(res.statusCode).toBe(403);
-    expect(res.cookies.find((c) => c.name === SESSION_COOKIE)).toBeUndefined();
+    await expect(
+      completeSsoJoin(ctx.db, identity('sub:a', 'a@coboard.local'), 'wrong'),
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it('creates a member and logs in with the correct code', async () => {
-    const adminCookie = await setupAdmin();
-    await enableRegistration(adminCookie);
-
-    const res = await register({
-      email: 'newbie@coboard.local',
-      password: 'newbie-password-1',
-      displayName: '新成员',
-      code: CODE,
+  it('provisions a linked member with the correct code', async () => {
+    await updateRegistrationSettings(ctx.db, {
+      registrationEnabled: true,
+      registrationCode: CODE,
     });
-    expect(res.statusCode).toBe(201);
-    const body = res.json() as AuthUserResponse;
-    expect(body.user.email).toBe('newbie@coboard.local');
-    // Self-registered users are ALWAYS member, never admin (§8).
-    expect(body.user.role).toBe('member');
-    expect(body.user.isActive).toBe(true);
-    expect(body.user).not.toHaveProperty('passwordHash');
-
-    // The response sets a session cookie that authenticates /me.
-    const cookie = sessionCookieFrom(res);
-    const me = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/auth/me',
-      headers: { cookie },
-    });
-    expect(me.statusCode).toBe(200);
-    expect((me.json() as AuthUserResponse).user.email).toBe('newbie@coboard.local');
+    const user = await completeSsoJoin(
+      ctx.db,
+      identity('sub:new', 'new@coboard.local'),
+      CODE,
+    );
+    expect(user.role).toBe('member');
+    expect(user.email).toBe('new@coboard.local');
+    expect(user.synapslySub).toBe('sub:new');
+    expect(user.passwordHash).toBeNull();
   });
 
-  it('returns 409 for a duplicate email', async () => {
-    const adminCookie = await setupAdmin();
-    await enableRegistration(adminCookie);
-
-    const res = await register({
-      email: ADMIN.email,
-      password: 'another-password-1',
-      displayName: '重复',
-      code: CODE,
+  it('is idempotent for an already-linked identity (race/double-submit)', async () => {
+    await updateRegistrationSettings(ctx.db, {
+      registrationEnabled: true,
+      registrationCode: CODE,
     });
-    expect(res.statusCode).toBe(409);
-  });
-
-  it('GET /auth/registration is public and never leaks the code', async () => {
-    const adminCookie = await setupAdmin();
-
-    // Disabled by default → enabled:false, and the response carries only `enabled`.
-    const before = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/auth/registration',
-    });
-    expect(before.statusCode).toBe(200);
-    const beforeBody = before.json() as RegistrationStatus;
-    expect(beforeBody).toEqual({ enabled: false });
-
-    await enableRegistration(adminCookie);
-
-    const after = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/auth/registration',
-    });
-    expect(after.statusCode).toBe(200);
-    const afterBody = after.json() as RegistrationStatus;
-    expect(afterBody).toEqual({ enabled: true });
-    // The secret must never appear anywhere in the public payload.
-    expect(JSON.stringify(afterBody)).not.toContain(CODE);
-    expect(afterBody).not.toHaveProperty('registrationCode');
-  });
-
-  it('reports enabled:false when enabled but no code is configured', async () => {
-    const adminCookie = await setupAdmin();
-    const patch = await ctx.app.inject({
-      method: 'PATCH',
-      url: '/api/settings',
-      headers: { ...CSRF_HEADERS, cookie: adminCookie },
-      payload: { registrationEnabled: true },
-    });
-    expect(patch.statusCode).toBe(200);
-
-    const status = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/auth/registration',
-    });
-    expect((status.json() as RegistrationStatus).enabled).toBe(false);
-
-    // And registration is still refused without a configured code.
-    const res = await register({
-      email: 'newbie@coboard.local',
-      password: 'newbie-password-1',
-      displayName: '新成员',
-      code: '',
-    });
-    // Empty code fails validation (400) before reaching the gate.
-    expect([400, 403]).toContain(res.statusCode);
-  });
-
-  it('blocks non-admins from reading or writing /settings', async () => {
-    const adminCookie = await setupAdmin();
-    await enableRegistration(adminCookie);
-
-    // Register a member, then assert they cannot touch /settings.
-    const reg = await register({
-      email: 'member@coboard.local',
-      password: 'member-password-1',
-      displayName: '成员',
-      code: CODE,
-    });
-    const memberCookie = sessionCookieFrom(reg);
-
-    const getRes = await ctx.app.inject({
-      method: 'GET',
-      url: '/api/settings',
-      headers: { cookie: memberCookie },
-    });
-    expect(getRes.statusCode).toBe(403);
-
-    const patchRes = await ctx.app.inject({
-      method: 'PATCH',
-      url: '/api/settings',
-      headers: { ...CSRF_HEADERS, cookie: memberCookie },
-      payload: { registrationEnabled: false },
-    });
-    expect(patchRes.statusCode).toBe(403);
-
-    // Unauthenticated read is rejected too.
-    const anon = await ctx.app.inject({ method: 'GET', url: '/api/settings' });
-    expect(anon.statusCode).toBe(401);
+    const id = identity('sub:dup', 'dup@coboard.local');
+    const first = await completeSsoJoin(ctx.db, id, CODE);
+    // Second call with a WRONG code still returns the existing user (no re-gate).
+    const second = await completeSsoJoin(ctx.db, id, 'wrong-code');
+    expect(second.id).toBe(first.id);
   });
 });

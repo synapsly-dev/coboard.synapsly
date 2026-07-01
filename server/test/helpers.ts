@@ -7,6 +7,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import type { Database } from '../src/db/index.js';
+import type { AuthRuntime } from '../src/auth/config.js';
 import { RealtimeBus } from '../src/realtime/bus.js';
 import * as schema from '../src/db/schema.js';
 
@@ -60,8 +61,18 @@ async function applyMigrations(pglite: PGlite): Promise<void> {
   }
 }
 
+/** Default auth runtime for tests: SSO disabled, dev-login off, no admins. */
+const DEFAULT_TEST_AUTH_RUNTIME: AuthRuntime = {
+  synapsly: null,
+  adminEmails: [],
+  devLogin: false,
+  publicUrl: 'http://localhost',
+};
+
 /** Build an isolated test context with a fresh in-memory database. */
-export async function createTestContext(): Promise<TestContext> {
+export async function createTestContext(opts?: {
+  authRuntime?: Partial<AuthRuntime>;
+}): Promise<TestContext> {
   const pglite = new PGlite();
   await applyMigrations(pglite);
 
@@ -75,6 +86,7 @@ export async function createTestContext(): Promise<TestContext> {
     sessionSecret: 'test-secret-please-ignore-1234567890',
     production: false,
     realtimeBus: bus,
+    authRuntime: { ...DEFAULT_TEST_AUTH_RUNTIME, ...opts?.authRuntime },
     logger: false,
     // Vitest cannot use autoload's native dynamic import of source modules.
     routeLoader: 'explicit',

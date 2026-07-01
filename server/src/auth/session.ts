@@ -25,10 +25,15 @@ export interface CreatedSession {
   expiresAt: Date;
 }
 
-/** Create a new session row for a user and return its token + expiry. */
+/**
+ * Create a new session row for a user and return its token + expiry. `idToken` is
+ * the Synapsly id_token captured at login, stored so logout can drive
+ * RP-initiated single logout; pass null for dev-login sessions.
+ */
 export async function createSession(
   db: Database,
   userId: string,
+  idToken: string | null = null,
 ): Promise<CreatedSession> {
   const token = generateToken();
   const now = new Date();
@@ -38,8 +43,22 @@ export async function createSession(
     userId,
     expiresAt,
     lastSeenAt: now,
+    oidcIdToken: idToken,
   });
   return { token, expiresAt };
+}
+
+/** Read the stored Synapsly id_token for a session (for single logout). */
+export async function getSessionOidcIdToken(
+  db: Database,
+  token: string,
+): Promise<string | null> {
+  const rows = await db
+    .select({ oidcIdToken: sessions.oidcIdToken })
+    .from(sessions)
+    .where(eq(sessions.id, token))
+    .limit(1);
+  return rows[0]?.oidcIdToken ?? null;
 }
 
 export interface SessionLookup {

@@ -10,7 +10,6 @@ import {
   users,
   type NewTaskRow,
 } from './schema.js';
-import { hashPassword } from '../auth/password.js';
 
 /**
  * Optional demo seed (§9). Behind the SEED_DEMO env flag, populates a demo admin,
@@ -39,13 +38,13 @@ export async function maybeSeed(db: Database): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('[seed] 写入演示数据...');
 
-  const passwordHash = await hashPassword('changeme123');
-
+  // Passwordless: identity is Synapsly ID. With DEV_LOGIN=true these demo
+  // accounts can be entered by email via the local fake-login.
   const [admin] = await db
     .insert(users)
     .values({
       email: 'admin@coboard.local',
-      passwordHash,
+      passwordHash: null,
       displayName: '演示管理员',
       avatarColor: AVATAR_COLORS[0]!,
       role: 'admin',
@@ -58,7 +57,7 @@ export async function maybeSeed(db: Database): Promise<void> {
     .insert(users)
     .values({
       email: 'member@coboard.local',
-      passwordHash,
+      passwordHash: null,
       displayName: '演示成员',
       avatarColor: AVATAR_COLORS[1]!,
       role: 'member',
@@ -123,7 +122,7 @@ export async function maybeSeed(db: Database): Promise<void> {
   await db.insert(tasks).values(sampleTasks);
 
   // eslint-disable-next-line no-console
-  console.log('[seed] 演示数据已写入 (admin@coboard.local / changeme123)');
+  console.log('[seed] 演示数据已写入 (admin@coboard.local — 用 DEV_LOGIN 假登录进入)');
 }
 
 // Standalone runner: `pnpm --filter server seed`.
