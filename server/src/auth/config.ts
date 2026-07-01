@@ -17,8 +17,6 @@ export interface SynapslyConfig {
 export interface AuthRuntime {
   /** OIDC client config, or null when SSO is not configured (e.g. tests). */
   synapsly: SynapslyConfig | null;
-  /** Verified emails that become coboard admins on first SSO login (lowercased). */
-  adminEmails: string[];
   /** Local fake-login escape hatch — only ever true outside production. */
   devLogin: boolean;
   /** App base URL (for post-logout redirect + returnTo defaults). */
@@ -26,14 +24,6 @@ export interface AuthRuntime {
 }
 
 const DEFAULT_ISSUER = 'https://auth.synapsly.org';
-
-function splitEmails(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.length > 0);
-}
 
 /**
  * Build the auth runtime from environment variables.
@@ -72,7 +62,6 @@ export function loadAuthRuntime(opts: {
 
   return {
     synapsly,
-    adminEmails: splitEmails(env.ADMIN_EMAILS),
     devLogin: !opts.production && env.DEV_LOGIN?.trim().toLowerCase() === 'true',
     publicUrl: opts.publicUrl.replace(/\/+$/, ''),
   };

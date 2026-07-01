@@ -191,9 +191,7 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
   let ctx: TestContext;
 
   beforeEach(async () => {
-    ctx = await createTestContext({
-      authRuntime: { devLogin: true, adminEmails: ['boss@coboard.local'] },
-    });
+    ctx = await createTestContext({ authRuntime: { devLogin: true } });
   });
 
   afterEach(async () => {
@@ -205,7 +203,7 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
     expect((res.json() as AuthConfigResponse).devLogin).toBe(true);
   });
 
-  it('creates + authenticates a member by email', async () => {
+  it('creates + authenticates an admin by email', async () => {
     const res = await ctx.app.inject({
       method: 'POST',
       url: '/api/auth/dev-login',
@@ -215,7 +213,7 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as AuthUserResponse;
     expect(body.user.email).toBe('newbie@coboard.local');
-    expect(body.user.role).toBe('member');
+    expect(body.user.role).toBe('admin');
     const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
     expect(cookie).toBeDefined();
 
@@ -225,16 +223,5 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
       headers: { cookie: `${SESSION_COOKIE}=${cookie!.value}` },
     });
     expect(me.statusCode).toBe(200);
-  });
-
-  it('makes an allowlisted email an admin', async () => {
-    const res = await ctx.app.inject({
-      method: 'POST',
-      url: '/api/auth/dev-login',
-      headers: CSRF_HEADERS,
-      payload: { email: 'boss@coboard.local' },
-    });
-    expect(res.statusCode).toBe(200);
-    expect((res.json() as AuthUserResponse).user.role).toBe('admin');
   });
 });

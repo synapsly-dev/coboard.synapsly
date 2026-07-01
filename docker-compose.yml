@@ -43,8 +43,6 @@ services:
       SYNAPSLY_CLIENT_SECRET: ${SYNAPSLY_CLIENT_SECRET:-}
       SYNAPSLY_REDIRECT_URI: ${SYNAPSLY_REDIRECT_URI:-}
       SYNAPSLY_SINGLE_LOGOUT: ${SYNAPSLY_SINGLE_LOGOUT:-true}
-      # 逗号分隔邮箱白名单：名单内邮箱首次登录即为管理员
-      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       # 仅在非 production 下生效的本地假登录入口，生产必须关闭
       DEV_LOGIN: ${DEV_LOGIN:-false}
     ports:

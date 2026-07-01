@@ -34,7 +34,7 @@ docker compose up -d
 
 - Coboard 现已改为 **Synapsly ID 单点登录（SSO）**，不再有 `/setup` 页面或密码登录。
 - 首次登录统一使用 **Synapsly ID**（在 https://auth.synapsly.org 完成认证）。
-- `ADMIN_EMAILS` 中列出的邮箱首次登录即**自动成为管理员**，无需邀请码。
+- Synapsly 账号角色为 `admin`/`super_admin` 者首次登录即**自动成为管理员**，无需邀请码。
 - 其他新用户首次登录，需输入管理员在「**后台设置**」里预设的**邀请码**才能加入为成员。
 - 已有账号（历史用户）在登录时会按邮箱**自动关联**到既有账号。
 
@@ -57,7 +57,6 @@ docker compose up -d
 | `SYNAPSLY_CLIENT_SECRET` | confidential client 密钥。**生产必填**，妥善保管、勿入库。 |
 | `SYNAPSLY_REDIRECT_URI` | 回调地址，默认 `${PUBLIC_URL}/api/auth/synapsly/callback`（一般无需显式设置；若设置须与注册的 redirect URI 完全一致）。 |
 | `SYNAPSLY_SINGLE_LOGOUT` | `true` / `false`，默认 `true`：退出 coboard 时一并结束 Synapsly 会话（RP-initiated logout）。 |
-| `ADMIN_EMAILS` | 逗号分隔的邮箱白名单；名单内邮箱首次通过 Synapsly ID 登录即成为管理员（无需邀请码）。 |
 | `DEV_LOGIN` | `true` / `false`，默认 `false`：仅在 `NODE_ENV!=production` 下生效，开启后提供本地假登录入口用于开发调试（生产环境无效且必须关闭）。 |
 
 ### 接入 Synapsly ID
@@ -173,7 +172,7 @@ A: 使用默认密钥存在安全风险（会话可被伪造）。请用 `openss
 A: 修改 `.env` 的 `PORT`（例如 `PORT=8080`），重启即可。映射形如 `8080:3000`。
 
 **Q: 登录 / 权限相关怎么处理？**
-A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://auth.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 `ADMIN_EMAILS`（逗号分隔的邮箱白名单）决定：名单内邮箱首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
+A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://auth.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 Synapsly 账号角色决定：`admin`/`super_admin` 首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
 
 **Q: 数据存在哪里？删除容器会丢吗？**
 A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。日常升级用 `up -d --build` 不影响数据。

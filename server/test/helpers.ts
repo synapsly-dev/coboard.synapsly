@@ -61,10 +61,9 @@ async function applyMigrations(pglite: PGlite): Promise<void> {
   }
 }
 
-/** Default auth runtime for tests: SSO disabled, dev-login off, no admins. */
+/** Default auth runtime for tests: SSO disabled, dev-login off. */
 const DEFAULT_TEST_AUTH_RUNTIME: AuthRuntime = {
   synapsly: null,
-  adminEmails: [],
   devLogin: false,
   publicUrl: 'http://localhost',
 };

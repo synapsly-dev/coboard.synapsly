@@ -61,14 +61,13 @@ function displayNameFor(identity: SsoIdentity): string {
  * Resolve a verified Synapsly identity to a local user (§2 of the design):
  *   1. match by `synapsly_sub` → returning user
  *   2. else by verified email → link the sub to that existing row (keeps role)
- *   3. else provision: admin if role-claim/allowlist says so, otherwise defer to
- *      the invite-code join flow (`needs-join`).
+ *   3. else provision: admin if the Synapsly `role` claim is admin/super_admin,
+ *      otherwise defer to the invite-code join flow (`needs-join`).
  * Deactivated accounts are refused.
  */
 export async function resolveSsoLogin(
   db: Database,
   identity: SsoIdentity,
-  adminEmails: string[],
 ): Promise<SsoResolution> {
   // 1. Known Synapsly subject.
   const bySub = await findUserBySynapslySub(db, identity.sub);
@@ -94,11 +93,9 @@ export async function resolveSsoLogin(
     }
   }
 
-  // 3. Brand-new person. Admins skip the code; everyone else must join with it.
-  const isAdmin =
-    isAdminRole(identity.role) ||
-    (identity.emailVerified && email !== null && adminEmails.includes(email));
-  if (isAdmin) {
+  // 3. Brand-new person. A Synapsly admin/super_admin becomes a coboard admin and
+  // skips the code; everyone else must join with the admin-preset invite code.
+  if (isAdminRole(identity.role)) {
     if (!email) throw forbidden('缺少可用于建号的已验证邮箱');
     const user = await createSsoUser(db, {
       email,
@@ -162,14 +159,13 @@ export async function completeSsoJoin(
 }
 
 /**
- * Dev fake-login (non-production only). Finds the user by email or creates one,
- * making them an admin if their email is in the allowlist. Used to keep the app
- * runnable offline; the route hard-guards on DEV_LOGIN + non-production.
+ * Dev fake-login (non-production only). Finds the user by email or creates one as
+ * an admin so local testing has full access. Keeps the app runnable offline; the
+ * route hard-guards on DEV_LOGIN + non-production.
  */
 export async function devLogin(
   db: Database,
   input: { email: string; displayName?: string | undefined },
-  adminEmails: string[],
 ): Promise<UserRow> {
   const email = input.email.toLowerCase();
   const existing = await findUserByEmail(db, email);
@@ -177,11 +173,10 @@ export async function devLogin(
     if (!existing.isActive) throw unauthorized('账号已被停用');
     return existing;
   }
-  const role = adminEmails.includes(email) ? 'admin' : 'member';
   return createSsoUser(db, {
     email,
     displayName: input.displayName?.trim() || email.split('@')[0] || '开发用户',
-    role,
+    role: 'admin',
     synapslySub: `dev:${email}`,
   });
 }

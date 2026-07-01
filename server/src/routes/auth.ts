@@ -176,11 +176,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         nonce: flow.nonce,
       });
 
-      const resolution = await resolveSsoLogin(
-        fastify.db,
-        identity,
-        runtime.adminEmails,
-      );
+      const resolution = await resolveSsoLogin(fastify.db, identity);
       if (resolution.status === 'needs-join') {
         // Stash the identity and send the user to the coboard join screen.
         reply.setCookie(
@@ -254,7 +250,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }) as unknown as AuthUserResponse;
     }
     const input = parseBody(devLoginInputSchema, request.body);
-    const user = await devLoginService(fastify.db, input, runtime.adminEmails);
+    const user = await devLoginService(fastify.db, input);
     const session = await startSession(fastify.db, user.id, null);
     reply.setCookie(
       SESSION_COOKIE,
