@@ -1,0 +1,19 @@
+# Keep the build context small + reproducible. The image runs a fresh
+# `pnpm install` and builds shared -> web -> server inside the build stage,
+# so host node_modules / dist artifacts must NOT leak in — a stale server/dist
+# would otherwise ship pre-deletion compiled routes and crash the app.
+**/node_modules
+**/dist
+.git
+.gitignore
+.env
+.env.*
+*.local
+pnpm-store
+.superpowers
+.claude
+docs
+*.md
+!README.md
+*.log
+.DS_Store
