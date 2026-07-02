@@ -31,12 +31,9 @@ export const isoDateTimeSchema = z.string().datetime({ offset: true });
 export const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD');
 
 export const emailSchema = z.string().trim().email('邮箱格式不正确').max(254);
-export const passwordSchema = z.string().min(8, '密码至少 8 位').max(200);
 export const displayNameSchema = z.string().trim().min(1, '昵称不能为空').max(80);
 /** Hex color for avatar background, e.g. "#3b82f6". */
-export const avatarColorSchema = z
-  .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, '颜色应为 #RRGGBB 格式');
+export const avatarColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色应为 #RRGGBB 格式');
 /** Project short key — used in URLs/labels, uppercase-ish slug. */
 export const projectKeySchema = z
   .string()
@@ -46,9 +43,7 @@ export const projectKeySchema = z
   .regex(/^[A-Z0-9]+$/, '项目标识只能包含大写字母和数字');
 
 /** Hex color for a task label, e.g. "#ef4444". */
-export const labelColorSchema = z
-  .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, '颜色应为 #RRGGBB 格式');
+export const labelColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色应为 #RRGGBB 格式');
 /** Label display name (the shared catalog is keyed on a unique name). */
 export const labelNameSchema = z.string().trim().min(1, '标签名称不能为空').max(30);
 
@@ -525,9 +520,7 @@ export const updateRegistrationSettingsInputSchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: '至少修改一个字段',
   });
-export type UpdateRegistrationSettingsInput = z.infer<
-  typeof updateRegistrationSettingsInputSchema
->;
+export type UpdateRegistrationSettingsInput = z.infer<typeof updateRegistrationSettingsInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Users (admin) (§7)
@@ -605,9 +598,7 @@ export type ProjectDirectoryItem = z.infer<typeof projectDirectoryItemSchema>;
 export const projectDirectoryResponseSchema = z.object({
   projects: z.array(projectDirectoryItemSchema),
 });
-export type ProjectDirectoryResponse = z.infer<
-  typeof projectDirectoryResponseSchema
->;
+export type ProjectDirectoryResponse = z.infer<typeof projectDirectoryResponseSchema>;
 
 /** POST /projects (admin). */
 export const createProjectInputSchema = z.object({
@@ -731,10 +722,13 @@ export const createTaskInputSchema = z
     /** Optional label set (task-labels): the task's labels become exactly these. */
     labelIds: labelIdsSchema.optional(),
   })
-  .refine((v) => v.maxClaimants == null || v.maxClaimants >= (v.minClaimants ?? MIN_CLAIMANTS_FLOOR), {
-    message: '领取人数上限不能小于下限',
-    path: ['maxClaimants'],
-  });
+  .refine(
+    (v) => v.maxClaimants == null || v.maxClaimants >= (v.minClaimants ?? MIN_CLAIMANTS_FLOOR),
+    {
+      message: '领取人数上限不能小于下限',
+      path: ['maxClaimants'],
+    },
+  );
 export type CreateTaskInput = z.infer<typeof createTaskInputSchema>;
 
 /** PATCH /tasks/:id — edit fields / status / rank. */
@@ -762,8 +756,7 @@ export const updateTaskInputSchema = z
     message: '至少修改一个字段',
   })
   .refine(
-    (v) =>
-      !(v.minClaimants != null && v.maxClaimants != null) || v.maxClaimants >= v.minClaimants,
+    (v) => !(v.minClaimants != null && v.maxClaimants != null) || v.maxClaimants >= v.minClaimants,
     { message: '领取人数上限不能小于下限', path: ['maxClaimants'] },
   );
 export type UpdateTaskInput = z.infer<typeof updateTaskInputSchema>;

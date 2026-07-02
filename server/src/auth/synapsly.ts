@@ -88,9 +88,7 @@ async function discover(cfg: SynapslyConfig): Promise<DiscoveryDoc> {
   if (cached && Date.now() - cached.at < DISCOVERY_TTL_MS) {
     return cached.doc;
   }
-  const doc = (await fetchJson(
-    `${cfg.issuer}/.well-known/openid-configuration`,
-  )) as DiscoveryDoc;
+  const doc = (await fetchJson(`${cfg.issuer}/.well-known/openid-configuration`)) as DiscoveryDoc;
   if (doc.issuer !== cfg.issuer) {
     throw new Error(`OIDC issuer 不匹配：期望 ${cfg.issuer}，实际 ${doc.issuer}`);
   }
@@ -123,7 +121,7 @@ export async function buildAuthorizationUrl(
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', cfg.clientId);
   url.searchParams.set('redirect_uri', cfg.redirectUri);
-  url.searchParams.set('scope', 'openid profile email');
+  url.searchParams.set('scope', cfg.scopes);
   url.searchParams.set('state', params.state);
   url.searchParams.set('nonce', params.nonce);
   url.searchParams.set('code_challenge', params.codeChallenge);
@@ -218,18 +216,11 @@ export async function verifyIdToken(
   const signature = b64urlToBuffer(sigB64);
 
   const verifyWith = async (keys: Jwk[]): Promise<boolean> => {
-    const candidates = header.kid
-      ? keys.filter((k) => k.kid === header.kid)
-      : keys;
+    const candidates = header.kid ? keys.filter((k) => k.kid === header.kid) : keys;
     for (const jwk of candidates) {
       if (jwk.kty !== 'RSA' || !jwk.n || !jwk.e) continue;
       const key = await importRsaKey(jwk);
-      const ok = await crypto.subtle.verify(
-        'RSASSA-PKCS1-v1_5',
-        key,
-        signature,
-        signed,
-      );
+      const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, signed);
       if (ok) return true;
     }
     return false;
@@ -274,10 +265,7 @@ export interface UserInfo {
 }
 
 /** Fetch the freshest user-level claims (and `role`, if the provider emits it). */
-export async function fetchUserInfo(
-  cfg: SynapslyConfig,
-  accessToken: string,
-): Promise<UserInfo> {
+export async function fetchUserInfo(cfg: SynapslyConfig, accessToken: string): Promise<UserInfo> {
   const doc = await discover(cfg);
   return (await fetchJson(doc.userinfo_endpoint, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },

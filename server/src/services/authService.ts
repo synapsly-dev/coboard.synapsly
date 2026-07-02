@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import type { UserRole } from 'shared';
 import type { Database } from '../db/index.js';
 import type { UserRow } from '../db/schema.js';
 import { createSession, type CreatedSession } from '../auth/session.js';
@@ -9,6 +10,7 @@ import {
   findUserByEmail,
   findUserBySynapslySub,
   linkSynapslySub,
+  setUserRole,
 } from './userService.js';
 
 /**
@@ -42,12 +44,59 @@ export interface AuthenticatedUser {
  * log in, or a brand-new person who must supply the invite code to join.
  */
 export type SsoResolution =
-  | { status: 'ok'; user: UserRow }
-  | { status: 'needs-join'; identity: SsoIdentity };
+  { status: 'ok'; user: UserRow } | { status: 'needs-join'; identity: SsoIdentity };
 
-/** A Synapsly role that should map to a coboard global admin. */
-function isAdminRole(role: string | null): boolean {
-  return role === 'admin' || role === 'super_admin';
+/**
+ * Map Synapsly's baseline platform role (the `role` claim carried by the `roles`
+ * scope — `user | admin | super_admin`) onto coboard's local role vocabulary
+ * (`member | admin`). coboard has no tier above `admin`, so both `admin` and
+ * `super_admin` land on `admin`; a missing/unknown claim maps to `member` — the
+ * no-op floor that keeps things correct before core emits the `role` claim.
+ */
+const CORE_ROLE_TO_LOCAL: Record<string, UserRole> = {
+  user: 'member',
+  admin: 'admin',
+  super_admin: 'admin',
+};
+
+/** Local role ordering used by the floor. Higher wins. */
+const ROLE_RANK: Record<UserRole, number> = { member: 0, admin: 1 };
+
+/** Map a raw Synapsly `role` claim to a local role (baseline `member`). */
+export function mapCoreRole(coreRole: string | null | undefined): UserRole {
+  return CORE_ROLE_TO_LOCAL[(coreRole ?? '').trim()] ?? 'member';
+}
+
+/**
+ * Fold Synapsly's baseline role into the local role as a *floor*.
+ *
+ * The core role is only a baseline: a coboard admin may locally elevate a
+ * specific user beyond it, so we take the HIGHER of the existing local role and
+ * the mapped core baseline — never downgrading a locally-granted admin. A
+ * missing/unknown core role maps to `member` (a no-op floor), which also keeps
+ * things correct before the `roles` scope is live on core.
+ */
+export function elevateRole(
+  current: UserRole | null | undefined,
+  coreRole: string | null | undefined,
+): UserRole {
+  const baseline = mapCoreRole(coreRole);
+  const cur = current ?? 'member';
+  return ROLE_RANK[baseline] > ROLE_RANK[cur] ? baseline : cur;
+}
+
+/**
+ * Apply the role floor to an existing user on login and persist it if it changed.
+ * Idempotent: returns the same row untouched when the floor is a no-op.
+ */
+async function applyRoleFloor(
+  db: Database,
+  user: UserRow,
+  coreRole: string | null,
+): Promise<UserRow> {
+  const next = elevateRole(user.role, coreRole);
+  if (next === user.role) return user;
+  return setUserRole(db, user.id, next);
 }
 
 function displayNameFor(identity: SsoIdentity): string {
@@ -60,20 +109,21 @@ function displayNameFor(identity: SsoIdentity): string {
 /**
  * Resolve a verified Synapsly identity to a local user (§2 of the design):
  *   1. match by `synapsly_sub` → returning user
- *   2. else by verified email → link the sub to that existing row (keeps role)
- *   3. else provision: admin if the Synapsly `role` claim is admin/super_admin,
+ *   2. else by verified email → link the sub to that existing row
+ *   3. else provision: admin if the Synapsly `role` claim maps to admin,
  *      otherwise defer to the invite-code join flow (`needs-join`).
- * Deactivated accounts are refused.
+ *
+ * On every existing-user path the Synapsly `role` claim is folded into the local
+ * role as a floor (see {@link elevateRole}): a core promotion elevates the user,
+ * a lower/absent core role never downgrades a locally-granted admin. Deactivated
+ * accounts are refused.
  */
-export async function resolveSsoLogin(
-  db: Database,
-  identity: SsoIdentity,
-): Promise<SsoResolution> {
+export async function resolveSsoLogin(db: Database, identity: SsoIdentity): Promise<SsoResolution> {
   // 1. Known Synapsly subject.
   const bySub = await findUserBySynapslySub(db, identity.sub);
   if (bySub) {
     if (!bySub.isActive) throw unauthorized('账号已被停用，请联系管理员');
-    return { status: 'ok', user: bySub };
+    return { status: 'ok', user: await applyRoleFloor(db, bySub, identity.role) };
   }
 
   const email = identity.email?.toLowerCase() ?? null;
@@ -89,13 +139,15 @@ export async function resolveSsoLogin(
       const linked = byEmail.synapslySub
         ? byEmail
         : await linkSynapslySub(db, byEmail.id, identity.sub);
-      return { status: 'ok', user: linked };
+      return { status: 'ok', user: await applyRoleFloor(db, linked, identity.role) };
     }
   }
 
-  // 3. Brand-new person. A Synapsly admin/super_admin becomes a coboard admin and
-  // skips the code; everyone else must join with the admin-preset invite code.
-  if (isAdminRole(identity.role)) {
+  // 3. Brand-new person. The core role's floor seeds the local role: a Synapsly
+  // admin/super_admin is provisioned straight as a coboard admin (skipping the
+  // code); a plain `user` (or an absent role claim) defers to the invite-code
+  // join flow.
+  if (mapCoreRole(identity.role) === 'admin') {
     if (!email) throw forbidden('缺少可用于建号的已验证邮箱');
     const user = await createSsoUser(db, {
       email,
@@ -140,9 +192,7 @@ export async function completeSsoJoin(
 
   const { registrationEnabled, registrationCode } = await getRegistrationSettings(db);
   const allowed =
-    registrationEnabled &&
-    registrationCode.length > 0 &&
-    codeMatches(code, registrationCode);
+    registrationEnabled && registrationCode.length > 0 && codeMatches(code, registrationCode);
   if (!allowed) {
     throw forbidden('邀请码无效或自助加入未开放，请联系管理员');
   }
@@ -153,7 +203,8 @@ export async function completeSsoJoin(
   return createSsoUser(db, {
     email,
     displayName: displayNameFor(identity),
-    role: 'member',
+    // Seed from the core floor (a plain `user`/absent claim → `member`).
+    role: mapCoreRole(identity.role),
     synapslySub: identity.sub,
   });
 }

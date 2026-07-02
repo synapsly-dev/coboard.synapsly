@@ -7,13 +7,7 @@ import type {
   UserWithProjects,
 } from 'shared';
 import type { Database } from '../db/index.js';
-import {
-  projectMembers,
-  projects,
-  userAvatars,
-  users,
-  type UserRow,
-} from '../db/schema.js';
+import { projectMembers, projects, userAvatars, users, type UserRow } from '../db/schema.js';
 import { deleteUserSessions } from '../auth/session.js';
 import { conflict, notFound, validationError } from '../lib/errors.js';
 
@@ -64,30 +58,18 @@ export function serializeUser(row: UserRow): User {
 
 /** Count all users — used by the first-run setup gate (§8). */
 export async function countUsers(db: Database): Promise<number> {
-  const rows = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(users);
+  const rows = await db.select({ count: sql<number>`count(*)::int` }).from(users);
   return rows[0]?.count ?? 0;
 }
 
 /** Look up a user by (case-sensitive, already-normalized) email, or null. */
-export async function findUserByEmail(
-  db: Database,
-  email: string,
-): Promise<UserRow | null> {
-  const rows = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
+export async function findUserByEmail(db: Database, email: string): Promise<UserRow | null> {
+  const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return rows[0] ?? null;
 }
 
 /** Look up a user by id, or null. */
-export async function findUserById(
-  db: Database,
-  id: string,
-): Promise<UserRow | null> {
+export async function findUserById(db: Database, id: string): Promise<UserRow | null> {
   const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return rows[0] ?? null;
 }
@@ -103,9 +85,7 @@ export async function listUsers(db: Database): Promise<UserRow[]> {
  * project_members ⋈ projects (no per-user N+1); users in no project come back
  * with an empty `projects` array so the UI can flag them as orphaned (§6.3).
  */
-export async function listUsersWithProjects(
-  db: Database,
-): Promise<UserWithProjects[]> {
+export async function listUsersWithProjects(db: Database): Promise<UserWithProjects[]> {
   const rows = await listUsers(db);
 
   const memberships = await db
@@ -147,10 +127,7 @@ export interface CreateUserParams {
  * {@link createSsoUser}, by SSO provisioning. Identity is Synapsly ID, not a
  * password, so `password_hash` is always null.
  */
-export async function createUser(
-  db: Database,
-  params: CreateUserParams,
-): Promise<UserRow> {
+export async function createUser(db: Database, params: CreateUserParams): Promise<UserRow> {
   const existing = await findUserByEmail(db, params.email);
   if (existing) {
     throw conflict('该邮箱已被注册');
@@ -196,15 +173,8 @@ export function createUserParamsFromInput(
 }
 
 /** Look up a user by their Synapsly subject (OIDC `sub`), or null. */
-export async function findUserBySynapslySub(
-  db: Database,
-  sub: string,
-): Promise<UserRow | null> {
-  const rows = await db
-    .select()
-    .from(users)
-    .where(eq(users.synapslySub, sub))
-    .limit(1);
+export async function findUserBySynapslySub(db: Database, sub: string): Promise<UserRow | null> {
+  const rows = await db.select().from(users).where(eq(users.synapslySub, sub)).limit(1);
   return rows[0] ?? null;
 }
 
@@ -217,10 +187,7 @@ export interface CreateSsoUserParams {
 }
 
 /** Provision a new user from a verified Synapsly identity (link the sub). */
-export async function createSsoUser(
-  db: Database,
-  params: CreateSsoUserParams,
-): Promise<UserRow> {
+export async function createSsoUser(db: Database, params: CreateSsoUserParams): Promise<UserRow> {
   return createUser(db, {
     email: params.email,
     displayName: params.displayName,
@@ -231,16 +198,28 @@ export async function createSsoUser(
 }
 
 /** Attach a Synapsly subject to an existing (email-matched) user row. */
-export async function linkSynapslySub(
-  db: Database,
-  userId: string,
-  sub: string,
-): Promise<UserRow> {
+export async function linkSynapslySub(db: Database, userId: string, sub: string): Promise<UserRow> {
   const updated = await db
     .update(users)
     .set({ synapslySub: sub })
     .where(eq(users.id, userId))
     .returning();
+  const row = updated[0];
+  if (!row) throw notFound('用户不存在');
+  return row;
+}
+
+/**
+ * Set a user's global role. Used by the SSO role-floor (authService), which folds
+ * Synapsly's baseline `role` claim into the local role on every login — only ever
+ * upward, never a downgrade.
+ */
+export async function setUserRole(
+  db: Database,
+  userId: string,
+  role: 'admin' | 'member',
+): Promise<UserRow> {
+  const updated = await db.update(users).set({ role }).where(eq(users.id, userId)).returning();
   const row = updated[0];
   if (!row) throw notFound('用户不存在');
   return row;
@@ -267,11 +246,7 @@ export async function updateUser(
   if (input.isActive !== undefined) patch.isActive = input.isActive;
   if (input.avatarColor !== undefined) patch.avatarColor = input.avatarColor;
 
-  const updated = await db
-    .update(users)
-    .set(patch)
-    .where(eq(users.id, id))
-    .returning();
+  const updated = await db.update(users).set(patch).where(eq(users.id, id)).returning();
 
   const row = updated[0];
   if (!row) {
@@ -342,11 +317,7 @@ export function parseAvatarDataUrl(image: string): ParsedAvatar {
  * base64 bytes into `user_avatars`. Returns the refreshed user row. Throws 404
  * if the user no longer exists.
  */
-export async function setUserAvatar(
-  db: Database,
-  userId: string,
-  image: string,
-): Promise<UserRow> {
+export async function setUserAvatar(db: Database, userId: string, image: string): Promise<UserRow> {
   const parsed = parseAvatarDataUrl(image);
 
   const updated = await db
@@ -374,10 +345,7 @@ export async function setUserAvatar(
  * Remove a user's avatar: clear `users.avatar_mime` and delete the bytes row.
  * Returns the refreshed user row. Throws 404 if the user no longer exists.
  */
-export async function clearUserAvatar(
-  db: Database,
-  userId: string,
-): Promise<UserRow> {
+export async function clearUserAvatar(db: Database, userId: string): Promise<UserRow> {
   const updated = await db
     .update(users)
     .set({ avatarMime: null })
@@ -406,10 +374,7 @@ export interface AvatarData {
  * user has no avatar so the route can 404. The base64 never leaks into any other
  * response — it is only ever read here and decoded to raw bytes.
  */
-export async function getUserAvatar(
-  db: Database,
-  userId: string,
-): Promise<AvatarData | null> {
+export async function getUserAvatar(db: Database, userId: string): Promise<AvatarData | null> {
   const rows = await db
     .select({
       mime: users.avatarMime,
