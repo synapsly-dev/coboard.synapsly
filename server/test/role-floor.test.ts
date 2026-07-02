@@ -14,13 +14,16 @@ import { updateRegistrationSettings } from '../src/services/settingsService.js';
 /**
  * Role-floor + sub-upsert tests for the Synapsly SSO login (AUTHZ model).
  *
- * The Synapsly `role` claim is a BASELINE FLOOR: mapped into coboard's local
- * vocabulary (user→member, admin→admin, super_admin→admin — coboard has no tier
- * above admin) and folded into the local role only ever *upward*. A locally
- * elevated admin must never be downgraded by a later login carrying a lower/absent
- * core role; a missing claim is a no-op floor. Users are keyed by the OIDC `sub`;
- * an existing account links only by VERIFIED email and never when already bound to
- * a different sub.
+ * The Syna ID `role` claim is a BASELINE FLOOR, per the role-tier contract
+ * (app-authz-protocol.md §3.0): ONLY `super_admin` maps to coboard's highest
+ * role (`admin`). Core `admin` is merely an "admin candidate" — it does NOT
+ * auto-grant local admin (a super_admin assigns that in-app), so it maps to
+ * `member`; the reserved `staff` and plain `user` also map to `member`. The
+ * mapped baseline is folded in only ever *upward*: a locally-granted admin is
+ * never downgraded by a later login carrying a lower/absent core role, and a
+ * missing claim is a no-op floor. Users are keyed by the OIDC `sub`; an existing
+ * account links only by VERIFIED email and never when already bound to a
+ * different sub.
  */
 
 function identity(overrides: Partial<SsoIdentity> & { sub: string }): SsoIdentity {
@@ -40,10 +43,13 @@ function identity(overrides: Partial<SsoIdentity> & { sub: string }): SsoIdentit
 // ---------------------------------------------------------------------------
 
 describe('mapCoreRole', () => {
-  it('maps the core vocabulary onto local roles', () => {
+  it('maps the core vocabulary onto local roles (§3.0)', () => {
     expect(mapCoreRole('user')).toBe('member');
-    expect(mapCoreRole('admin')).toBe('admin');
-    // coboard has no tier above admin, so super_admin also lands on admin.
+    // core `admin` is only a candidate — no auto-privilege; maps to member.
+    expect(mapCoreRole('admin')).toBe('member');
+    // reserved tier — treated as a normal user until core defines it.
+    expect(mapCoreRole('staff')).toBe('member');
+    // super_admin is the only tier that maps to coboard's highest role (admin).
     expect(mapCoreRole('super_admin')).toBe('admin');
   });
 
@@ -56,13 +62,14 @@ describe('mapCoreRole', () => {
   });
 
   it('trims surrounding whitespace before mapping', () => {
-    expect(mapCoreRole('  admin ')).toBe('admin');
+    expect(mapCoreRole('  super_admin ')).toBe('admin');
+    expect(mapCoreRole('  admin ')).toBe('member'); // still just a candidate
   });
 });
 
 describe('elevateRole (the floor)', () => {
-  it('elevates a member when the core role is higher', () => {
-    expect(elevateRole('member', 'admin')).toBe('admin');
+  it('elevates a member only for super_admin (admin is a candidate, §3.0)', () => {
+    expect(elevateRole('member', 'admin')).toBe('member'); // candidate → no elevation
     expect(elevateRole('member', 'super_admin')).toBe('admin');
   });
 
@@ -111,15 +118,14 @@ describe('resolveSsoLogin — sub-upsert + role floor', () => {
     return row;
   }
 
-  it('provisions a brand-new core admin straight as a coboard admin', async () => {
+  it('sends a brand-new core admin through the join gate (candidate, no auto-privilege)', async () => {
+    // §3.0: core `admin` does NOT auto-grant local admin, so a fresh core admin
+    // is treated like any other new user and must pass the invite-code gate.
     const res = await resolveSsoLogin(
       ctx.db,
       identity({ sub: 'sub-a', email: 'a@x.io', emailVerified: true, role: 'admin' }),
     );
-    expect(res.status).toBe('ok');
-    if (res.status !== 'ok') throw new Error('unreachable');
-    expect(res.user.role).toBe('admin');
-    expect(res.user.synapslySub).toBe('sub-a');
+    expect(res.status).toBe('needs-join');
   });
 
   it('provisions a brand-new super_admin as a coboard admin (highest local)', async () => {
@@ -141,7 +147,9 @@ describe('resolveSsoLogin — sub-upsert + role floor', () => {
   });
 
   it('returns the same user on a second login, keyed by sub (upsert, no dupes)', async () => {
-    const id = identity({ sub: 'sub-a', email: 'a@x.io', emailVerified: true, role: 'admin' });
+    // super_admin provisions straight to 'ok' (no join gate), so it exercises
+    // the by-sub upsert path cleanly.
+    const id = identity({ sub: 'sub-s', email: 's@x.io', emailVerified: true, role: 'super_admin' });
     const first = await resolveSsoLogin(ctx.db, id);
     const second = await resolveSsoLogin(ctx.db, id);
     if (first.status !== 'ok' || second.status !== 'ok') throw new Error('unreachable');
@@ -150,15 +158,26 @@ describe('resolveSsoLogin — sub-upsert + role floor', () => {
     expect(all).toHaveLength(1);
   });
 
-  it('elevates a returning member when core promoted them to admin', async () => {
+  it('elevates a returning member when core promoted them to super_admin', async () => {
     const seeded = await seed({ email: 'm@x.io', role: 'member', synapslySub: 'sub-m' });
     const res = await resolveSsoLogin(
       ctx.db,
-      identity({ sub: 'sub-m', email: 'm@x.io', emailVerified: true, role: 'admin' }),
+      identity({ sub: 'sub-m', email: 'm@x.io', emailVerified: true, role: 'super_admin' }),
     );
     if (res.status !== 'ok') throw new Error('unreachable');
     expect(res.user.id).toBe(seeded.id);
     expect(res.user.role).toBe('admin');
+  });
+
+  it('does NOT elevate a returning member on a core admin (candidate) login', async () => {
+    const seeded = await seed({ email: 'c@x.io', role: 'member', synapslySub: 'sub-c' });
+    const res = await resolveSsoLogin(
+      ctx.db,
+      identity({ sub: 'sub-c', email: 'c@x.io', emailVerified: true, role: 'admin' }),
+    );
+    if (res.status !== 'ok') throw new Error('unreachable');
+    expect(res.user.id).toBe(seeded.id);
+    expect(res.user.role).toBe('member'); // §3.0: admin is a candidate, no auto-grant
   });
 
   it('never downgrades a locally-elevated admin on a lower/absent core role', async () => {
@@ -183,12 +202,12 @@ describe('resolveSsoLogin — sub-upsert + role floor', () => {
     const seeded = await seed({ email: 'link@x.io', role: 'member', synapslySub: null });
     const res = await resolveSsoLogin(
       ctx.db,
-      identity({ sub: 'sub-link', email: 'link@x.io', emailVerified: true, role: 'admin' }),
+      identity({ sub: 'sub-link', email: 'link@x.io', emailVerified: true, role: 'super_admin' }),
     );
     if (res.status !== 'ok') throw new Error('unreachable');
     expect(res.user.id).toBe(seeded.id);
     expect(res.user.synapslySub).toBe('sub-link');
-    expect(res.user.role).toBe('admin'); // floor applied on link
+    expect(res.user.role).toBe('admin'); // super_admin floor applied on link
   });
 
   it('does NOT link an existing account on an UNVERIFIED email', async () => {

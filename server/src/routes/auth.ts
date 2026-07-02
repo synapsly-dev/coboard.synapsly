@@ -121,7 +121,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/auth/synapsly/start', async (request, reply) => {
     const cfg = runtime.synapsly;
     if (!cfg) {
-      loginErrorRedirect(reply, 'Synapsly 登录未配置');
+      loginErrorRedirect(reply, 'Syna ID 登录未配置');
       return;
     }
     const state = randomToken();
@@ -148,7 +148,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/auth/synapsly/callback', async (request, reply) => {
     const cfg = runtime.synapsly;
     if (!cfg) {
-      loginErrorRedirect(reply, 'Synapsly 登录未配置');
+      loginErrorRedirect(reply, 'Syna ID 登录未配置');
       return;
     }
     const query = request.query as {

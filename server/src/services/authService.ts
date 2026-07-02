@@ -47,15 +47,20 @@ export type SsoResolution =
   { status: 'ok'; user: UserRow } | { status: 'needs-join'; identity: SsoIdentity };
 
 /**
- * Map Synapsly's baseline platform role (the `role` claim carried by the `roles`
- * scope — `user | admin | super_admin`) onto coboard's local role vocabulary
- * (`member | admin`). coboard has no tier above `admin`, so both `admin` and
- * `super_admin` land on `admin`; a missing/unknown claim maps to `member` — the
- * no-op floor that keeps things correct before core emits the `role` claim.
+ * Map Syna ID's baseline platform role (the `role` claim carried by the `roles`
+ * scope) onto coboard's local role vocabulary (`member | admin`).
+ *
+ * Per core's app-authz-protocol §3.0, core `admin` is only an *admin candidate*:
+ * it must NOT auto-grant local admin — a super_admin assigns those powers in-app.
+ * So ONLY core `super_admin` maps to coboard's highest role (`admin`); `admin`,
+ * the reserved `staff`, and `user` all map to `member`. A missing/unknown claim
+ * also maps to `member` — the no-op floor that keeps things correct before core
+ * emits the `role` claim.
  */
 const CORE_ROLE_TO_LOCAL: Record<string, UserRole> = {
   user: 'member',
-  admin: 'admin',
+  staff: 'member',
+  admin: 'member', // admin candidate — no auto-privilege (§3.0)
   super_admin: 'admin',
 };
 
@@ -103,7 +108,7 @@ function displayNameFor(identity: SsoIdentity): string {
   const name = identity.name?.trim();
   if (name) return name;
   const local = identity.email?.split('@')[0]?.trim();
-  return local && local.length > 0 ? local : 'Synapsly 用户';
+  return local && local.length > 0 ? local : 'Syna ID 用户';
 }
 
 /**
@@ -133,7 +138,7 @@ export async function resolveSsoLogin(db: Database, identity: SsoIdentity): Prom
     const byEmail = await findUserByEmail(db, email);
     if (byEmail) {
       if (byEmail.synapslySub && byEmail.synapslySub !== identity.sub) {
-        throw forbidden('该邮箱已关联其他 Synapsly 账号');
+        throw forbidden('该邮箱已关联其他 Syna ID 账号');
       }
       if (!byEmail.isActive) throw unauthorized('账号已被停用，请联系管理员');
       const linked = byEmail.synapslySub
@@ -143,10 +148,10 @@ export async function resolveSsoLogin(db: Database, identity: SsoIdentity): Prom
     }
   }
 
-  // 3. Brand-new person. The core role's floor seeds the local role: a Synapsly
-  // admin/super_admin is provisioned straight as a coboard admin (skipping the
-  // code); a plain `user` (or an absent role claim) defers to the invite-code
-  // join flow.
+  // 3. Brand-new person. The core role's floor seeds the local role: only a core
+  // `super_admin` maps to coboard admin and is provisioned straight (skipping the
+  // code). A core `admin` (admin *candidate*, §3.0), `staff`, plain `user`, or an
+  // absent role claim all map to `member` and defer to the invite-code join flow.
   if (mapCoreRole(identity.role) === 'admin') {
     if (!email) throw forbidden('缺少可用于建号的已验证邮箱');
     const user = await createSsoUser(db, {
