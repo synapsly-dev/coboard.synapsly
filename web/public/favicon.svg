@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Coboard">
+  <!-- Brand lockup: ink tile + light Syna "synapse" mark (mirrors the in-app logo
+       and syna-core). Self-contained colours so it reads on light or dark tab bars. -->
+  <rect width="64" height="64" rx="15" fill="#0c0c0d"/>
+  <g transform="translate(32 32) scale(0.78) translate(-34 -30.7)">
+    <g stroke="#fbfbf8" stroke-linecap="round" fill="none">
+      <line x1="15" y1="47" x2="49" y2="18" stroke-width="1.5" opacity="0.26"/>
+      <line x1="15" y1="47" x2="29" y2="31" stroke-width="2.8" opacity="0.6"/>
+      <line x1="29" y1="31" x2="49" y2="18" stroke-width="2.8" opacity="0.6"/>
+    </g>
+    <g fill="#fbfbf8">
+      <circle cx="15" cy="47" r="4"/>
+      <circle cx="29" cy="31" r="5.6"/>
+      <circle cx="49" cy="18" r="7.6"/>
+    </g>
+  </g>
+</svg>
