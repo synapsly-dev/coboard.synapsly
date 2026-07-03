@@ -68,8 +68,13 @@ export function TaskCard({
   return (
     <article
       className={cn(
-        'group flex flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-shadow',
-        'hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'group flex flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left shadow-sm',
+        // Border + shadow now ease together (was shadow-only, so the border snapped);
+        // a 1% press-dip gives touch users whole-card tap feedback. Stable task.id
+        // keys mean the mount fade fires only on genuinely new / column-moved cards
+        // (claim, create, filter) — a soft settle, not a flash.
+        'transition-[box-shadow,border-color,transform] duration-base ease-standard motion-safe:animate-fade-in',
+        'hover:border-primary/40 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,
       )}
       role="button"

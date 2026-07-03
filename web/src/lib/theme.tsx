@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -64,13 +65,36 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
 
   const resolved: Resolved = theme === 'system' ? (sysDark ? 'dark' : 'light') : theme;
 
+  // Cross-fade the canvas only when the change came from a deliberate user
+  // toggle — never on first paint or a silent OS theme change.
+  const userToggledRef = useRef(false);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const el = document.documentElement;
+    if (userToggledRef.current) {
+      userToggledRef.current = false;
+      el.classList.add('theme-transition');
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      // Remove just after --duration-base so the transition never lingers.
+      fadeTimerRef.current = setTimeout(() => {
+        el.classList.remove('theme-transition');
+        fadeTimerRef.current = null;
+      }, 260);
+    }
     el.dataset.theme = resolved;
     el.classList.toggle('dark', resolved === 'dark');
   }, [resolved]);
 
+  useEffect(
+    () => () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    },
+    [],
+  );
+
   const setTheme = useCallback((next: ThemePreference): void => {
+    userToggledRef.current = true;
     setThemeState(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);

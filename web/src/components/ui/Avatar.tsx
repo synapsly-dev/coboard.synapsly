@@ -38,7 +38,7 @@ export function Avatar({ name, color, imageUrl, size = 'md', className }: Avatar
   return (
     <AvatarPrimitive.Root
       className={cn(
-        'inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-medium ring-1 ring-black/5',
+        'inline-flex shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-medium ring-1 ring-black/5 dark:ring-white/10',
         sizeClasses[size],
         className,
       )}
@@ -48,7 +48,10 @@ export function Avatar({ name, color, imageUrl, size = 'md', className }: Avatar
         <AvatarPrimitive.Image
           src={imageUrl}
           alt={name}
-          className="h-full w-full object-cover"
+          // Cross-fade the photo over the initials as it decodes, instead of a
+          // hard pop — most visible on the always-present TopNav avatar and in
+          // stacked claimant/member lists.
+          className="h-full w-full object-cover motion-safe:animate-fade-in"
         />
       )}
       <AvatarPrimitive.Fallback

@@ -518,22 +518,26 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             />
           </div>
 
-          {tab === 'comments' ? (
-            <div className="flex flex-col gap-4">
-              <CommentList
-                task={task}
-                comments={comments ?? []}
-                isLoading={commentsLoading}
-                members={memberList}
-                permCtx={permCtx}
-              />
-              <CommentComposer taskId={task.id} members={memberList} />
-            </div>
-          ) : tab === 'ideas' ? (
-            <IdeaSection task={task} permCtx={permCtx} />
-          ) : (
-            <ActivityTimeline activities={activities ?? []} isLoading={activitiesLoading} />
-          )}
+          {/* Keyed so switching tabs cross-fades the panel — follow-through for
+              the tab indicator's own transition. */}
+          <div key={tab} className="motion-safe:animate-fade-in">
+            {tab === 'comments' ? (
+              <div className="flex flex-col gap-4">
+                <CommentList
+                  task={task}
+                  comments={comments ?? []}
+                  isLoading={commentsLoading}
+                  members={memberList}
+                  permCtx={permCtx}
+                />
+                <CommentComposer taskId={task.id} members={memberList} />
+              </div>
+            ) : tab === 'ideas' ? (
+              <IdeaSection task={task} permCtx={permCtx} />
+            ) : (
+              <ActivityTimeline activities={activities ?? []} isLoading={activitiesLoading} />
+            )}
+          </div>
         </div>
       </DrawerBody>
 

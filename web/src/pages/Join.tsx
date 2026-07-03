@@ -42,7 +42,7 @@ export default function JoinPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto bg-background">
       <main className="flex min-h-full items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm motion-safe:animate-enter-rise">
           <div className="mb-8 flex flex-col items-center text-center">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <SynapseMark className="h-7 w-7" />

@@ -23,14 +23,20 @@ export default function LoginPage(): JSX.Element {
   const [searchParams] = useSearchParams();
   const { loginWithSynapsly } = useAuth();
   const config = useAuthConfig();
+  // Feedback for the full-page SSO redirect: the click has no navigation of its
+  // own until the browser leaves, so show the button's spinner meanwhile.
+  const [redirecting, setRedirecting] = useState(false);
 
   const ssoError = searchParams.get('sso_error');
   const redirectTo = (location.state as LocationState | null)?.from?.pathname ?? '/';
+  const ssoDisabled = config.data ? !config.data.synapslyEnabled : false;
 
   return (
     <div className="h-full overflow-y-auto bg-background">
       <main className="flex min-h-full items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
+        {/* One restrained entrance for the whole column — a fade + small settle,
+            no per-element stagger. */}
+        <div className="w-full max-w-sm motion-safe:animate-enter-rise">
           <div className="mb-8 flex flex-col items-center text-center">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <SynapseMark className="h-7 w-7" />
@@ -57,11 +63,15 @@ export default function LoginPage(): JSX.Element {
               type="button"
               size="lg"
               className="w-full"
-              disabled={config.data ? !config.data.synapslyEnabled : false}
-              onClick={() => loginWithSynapsly(redirectTo)}
+              loading={redirecting}
+              disabled={ssoDisabled || redirecting}
+              onClick={() => {
+                setRedirecting(true);
+                loginWithSynapsly(redirectTo);
+              }}
             >
-              <SynapseMark className="h-4 w-4" />
-              使用 Syna ID 登录
+              {!redirecting && <SynapseMark className="h-4 w-4" />}
+              {redirecting ? '正在跳转…' : '使用 Syna ID 登录'}
             </Button>
 
             {config.data && !config.data.synapslyEnabled && (

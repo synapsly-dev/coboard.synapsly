@@ -116,7 +116,7 @@ export default function IdeasPage(): JSX.Element {
             description="点击「发布灵感」分享一个独立想法，或在任务详情页的「想法 / 灵感」区分享灵感。"
           />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 motion-safe:animate-fade-in sm:grid-cols-2">
             {list.map((idea) => (
               <IdeaCard
                 key={idea.id}

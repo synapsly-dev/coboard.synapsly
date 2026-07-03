@@ -88,7 +88,7 @@ export function Leaderboard({
   }
 
   return (
-    <ol className="flex flex-col gap-2" aria-label="贡献排行榜">
+    <ol className="flex flex-col gap-2 motion-safe:animate-fade-in" aria-label="贡献排行榜">
       {entries.map((entry, index) => {
         const rank = index + 1;
         const medal = MEDAL_STYLES[rank];

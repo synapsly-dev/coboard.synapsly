@@ -23,3 +23,13 @@ export function useMediaQuery(query: string, defaultMatches = true): boolean {
     () => defaultMatches,
   );
 }
+
+/**
+ * True when the user has asked the OS to reduce motion. The global CSS guard in
+ * index.css already neutralizes CSS animations/transitions; use this for the
+ * handful of JS-driven motions the CSS can't reach (count-up, chart tweens), so
+ * they resolve straight to their final value instead of animating.
+ */
+export function useReducedMotion(): boolean {
+  return useMediaQuery('(prefers-reduced-motion: reduce)', false);
+}

@@ -2,6 +2,7 @@ import { CheckCircle2, Hash, TrendingUp } from 'lucide-react';
 import { Avatar, Spinner } from '../../components/ui';
 import { useAuth } from '../../lib/auth-context';
 import { avatarUrl, cn } from '../../lib/utils';
+import { useCountUp } from '../../lib/use-count-up';
 import { useMyStats } from '../../api/stats';
 
 /**
@@ -28,6 +29,8 @@ export function PersonalSummary({
 }: PersonalSummaryProps): JSX.Element | null {
   const { user } = useAuth();
   const { data, isLoading } = useMyStats({ from, to });
+  // The signature moment of the stats surface: roll the rank up on load / change.
+  const displayRank = Math.round(useCountUp(rank ?? 0));
 
   if (!user) return null;
 
@@ -51,7 +54,7 @@ export function PersonalSummary({
         </div>
         {rank !== undefined && (
           <div className="ml-auto flex flex-col items-end">
-            <span className="text-2xl font-bold tabular-nums text-primary">#{rank}</span>
+            <span className="text-2xl font-bold tabular-nums text-primary">#{displayRank}</span>
             <span className="text-[11px] text-muted-foreground">当前排名</span>
           </div>
         )}
@@ -99,6 +102,7 @@ function SummaryStat({
   /** Optional sub-line under the value, e.g. the points breakdown. */
   caption?: string;
 }): JSX.Element {
+  const display = Math.round(useCountUp(value ?? 0));
   return (
     <div className="rounded-xl border border-border bg-card/80 px-4 py-3">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -109,7 +113,7 @@ function SummaryStat({
         {loading && value === undefined ? (
           <Spinner className="h-5 w-5" label={`加载${label}`} />
         ) : (
-          (value ?? 0)
+          display
         )}
       </div>
       {caption && (

@@ -159,7 +159,7 @@ export function SettingsTab(): JSX.Element {
             {updateSettings.isPending ? '正在保存…' : '保存'}
           </Button>
           {saved && !dirty && (
-            <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600">
+            <span className="inline-flex items-center gap-1.5 text-sm text-success motion-safe:animate-fade-in">
               <CheckCircle2 className="h-4 w-4" aria-hidden />
               已保存
             </span>

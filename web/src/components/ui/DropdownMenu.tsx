@@ -18,7 +18,8 @@ export const DropdownMenuContent = forwardRef<
         align={align}
         className={cn(
           'z-50 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
-          'animate-popover-in focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+          'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
+          'focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
           className,
         )}
         {...props}

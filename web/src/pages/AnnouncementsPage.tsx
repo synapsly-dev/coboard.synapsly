@@ -52,7 +52,7 @@ export default function AnnouncementsPage(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-6 motion-safe:animate-fade-in sm:px-6">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-base font-semibold">信息</h1>

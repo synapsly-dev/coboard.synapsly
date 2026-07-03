@@ -28,7 +28,7 @@ export const SelectTrigger = forwardRef<
       aria-invalid={invalid || undefined}
       className={cn(
         // text-base on mobile keeps the font >=16px so iOS Safari doesn't auto-zoom on focus; h-10 is a comfier touch height.
-        'flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1 text-base shadow-sm transition-colors sm:h-9 sm:text-sm',
+        'group flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1 text-base shadow-sm transition-colors sm:h-9 sm:text-sm',
         'placeholder:text-muted-foreground data-[placeholder]:text-muted-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
@@ -39,7 +39,7 @@ export const SelectTrigger = forwardRef<
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDown className="h-4 w-4 opacity-60" />
+        <ChevronDown className="h-4 w-4 opacity-60 transition-transform duration-base ease-standard group-data-[state=open]:rotate-180" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -56,7 +56,8 @@ export const SelectContent = forwardRef<
         position={position}
         className={cn(
           'z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg',
-          'animate-popover-in focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+          'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
+          'focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
           position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}

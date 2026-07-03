@@ -49,7 +49,7 @@ export default function ProjectsPage(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 motion-safe:animate-fade-in sm:px-6">
       <div>
         <h1 className="text-base font-semibold">项目</h1>
         <p className="text-sm text-muted-foreground">

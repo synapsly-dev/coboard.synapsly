@@ -32,7 +32,7 @@ export const DrawerContent = forwardRef<
         ref={ref}
         className={cn(
           'fixed inset-y-0 right-0 z-50 flex h-full flex-col border-l border-border bg-card text-card-foreground shadow-2xl',
-          'animate-slide-in-right',
+          'data-[state=open]:animate-slide-in-right data-[state=closed]:animate-slide-out-right',
           widthClassName,
           className,
         )}

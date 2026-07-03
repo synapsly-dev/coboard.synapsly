@@ -49,6 +49,14 @@
     --ring: 240 4% 5%;
 
     --radius: 0.625rem;
+
+    /* Motion scale (§ shared with tailwind.config.ts). One easing family + a
+       three-step duration scale keep every transition on the same curve. */
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1);
+    --duration-fast: 120ms;
+    --duration-base: 150ms;
+    --duration-slow: 240ms;
   }
 
   :root[data-theme='dark'],
@@ -111,6 +119,39 @@
   /* Consistent focus-visible ring across interactive elements. */
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Deliberate light↔dark cross-fade. The class is added to <html> only for the
+     duration of a manual toggle (see ThemeProvider), so the whole canvas eases
+     between themes instead of hard-cutting — without leaving a permanent
+     transition on every element (which would jank scrolling and other motion). */
+  html.theme-transition,
+  html.theme-transition *,
+  html.theme-transition *::before,
+  html.theme-transition *::after {
+    transition:
+      background-color var(--duration-base) var(--ease-standard),
+      border-color var(--duration-base) var(--ease-standard),
+      color var(--duration-base) var(--ease-standard),
+      fill var(--duration-base) var(--ease-standard),
+      box-shadow var(--duration-base) var(--ease-standard) !important;
+  }
+
+  /* Accessibility floor: honor the OS "reduce motion" preference across the whole
+     app in one place. Collapse every animation/transition to ~instant, but keep
+     the loading spinner turning (a frozen indeterminate spinner is worse than a
+     moving one). Also neutralizes the deliberate theme cross-fade above. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    .animate-spin {
+      animation-duration: 0.7s !important;
+    }
   }
 }
 

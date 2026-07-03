@@ -93,7 +93,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
                 aria-pressed={selected}
                 onClick={() => patch({ range: option.value })}
                 className={cn(
-                  'rounded px-2.5 py-2 text-sm font-medium transition-colors min-h-[40px] sm:px-3 sm:py-1 sm:min-h-0',
+                  'rounded px-2.5 py-2 text-sm font-medium transition-[color,background-color,transform] duration-base ease-standard active:scale-[0.97] min-h-[40px] sm:px-3 sm:py-1 sm:min-h-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-primary text-primary-foreground shadow-sm'
@@ -156,7 +156,7 @@ export function StatFilters({ value, onChange }: StatFiltersProps): JSX.Element 
                 aria-pressed={selected}
                 onClick={() => patch({ sort: option.value })}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded px-2.5 py-2 text-sm font-medium transition-colors min-h-[40px] sm:px-3 sm:py-1 sm:min-h-0',
+                  'inline-flex items-center gap-1.5 rounded px-2.5 py-2 text-sm font-medium transition-[color,background-color,transform] duration-base ease-standard active:scale-[0.97] min-h-[40px] sm:px-3 sm:py-1 sm:min-h-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   selected
                     ? 'bg-primary text-primary-foreground shadow-sm'

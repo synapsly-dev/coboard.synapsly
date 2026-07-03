@@ -34,7 +34,7 @@ export const DialogContent = forwardRef<
           // Cap the height with internal scroll so tall dialogs stay usable on short screens.
           'max-h-[calc(100vh-2rem)] overflow-y-auto',
           'rounded-xl border border-border bg-card p-6 text-card-foreground shadow-xl',
-          'animate-content-in',
+          'data-[state=open]:animate-content-in data-[state=closed]:animate-content-out',
           className,
         )}
         {...props}

@@ -104,9 +104,13 @@ export default function AdminPage(): JSX.Element {
           })}
         </div>
 
-        {active === 'users' && <UsersTab />}
-        {active === 'projects' && <ProjectsTab />}
-        {active === 'settings' && <SettingsTab />}
+        {/* Keyed so the panel cross-fades on tab change (users/projects look
+            alike) — signals the content actually switched. */}
+        <div key={active} className="motion-safe:animate-fade-in">
+          {active === 'users' && <UsersTab />}
+          {active === 'projects' && <ProjectsTab />}
+          {active === 'settings' && <SettingsTab />}
+        </div>
       </div>
     </div>
   );

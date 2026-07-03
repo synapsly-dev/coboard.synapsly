@@ -56,7 +56,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex select-none items-center justify-center whitespace-nowrap font-medium transition-colors',
+        'inline-flex select-none items-center justify-center whitespace-nowrap font-medium',
+        // One shared, whisper-quiet press-dip on the primitive every action flows
+        // through, so tactile feedback reads as a single system (§ motion scale).
+        'transition-[color,background-color,border-color,box-shadow,transform] duration-base ease-standard',
+        'active:scale-[0.98]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],

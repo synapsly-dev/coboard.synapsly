@@ -30,7 +30,10 @@ export function BottomNav(): JSX.Element {
             to={item.to}
             className={({ isActive }) =>
               cn(
-                'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium transition-colors',
+                'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] font-medium',
+                // Immediate tactile press feedback on the primary phone nav — a
+                // barely-there dip that confirms the tap before the route resolves.
+                'transition-[color,transform,opacity] duration-base ease-standard active:scale-[0.94] active:opacity-70',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
               )
             }

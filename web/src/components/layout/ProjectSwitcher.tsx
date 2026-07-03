@@ -47,8 +47,10 @@ export function ProjectSwitcher(): JSX.Element {
           className={cn(
             // Constrain tightly on phones so the nav bar never overflows; the label
             // truncates. sm+ allows a more generous width.
-            'inline-flex h-9 min-w-0 max-w-[9rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors sm:max-w-[16rem]',
+            'group inline-flex h-9 min-w-0 max-w-[9rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors sm:max-w-[16rem]',
             'hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+            // Reflect the open state so the trigger reads as connected to its menu.
+            'data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
           )}
           aria-label="切换项目"
         >
@@ -58,7 +60,10 @@ export function ProjectSwitcher(): JSX.Element {
             <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
           )}
           <span className="truncate">{label}</span>
-          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <ChevronsUpDown
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-data-[state=open]:text-foreground"
+            aria-hidden
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-[14rem]" {...menu.contentProps}>
