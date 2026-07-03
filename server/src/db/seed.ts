@@ -10,14 +10,13 @@ import {
   users,
   type NewTaskRow,
 } from './schema.js';
+import { AVATAR_COLORS } from '../lib/avatarPalette.js';
 
 /**
  * Optional demo seed (§9). Behind the SEED_DEMO env flag, populates a demo admin,
  * a demo project, and a handful of sample tasks — but only when the DB is empty,
  * so it never clobbers real data. Safe to run on every boot.
  */
-
-const AVATAR_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 /** Build a midpoint-style rank string for ordering. */
 function rankFor(index: number): string {

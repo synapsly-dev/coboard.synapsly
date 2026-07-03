@@ -92,6 +92,13 @@
       "when": 1782905268179,
       "tag": "0012_mushy_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1783089150653,
+      "tag": "0013_muted_avatar_palette",
+      "breakpoints": true
     }
   ]
 }

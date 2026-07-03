@@ -10,34 +10,16 @@ import type { Database } from '../db/index.js';
 import { projectMembers, projects, userAvatars, users, type UserRow } from '../db/schema.js';
 import { deleteUserSessions } from '../auth/session.js';
 import { conflict, notFound, validationError } from '../lib/errors.js';
+import { pickAvatarColor } from '../lib/avatarPalette.js';
 
 /**
  * User domain service (§7 users-admin, §8). Owns account creation, listing, and
  * updates plus the row→wire serialization that strips `password_hash`. Routes
  * call these after the auth/admin guards have run.
+ *
+ * The avatar palette + picker live in ../lib/avatarPalette (shared with the demo
+ * seed and the palette migration).
  */
-
-/** Palette used to assign a stable-ish avatar background when none is given. */
-const AVATAR_COLORS = [
-  '#3b82f6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#ec4899',
-  '#14b8a6',
-  '#f97316',
-] as const;
-
-/** Pick a deterministic-but-spread avatar color for a new account. */
-function pickAvatarColor(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  }
-  const index = Math.abs(hash) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[index]!;
-}
 
 /**
  * Serialize a database user row into the public §5 wire shape. Drops
