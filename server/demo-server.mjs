@@ -11,7 +11,6 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { buildApp } from './dist/app.js';
 import * as schema from './dist/db/schema.js';
 import { maybeSeed } from './dist/db/seed.js';
-import { hashPassword } from './dist/auth/password.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS = resolve(here, 'drizzle');
@@ -46,12 +45,12 @@ if (freshDb) {
   const member = userRows.find((u) => u.email === 'member@coboard.local');
   const [proj] = await db.select().from(schema.projects).limit(1);
 
-  const pwd = await hashPassword('changeme123');
+  // Passwordless (identity is Syna ID); enter the demo via DEV_LOGIN fake-login.
   const [li] = await db.insert(schema.users).values({
-    email: 'li@coboard.local', passwordHash: pwd, displayName: '小李', avatarColor: '#8b5cf6', role: 'member', isActive: true,
+    email: 'li@coboard.local', passwordHash: null, displayName: '小李', avatarColor: '#5e6e8c', role: 'member', isActive: true,
   }).returning();
   const [wang] = await db.insert(schema.users).values({
-    email: 'wang@coboard.local', passwordHash: pwd, displayName: '王工', avatarColor: '#ef4444', role: 'member', isActive: true,
+    email: 'wang@coboard.local', passwordHash: null, displayName: '王工', avatarColor: '#8f7440', role: 'member', isActive: true,
   }).returning();
   await db.insert(schema.projectMembers).values([
     { projectId: proj.id, userId: li.id, role: 'member' },
@@ -79,8 +78,23 @@ if (freshDb) {
   for (const [title, prio] of open) {
     rows.push({ projectId: proj.id, title, status: 'open', assigneeId: null, points: 2, priority: prio, createdBy: member.id, rank: rank(r++) });
   }
-  await db.insert(schema.tasks).values(rows);
-  console.log(`[demo] 已补充 ${rows.length} 条演示任务（4 名成员）`);
+  const inserted = await db.insert(schema.tasks).values(rows).returning();
+  // Contribution stats count CLAIMANTS of done tasks (not just assignees), so add
+  // a claimant row per assigned task — done tasks carry their points share (drives
+  // the leaderboard/trend/points), in-progress ones stay unallocated (points null)
+  // and give the board cards their stacked claimant avatars.
+  const claimantRows = inserted
+    .filter((t) => t.assigneeId)
+    .map((t) => ({
+      taskId: t.id,
+      userId: t.assigneeId,
+      points: t.status === 'done' ? (t.points ?? null) : null,
+      claimedAt: t.completedAt ?? t.createdAt ?? new Date(),
+    }));
+  if (claimantRows.length) await db.insert(schema.taskClaimants).values(claimantRows);
+  console.log(
+    `[demo] 已补充 ${rows.length} 条演示任务 + ${claimantRows.length} 条认领（4 名成员）`,
+  );
 }
 
 const app = await buildApp({
@@ -93,4 +107,4 @@ const app = await buildApp({
 });
 await app.listen({ port: PORT, host: '127.0.0.1' });
 console.log(`\n  Coboard 演示已启动 →  http://localhost:${PORT}`);
-console.log('  登录: admin@coboard.local / changeme123 (管理员)  或  member@coboard.local / changeme123\n');
+console.log('  登录（需 DEV_LOGIN=true 的假登录，输入邮箱即可）: admin@coboard.local (管理员) 或 member@coboard.local\n');
