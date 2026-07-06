@@ -99,6 +99,13 @@
       "when": 1783089150653,
       "tag": "0013_muted_avatar_palette",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1783353482626,
+      "tag": "0014_rapid_vapor",
+      "breakpoints": true
     }
   ]
 }

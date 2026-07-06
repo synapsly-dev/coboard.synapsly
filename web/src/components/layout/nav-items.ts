@@ -1,4 +1,4 @@
-import { LayoutGrid, BarChart3, Compass, Lightbulb, Megaphone, Settings } from 'lucide-react';
+import { LayoutGrid, BarChart3, Compass, Lightbulb, Megaphone, Network, Settings } from 'lucide-react';
 
 /**
  * Primary navigation destinations (§4), shared by the desktop top-nav and the
@@ -17,6 +17,7 @@ export function buildNavItems(boardTarget: string): NavItem[] {
     { to: `/board/${boardTarget}`, label: '看板', icon: LayoutGrid },
     { to: '/projects', label: '项目', icon: Compass },
     { to: '/ideas', label: '灵感', icon: Lightbulb },
+    { to: '/org', label: '架构', icon: Network },
     { to: '/info', label: '信息', icon: Megaphone },
     { to: '/stats', label: '统计', icon: BarChart3 },
     { to: '/admin', label: '管理', icon: Settings, adminOnly: true },

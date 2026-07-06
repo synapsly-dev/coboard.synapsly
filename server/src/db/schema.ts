@@ -13,10 +13,13 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import {
   activityTypes,
   ideaStatuses,
+  orgMemberRoles,
+  orgNodeKinds,
   priorities,
   projectRoles,
   taskStatuses,
@@ -40,6 +43,8 @@ export const taskStatusEnum = pgEnum('task_status', taskStatuses);
 export const priorityEnum = pgEnum('priority', priorities);
 export const activityTypeEnum = pgEnum('activity_type', activityTypes);
 export const ideaStatusEnum = pgEnum('idea_status', ideaStatuses);
+export const orgNodeKindEnum = pgEnum('org_node_kind', orgNodeKinds);
+export const orgMemberRoleEnum = pgEnum('org_member_role', orgMemberRoles);
 
 const primaryId = uuid('id')
   .primaryKey()
@@ -482,6 +487,67 @@ export const taskTexts = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// org_nodes — a flexible, editable team org tree (团队架构 / division-of-labor page).
+// Self-referential (`parent_id`) so nodes nest to any depth; `project_id` NULL is the
+// whole-team tree, non-null scopes the tree to a project. Deleting a node cascades to
+// its whole subtree (self-FK cascade) and to its member rows. `rank` orders siblings
+// (lexicographic, like tasks.rank). A node's `project_id` always equals its parent's.
+// ---------------------------------------------------------------------------
+
+export const orgNodes = pgTable(
+  'org_nodes',
+  {
+    id: primaryId,
+    // NULL = whole-team (全团队) tree; non-null scopes the tree to a project.
+    projectId: uuid('project_id').references(() => projects.id, {
+      onDelete: 'cascade',
+    }),
+    // Self-FK; NULL = a root node. Cascade so deleting a node removes its subtree.
+    parentId: uuid('parent_id').references((): AnyPgColumn => orgNodes.id, {
+      onDelete: 'cascade',
+    }),
+    kind: orgNodeKindEnum('kind').notNull().default('unit'),
+    title: text('title').notNull(),
+    description: text('description'),
+    // Lexicographic ordering key among siblings (mirrors tasks.rank).
+    rank: text('rank').notNull(),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('org_nodes_project_parent_idx').on(table.projectId, table.parentId),
+    index('org_nodes_parent_idx').on(table.parentId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// org_node_members — the people on an org node. A node may carry multiple `lead`
+// (负责人) and multiple `member` (成员) rows. `user_id` reuses the existing users
+// (avatar/name); one row per (node, user). `rank` orders the avatars. Both sides
+// cascade so members detach when a node or a user is deleted.
+// ---------------------------------------------------------------------------
+
+export const orgNodeMembers = pgTable(
+  'org_node_members',
+  {
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => orgNodes.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: orgMemberRoleEnum('role').notNull(),
+    rank: text('rank').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.nodeId, table.userId] }),
+    index('org_node_members_user_id_idx').on(table.userId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // settings — key/value store for admin-settable instance config (§8)
 // ---------------------------------------------------------------------------
 
@@ -529,6 +595,10 @@ export type AnnouncementRow = typeof announcements.$inferSelect;
 export type NewAnnouncementRow = typeof announcements.$inferInsert;
 export type TaskTextRow = typeof taskTexts.$inferSelect;
 export type NewTaskTextRow = typeof taskTexts.$inferInsert;
+export type OrgNodeRow = typeof orgNodes.$inferSelect;
+export type NewOrgNodeRow = typeof orgNodes.$inferInsert;
+export type OrgNodeMemberRow = typeof orgNodeMembers.$inferSelect;
+export type NewOrgNodeMemberRow = typeof orgNodeMembers.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -548,10 +618,14 @@ export const schema = {
   settings,
   announcements,
   taskTexts,
+  orgNodes,
+  orgNodeMembers,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,
   priorityEnum,
   activityTypeEnum,
   ideaStatusEnum,
+  orgNodeKindEnum,
+  orgMemberRoleEnum,
 };

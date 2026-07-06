@@ -12,6 +12,7 @@ import statsRoutes from './routes/stats.js';
 import streamRoutes from './routes/stream.js';
 import settingsRoutes from './routes/settings.js';
 import announcementsRoutes from './routes/announcements.js';
+import orgRoutes from './routes/org.js';
 
 /**
  * Explicit route registration. In production `@fastify/autoload` scans the
@@ -34,4 +35,5 @@ export const registerRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(streamRoutes);
   await fastify.register(settingsRoutes);
   await fastify.register(announcementsRoutes);
+  await fastify.register(orgRoutes);
 };

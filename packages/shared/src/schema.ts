@@ -2,6 +2,8 @@ import { z } from 'zod';
 import {
   activityTypeSchema,
   ideaStatusSchema,
+  orgMemberRoleSchema,
+  orgNodeKindSchema,
   prioritySchema,
   projectRoleSchema,
   taskStatusSchema,
@@ -367,6 +369,131 @@ export const announcementResponseSchema = z.object({
   announcement: announcementSchema,
 });
 export type AnnouncementResponse = z.infer<typeof announcementResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Org tree / 团队架构 (division-of-labor & positions page)
+//
+// A flexible, editable org tree. Each node is an org unit (部门/小组/单元) that can
+// nest to any depth and carry multiple 负责人 (leads) and 成员 (members). A tree is
+// scoped either to the whole team (`scope: 'all'`, project_id NULL) or to a single
+// project (`scope: <projectId>`). Writes are gated to a global admin (whole-team
+// tree) or the project's lead / a global admin (project tree).
+// ---------------------------------------------------------------------------
+
+/** Node title — a short unit/position name. */
+export const orgTitleSchema = z.string().trim().min(1, '名称不能为空').max(80);
+/** Optional node description / responsibilities blurb. */
+export const orgDescriptionSchema = z.string().trim().max(500);
+
+/**
+ * The tree a request targets: the literal `'all'` (whole-team tree) or a project's
+ * uuid. Carried in the GET query and the create-node body; mutations on an existing
+ * node derive it from the node's own `projectId`.
+ */
+export const orgScopeSchema = z.union([z.literal('all'), uuidSchema]);
+export type OrgScope = z.infer<typeof orgScopeSchema>;
+
+/** A person on a node — their public display summary plus their role on the node. */
+export const orgNodeMemberSchema = z.object({
+  userId: uuidSchema,
+  displayName: displayNameSchema,
+  avatarColor: avatarColorSchema,
+  hasAvatar: z.boolean(),
+  role: orgMemberRoleSchema,
+});
+export type OrgNodeMember = z.infer<typeof orgNodeMemberSchema>;
+
+/**
+ * One org-tree node (flat wire shape; the client assembles the tree by `parentId`).
+ * `projectId` is null for the whole-team tree. `leads`/`members` split the node's
+ * people by role, each ordered by their display rank.
+ */
+export const orgNodeSchema = z.object({
+  id: uuidSchema,
+  /** Owning project; null = the whole-team (全团队) tree. */
+  projectId: uuidSchema.nullable(),
+  /** Parent node; null = a root node. */
+  parentId: uuidSchema.nullable(),
+  kind: orgNodeKindSchema,
+  title: z.string(),
+  description: z.string().nullable(),
+  /** Lexicographic ordering key among siblings. */
+  rank: z.string(),
+  leads: z.array(orgNodeMemberSchema),
+  members: z.array(orgNodeMemberSchema),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type OrgNode = z.infer<typeof orgNodeSchema>;
+
+/** GET /org/tree?scope= — the whole tree for a scope (flat; client builds it). */
+export const orgTreeResponseSchema = z.object({
+  scope: orgScopeSchema,
+  nodes: z.array(orgNodeSchema),
+});
+export type OrgTreeResponse = z.infer<typeof orgTreeResponseSchema>;
+
+/** POST/PATCH/move /org/nodes — single-node response wrapper. */
+export const orgNodeResponseSchema = z.object({
+  node: orgNodeSchema,
+});
+export type OrgNodeResponse = z.infer<typeof orgNodeResponseSchema>;
+
+/** GET /org/tree query. Defaults to the whole-team tree when omitted. */
+export const orgTreeQuerySchema = z.object({
+  scope: orgScopeSchema.default('all'),
+});
+export type OrgTreeQuery = z.infer<typeof orgTreeQuerySchema>;
+
+/**
+ * POST /org/nodes — create a node. `parentId` null/omitted creates a root node in
+ * the given `scope`; a non-null `parentId` must belong to the same scope (the server
+ * re-checks). The new node is appended after its parent's last child.
+ */
+export const createOrgNodeInputSchema = z.object({
+  scope: orgScopeSchema,
+  parentId: uuidSchema.nullable().optional(),
+  kind: orgNodeKindSchema,
+  title: orgTitleSchema,
+  description: orgDescriptionSchema.nullable().optional(),
+});
+export type CreateOrgNodeInput = z.infer<typeof createOrgNodeInputSchema>;
+
+/** PATCH /org/nodes/:id — edit a node's title / kind / description. */
+export const updateOrgNodeInputSchema = z
+  .object({
+    title: orgTitleSchema.optional(),
+    kind: orgNodeKindSchema.optional(),
+    description: orgDescriptionSchema.nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: '至少修改一个字段' });
+export type UpdateOrgNodeInput = z.infer<typeof updateOrgNodeInputSchema>;
+
+/**
+ * POST /org/nodes/:id/move — reparent and/or reorder a node. `parentId` is the new
+ * parent (null = a root). `beforeId` is the sibling to insert immediately before;
+ * omit/null to append to the end of the new parent's children. The target parent
+ * must be in the same scope and must not be the node itself or a descendant of it.
+ */
+export const moveOrgNodeInputSchema = z.object({
+  parentId: uuidSchema.nullable(),
+  beforeId: uuidSchema.nullable().optional(),
+});
+export type MoveOrgNodeInput = z.infer<typeof moveOrgNodeInputSchema>;
+
+/**
+ * PUT /org/nodes/:id/members — replace the node's people. `leads` and `members` are
+ * user-id sets (disjoint); the node's membership becomes exactly these.
+ */
+export const setOrgMembersInputSchema = z
+  .object({
+    leads: z.array(uuidSchema).max(20),
+    members: z.array(uuidSchema).max(50),
+  })
+  .refine((v) => new Set([...v.leads, ...v.members]).size === v.leads.length + v.members.length, {
+    message: '同一个人不能同时是负责人和成员',
+  });
+export type SetOrgMembersInput = z.infer<typeof setOrgMembersInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Task files / attachments (§7.2)
@@ -933,6 +1060,7 @@ export const realtimeEntitySchema = z.enum([
   'project',
   'idea',
   'announcement',
+  'org',
 ]);
 export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 

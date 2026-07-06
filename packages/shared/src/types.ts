@@ -11,6 +11,8 @@ export type {
   TaskStatus,
   Priority,
   ActivityType,
+  OrgNodeKind,
+  OrgMemberRole,
 } from './enums.js';
 
 export type {
@@ -74,6 +76,17 @@ export type {
   TrendQuery,
   TrendPoint,
   TrendResponse,
+  // org tree (团队架构)
+  OrgScope,
+  OrgNode,
+  OrgNodeMember,
+  OrgTreeResponse,
+  OrgNodeResponse,
+  OrgTreeQuery,
+  CreateOrgNodeInput,
+  UpdateOrgNodeInput,
+  MoveOrgNodeInput,
+  SetOrgMembersInput,
   // realtime
   RealtimeEntity,
   RealtimeEvent,

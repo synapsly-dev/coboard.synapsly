@@ -25,6 +25,7 @@ const ENTITY_CHANNELS: readonly RealtimeEntity[] = [
   'project',
   'idea',
   'announcement',
+  'org',
 ];
 
 function safeParse(raw: string): RealtimeEvent | null {
@@ -102,6 +103,13 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
     case 'announcement': {
       // An admin published/edited/removed a 信息 notice — refresh the list.
       void queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      break;
+    }
+    case 'org': {
+      // An editor changed the team org tree (团队架构). Refresh every scope's tree
+      // (the `['org', scope]` prefix), since the payload's scope is enough context
+      // and trees are small.
+      void queryClient.invalidateQueries({ queryKey: ['org'] });
       break;
     }
     default: {

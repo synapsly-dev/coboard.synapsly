@@ -60,6 +60,8 @@ export const queryKeys = {
   ideas: (params: Record<string, string | undefined>) => ['ideas', params] as const,
   /** Admin-published 信息 notices. */
   announcements: () => ['announcements'] as const,
+  /** The org tree (团队架构) for a scope ('all' or a project id). */
+  orgTree: (scope: string) => ['org', scope] as const,
   leaderboard: (params: Record<string, string | undefined>) =>
     ['stats', 'leaderboard', params] as const,
   myStats: (params: Record<string, string | undefined>) =>

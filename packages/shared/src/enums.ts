@@ -67,6 +67,23 @@ export const ideaStatusSchema = z.enum(ideaStatuses);
 export type IdeaStatus = (typeof ideaStatuses)[number];
 
 /**
+ * Org-tree node kind (team org / division-of-labor page). Purely a visual/semantic
+ * label — the tree nests to any depth regardless of kind. `department` and `group`
+ * are the common levels; `unit` is a generic catch-all for anything else.
+ */
+export const orgNodeKinds = ['department', 'group', 'unit'] as const;
+export const orgNodeKindSchema = z.enum(orgNodeKinds);
+export type OrgNodeKind = (typeof orgNodeKinds)[number];
+
+/**
+ * A person's role on an org-tree node: `lead` (负责人) or `member` (成员). A node may
+ * carry multiple of each. Distinct from the project membership role enum.
+ */
+export const orgMemberRoles = ['lead', 'member'] as const;
+export const orgMemberRoleSchema = z.enum(orgMemberRoles);
+export type OrgMemberRole = (typeof orgMemberRoles)[number];
+
+/**
  * Attachment mimes Coboard will serve INLINE for in-app preview (image lightbox +
  * embedded PDF). Anything else is always sent as a download. The list is the single
  * source of truth shared by the server (which only honours `?inline=1` for these,
