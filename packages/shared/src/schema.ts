@@ -373,8 +373,8 @@ export type AnnouncementResponse = z.infer<typeof announcementResponseSchema>;
 // ---------------------------------------------------------------------------
 // Org tree / 团队架构 (division-of-labor & positions page)
 //
-// A flexible, editable org tree. Each node is an org unit (部门/小组/单元) that can
-// nest to any depth and carry multiple 负责人 (leads) and 成员 (members). A tree is
+// A flexible, editable org tree. Each node is an org unit (部门/小组) that can nest
+// to any depth and carry one 负责人 (lead) plus 成员 (members). A tree is
 // scoped either to the whole team (`scope: 'all'`, project_id NULL) or to a single
 // project (`scope: <projectId>`). Writes are gated to a global admin (whole-team
 // tree) or the project's lead / a global admin (project tree).
@@ -487,7 +487,7 @@ export type MoveOrgNodeInput = z.infer<typeof moveOrgNodeInputSchema>;
  */
 export const setOrgMembersInputSchema = z
   .object({
-    leads: z.array(uuidSchema).max(20),
+    leads: z.array(uuidSchema).max(1, '一个节点只能设置一位负责人'),
     members: z.array(uuidSchema).max(50),
   })
   .refine((v) => new Set([...v.leads, ...v.members]).size === v.leads.length + v.members.length, {

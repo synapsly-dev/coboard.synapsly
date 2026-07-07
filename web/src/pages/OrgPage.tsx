@@ -151,9 +151,9 @@ export default function OrgPage(): JSX.Element {
   const scopeLabel = scope === WHOLE_TEAM ? '全团队' : (activeProject?.name ?? '项目架构');
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="mb-5 flex flex-col gap-3">
+      <div className="mx-auto flex w-full max-w-4xl shrink-0 flex-col gap-3 px-4 pb-4 pt-6 sm:px-6">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Network className="h-5 w-5" />
@@ -260,65 +260,74 @@ export default function OrgPage(): JSX.Element {
       </div>
 
       {/* Body */}
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Spinner />
-        </div>
-      ) : isError ? (
-        <EmptyState
-          title="加载失败"
-          description="无法加载团队架构，请重试。"
-          action={
-            <Button variant="outline" onClick={() => void refetch()}>
-              重试
-            </Button>
-          }
-        />
-      ) : visibleRows.length === 0 && roots.length === 0 ? (
-        <EmptyState
-          icon={Network}
-          title="还没有架构"
-          description={
-            editable
-              ? '开始搭建团队分工与职位。'
-              : '管理员或负责人尚未搭建该范围的团队架构。'
-          }
-          action={
-            editable ? (
-              <Button
-                onClick={() => {
-                  // Start building from either view: drop into the editable list.
-                  setView('list');
-                  setEditMode(true);
-                  setNodeDialog({ mode: 'create', parentId: null });
-                }}
-              >
-                <Plus className="h-4 w-4" /> 新建根节点
-              </Button>
-            ) : undefined
-          }
-        />
-      ) : view === 'chart' ? (
-        <OrgChart roots={roots} />
-      ) : (
-        <div className="space-y-1.5">
-          {visibleRows.map((node) => (
-            <OrgNodeRow
-              key={node.id}
-              node={node}
-              nodes={nodes ?? []}
-              editable={isEditing}
-              collapsed={collapsed.has(node.id)}
-              onToggleCollapse={toggleCollapse}
-              onAddChild={(n) => setNodeDialog({ mode: 'create', parentId: n.id })}
-              onEdit={(n) => setNodeDialog({ mode: 'edit', node: n })}
-              onMembers={(n) => setMembersNode(n)}
-              onDelete={(n) => setDeleteTarget(n)}
-              onMove={handleMove}
+      <div
+        className={cn(
+          'min-h-0 flex-1',
+          view === 'chart' ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin',
+        )}
+      >
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center px-6">
+            <Spinner />
+          </div>
+        ) : isError ? (
+          <div className="flex h-full items-center justify-center px-6">
+            <EmptyState
+              title="加载失败"
+              description="无法加载团队架构，请重试。"
+              action={
+                <Button variant="outline" onClick={() => void refetch()}>
+                  重试
+                </Button>
+              }
             />
-          ))}
-        </div>
-      )}
+          </div>
+        ) : visibleRows.length === 0 && roots.length === 0 ? (
+          <div className="flex h-full items-center justify-center px-6">
+            <EmptyState
+              icon={Network}
+              title="还没有架构"
+              description={
+                editable ? '开始搭建团队分工与职位。' : '管理员或负责人尚未搭建该范围的团队架构。'
+              }
+              action={
+                editable ? (
+                  <Button
+                    onClick={() => {
+                      // Start building from either view: drop into the editable list.
+                      setView('list');
+                      setEditMode(true);
+                      setNodeDialog({ mode: 'create', parentId: null });
+                    }}
+                  >
+                    <Plus className="h-4 w-4" /> 新建根节点
+                  </Button>
+                ) : undefined
+              }
+            />
+          </div>
+        ) : view === 'chart' ? (
+          <OrgChart roots={roots} />
+        ) : (
+          <div className="mx-auto w-full max-w-4xl space-y-1.5 px-4 pb-6 sm:px-6">
+            {visibleRows.map((node) => (
+              <OrgNodeRow
+                key={node.id}
+                node={node}
+                nodes={nodes ?? []}
+                editable={isEditing}
+                collapsed={collapsed.has(node.id)}
+                onToggleCollapse={toggleCollapse}
+                onAddChild={(n) => setNodeDialog({ mode: 'create', parentId: n.id })}
+                onEdit={(n) => setNodeDialog({ mode: 'edit', node: n })}
+                onMembers={(n) => setMembersNode(n)}
+                onDelete={(n) => setDeleteTarget(n)}
+                onMove={handleMove}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Create / edit node dialog */}
       {nodeDialog?.mode === 'create' && (
@@ -364,10 +373,18 @@ export default function OrgPage(): JSX.Element {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleteMut.isPending}>
+            <Button
+              variant="ghost"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMut.isPending}
+            >
               取消
             </Button>
-            <Button variant="destructive" onClick={() => void confirmDelete()} loading={deleteMut.isPending}>
+            <Button
+              variant="destructive"
+              onClick={() => void confirmDelete()}
+              loading={deleteMut.isPending}
+            >
               删除
             </Button>
           </DialogFooter>

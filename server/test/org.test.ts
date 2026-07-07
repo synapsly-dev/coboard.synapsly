@@ -287,7 +287,7 @@ describe('org tree / 团队架构', () => {
     expect(tree.nodes).toHaveLength(0);
   });
 
-  it('sets a node’s leads and members (disjoint), and rejects overlap', async () => {
+  it('sets a node’s lead and members, and rejects invalid assignments', async () => {
     const admin = await makeUser(ctx, 'admin');
     const alice = await makeUser(ctx, 'member');
     const bob = await makeUser(ctx, 'member');
@@ -305,6 +305,15 @@ describe('org tree / 团队架构', () => {
     expect(updated.node.leads.map((m) => m.userId)).toEqual([alice.id]);
     expect(updated.node.members.map((m) => m.userId)).toEqual([bob.id]);
     expect(updated.node.leads[0]?.role).toBe('lead');
+
+    // More than one lead → 400.
+    const multipleLeads = await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/org/nodes/${node.node.id}/members`,
+      headers: headers(cookie),
+      payload: { leads: [alice.id, bob.id], members: [] },
+    });
+    expect(multipleLeads.statusCode).toBe(400);
 
     // Overlap (same user as both lead and member) → 400.
     const overlap = await ctx.app.inject({

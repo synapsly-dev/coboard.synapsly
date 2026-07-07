@@ -392,6 +392,10 @@ export async function setMembers(
   input: SetOrgMembersInput,
   realtimeBus: RealtimeBus = bus,
 ): Promise<OrgNode> {
+  if (input.leads.length > 1) {
+    throw validationError('一个节点只能设置一位负责人');
+  }
+
   const allIds = [...input.leads, ...input.members];
   if (new Set(allIds).size !== allIds.length) {
     throw validationError('同一个人不能同时是负责人和成员');

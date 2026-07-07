@@ -58,7 +58,9 @@ export function OrgMembersDialog({
   useEffect(() => {
     if (!open) return;
     const seed: Record<string, Assignment> = {};
-    for (const l of node.leads) seed[l.userId] = 'lead';
+    node.leads.forEach((lead, index) => {
+      seed[lead.userId] = index === 0 ? 'lead' : 'member';
+    });
     for (const m of node.members) seed[m.userId] = 'member';
     setAssignments(seed);
     setFilter('');
@@ -69,7 +71,16 @@ export function OrgMembersDialog({
     setAssignments((prev) => {
       const cur = prev[id] ?? 'none';
       const next: Assignment = cur === 'none' ? 'lead' : cur === 'lead' ? 'member' : 'none';
-      return { ...prev, [id]: next };
+      const updated = { ...prev };
+      if (next === 'lead') {
+        for (const [otherId, assignment] of Object.entries(updated)) {
+          if (otherId !== id && assignment === 'lead') {
+            updated[otherId] = 'member';
+          }
+        }
+      }
+      updated[id] = next;
+      return updated;
     });
   };
 
@@ -97,6 +108,10 @@ export function OrgMembersDialog({
       const a = assignments[c.id];
       if (a === 'lead') leads.push(c.id);
       else if (a === 'member') members.push(c.id);
+    }
+    if (leads.length > 1) {
+      setError('一个节点只能设置一位负责人');
+      return;
     }
     try {
       await setMut.mutateAsync({ id: node.id, input: { leads, members } });
