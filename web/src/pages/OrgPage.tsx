@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronsUpDown,
   FolderKanban,
+  GitBranch,
+  List,
   Network,
   Plus,
   Users2,
@@ -32,6 +34,7 @@ import {
 } from '../api/org';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
 import { canEditOrgScope } from '../features/org/permissions';
+import { OrgChart } from '../features/org/OrgChart';
 import { OrgNodeRow } from '../features/org/OrgNodeRow';
 import { OrgNodeDialog } from '../features/org/OrgNodeDialog';
 import {
@@ -66,6 +69,7 @@ type NodeDialogState =
 export default function OrgPage(): JSX.Element {
   const { user } = useAuth();
   const [scope, setScope] = useState<OrgScope>(WHOLE_TEAM);
+  const [view, setView] = useState<'list' | 'chart'>('list');
   const [editMode, setEditMode] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
@@ -85,7 +89,8 @@ export default function OrgPage(): JSX.Element {
   );
 
   const editable = canEditOrgScope(user, scope, myProjectRole);
-  const isEditing = editable && editMode;
+  // The chart view is always read-only — editing lives in the list view.
+  const isEditing = editable && editMode && view === 'list';
 
   // Candidate people for the members dialog: all users (whole-team, admin-only) or
   // the project's members (project tree). Only fetched when it can actually be used.
@@ -211,7 +216,32 @@ export default function OrgPage(): JSX.Element {
           </DropdownMenu>
 
           <div className="ml-auto flex items-center gap-2">
-            {editable && (
+            {/* View toggle: editable list vs read-only 图谱. */}
+            <div className="inline-flex items-center rounded-md border border-border bg-background p-0.5">
+              {(
+                [
+                  { key: 'list', label: '列表', icon: List },
+                  { key: 'chart', label: '图谱', icon: GitBranch },
+                ] as const
+              ).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setView(key)}
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded px-2.5 py-1 text-sm font-medium transition-colors',
+                    view === key
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                  aria-pressed={view === key}
+                >
+                  <Icon className="h-4 w-4" /> {label}
+                </button>
+              ))}
+            </div>
+
+            {view === 'list' && editable && (
               <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
                 编辑
                 <Switch checked={editMode} onCheckedChange={setEditMode} />
@@ -258,6 +288,8 @@ export default function OrgPage(): JSX.Element {
             ) : undefined
           }
         />
+      ) : view === 'chart' ? (
+        <OrgChart roots={roots} />
       ) : (
         <div className="space-y-1.5">
           {visibleRows.map((node) => (
