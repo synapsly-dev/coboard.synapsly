@@ -127,7 +127,7 @@ export function SettingsTab(): JSX.Element {
             id="registration-code"
             type="text"
             autoComplete="off"
-            placeholder="设置一个邀请码，分享给要加入的成员"
+            placeholder="邀请码"
             value={code}
             onChange={(e) => {
               setSaved(false);

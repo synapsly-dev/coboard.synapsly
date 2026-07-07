@@ -69,7 +69,8 @@ type NodeDialogState =
 export default function OrgPage(): JSX.Element {
   const { user } = useAuth();
   const [scope, setScope] = useState<OrgScope>(WHOLE_TEAM);
-  const [view, setView] = useState<'list' | 'chart'>('list');
+  // Default to the org chart (图谱); switch to 列表 to edit.
+  const [view, setView] = useState<'list' | 'chart'>('chart');
   const [editMode, setEditMode] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
@@ -216,12 +217,12 @@ export default function OrgPage(): JSX.Element {
           </DropdownMenu>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* View toggle: editable list vs read-only 图谱. */}
+            {/* View toggle (icon-only): read-only 图谱 vs editable 列表. */}
             <div className="inline-flex items-center rounded-md border border-border bg-background p-0.5">
               {(
                 [
-                  { key: 'list', label: '列表', icon: List },
                   { key: 'chart', label: '图谱', icon: GitBranch },
+                  { key: 'list', label: '列表', icon: List },
                 ] as const
               ).map(({ key, label, icon: Icon }) => (
                 <button
@@ -229,14 +230,16 @@ export default function OrgPage(): JSX.Element {
                   type="button"
                   onClick={() => setView(key)}
                   className={cn(
-                    'inline-flex items-center gap-1 rounded px-2.5 py-1 text-sm font-medium transition-colors',
+                    'inline-flex items-center justify-center rounded p-1.5 transition-colors',
                     view === key
                       ? 'bg-secondary text-foreground'
                       : 'text-muted-foreground hover:text-foreground',
                   )}
                   aria-pressed={view === key}
+                  aria-label={label}
+                  title={label}
                 >
-                  <Icon className="h-4 w-4" /> {label}
+                  <Icon className="h-4 w-4" />
                 </button>
               ))}
             </div>
@@ -277,12 +280,19 @@ export default function OrgPage(): JSX.Element {
           title="还没有架构"
           description={
             editable
-              ? '点击「新建根节点」，开始搭建团队分工与职位。'
+              ? '开始搭建团队分工与职位。'
               : '管理员或负责人尚未搭建该范围的团队架构。'
           }
           action={
-            isEditing ? (
-              <Button onClick={() => setNodeDialog({ mode: 'create', parentId: null })}>
+            editable ? (
+              <Button
+                onClick={() => {
+                  // Start building from either view: drop into the editable list.
+                  setView('list');
+                  setEditMode(true);
+                  setNodeDialog({ mode: 'create', parentId: null });
+                }}
+              >
                 <Plus className="h-4 w-4" /> 新建根节点
               </Button>
             ) : undefined

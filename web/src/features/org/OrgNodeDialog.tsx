@@ -50,7 +50,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
   const editingNode = mode === 'edit' ? props.node : null;
 
   const [title, setTitle] = useState('');
-  const [kind, setKind] = useState<OrgNodeKind>('unit');
+  const [kind, setKind] = useState<OrgNodeKind>('group');
   const [description, setDescription] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -118,7 +118,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
               id="org-node-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="如：工程部 / 前端组 / 后端负责人"
+              placeholder="名称"
               maxLength={80}
               autoFocus
               onKeyDown={(e) => {
@@ -152,7 +152,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
               id="org-node-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="职责、范围等备注"
+              placeholder="备注"
               rows={3}
               maxLength={500}
             />

@@ -9,11 +9,10 @@ import type { OrgNodeKind } from 'shared';
 export const ORG_KIND_LABELS: Record<OrgNodeKind, string> = {
   department: '部门',
   group: '小组',
-  unit: '单元',
 };
 
-/** Ordered kinds for the kind <Select> (department → group → unit). */
-export const ORG_KIND_OPTIONS: OrgNodeKind[] = ['department', 'group', 'unit'];
+/** Ordered kinds for the kind <Select> (department → group). */
+export const ORG_KIND_OPTIONS: OrgNodeKind[] = ['department', 'group'];
 
 /** Badge classes per kind (subtle, tokenized; distinct hue per level). */
 export const ORG_KIND_BADGE: Record<OrgNodeKind, string> = {
@@ -21,6 +20,4 @@ export const ORG_KIND_BADGE: Record<OrgNodeKind, string> = {
     'bg-primary/10 text-primary ring-1 ring-inset ring-primary/20',
   group:
     'bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400',
-  unit:
-    'bg-secondary text-muted-foreground ring-1 ring-inset ring-border',
 };

@@ -137,7 +137,7 @@ function CreateProjectDialog({
             </Label>
             <Input
               id="new-project-name"
-              placeholder="如：产品研发"
+              placeholder="项目名称"
               invalid={Boolean(errors.name)}
               {...register('name')}
             />
@@ -150,7 +150,7 @@ function CreateProjectDialog({
             </Label>
             <Input
               id="new-project-key"
-              placeholder="如：PROD"
+              placeholder="项目标识"
               autoCapitalize="characters"
               invalid={Boolean(errors.key)}
               {...register('key', {

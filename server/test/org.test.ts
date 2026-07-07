@@ -150,7 +150,7 @@ describe('org tree / 团队架构', () => {
       method: 'POST',
       url: '/api/org/nodes',
       headers: headers(cookie),
-      payload: { scope: 'all', kind: 'unit', title: '越权' },
+      payload: { scope: 'all', kind: 'group', title: '越权' },
     });
     expect(res.statusCode).toBe(403);
   });
@@ -179,7 +179,7 @@ describe('org tree / 团队架构', () => {
       method: 'POST',
       url: '/api/org/nodes',
       headers: headers(memberCookie),
-      payload: { scope: projectId, kind: 'unit', title: '越权' },
+      payload: { scope: projectId, kind: 'group', title: '越权' },
     });
     expect(denied.statusCode).toBe(403);
 
@@ -211,8 +211,8 @@ describe('org tree / 团队架构', () => {
   it('reorders siblings via move (beforeId)', async () => {
     const admin = await makeUser(ctx, 'admin');
     const cookie = await authCookie(ctx, admin.id);
-    const a = await createNode(ctx, cookie, { scope: 'all', kind: 'unit', title: 'A' });
-    const b = await createNode(ctx, cookie, { scope: 'all', kind: 'unit', title: 'B' });
+    const a = await createNode(ctx, cookie, { scope: 'all', kind: 'group', title: 'A' });
+    const b = await createNode(ctx, cookie, { scope: 'all', kind: 'group', title: 'B' });
 
     // Initially A before B (append order).
     let tree = await getTree(ctx, cookie, 'all');
@@ -322,14 +322,14 @@ describe('org tree / 团队架构', () => {
     const cookie = await authCookie(ctx, admin.id);
 
     // A whole-team root.
-    const root = await createNode(ctx, cookie, { scope: 'all', kind: 'unit', title: '全团队根' });
+    const root = await createNode(ctx, cookie, { scope: 'all', kind: 'group', title: '全团队根' });
 
     // Try to attach a project-scoped node under the whole-team parent → 400.
     const res = await ctx.app.inject({
       method: 'POST',
       url: '/api/org/nodes',
       headers: headers(cookie),
-      payload: { scope: projectId, parentId: root.node.id, kind: 'unit', title: '错配' },
+      payload: { scope: projectId, parentId: root.node.id, kind: 'group', title: '错配' },
     });
     expect(res.statusCode).toBe(400);
   });

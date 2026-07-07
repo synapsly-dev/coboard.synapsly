@@ -146,7 +146,7 @@ export function DeliverDialog({
               type="number"
               min={0}
               inputMode="numeric"
-              placeholder="如 8"
+              placeholder="点数"
               value={totalInput}
               onChange={(e) => handleTotalChange(e.target.value)}
             />

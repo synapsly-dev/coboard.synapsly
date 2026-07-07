@@ -62,7 +62,7 @@ export function CommentComposer({ taskId, members }: CommentComposerProps): JSX.
         value={body}
         onChange={(e) => setBody(e.target.value)}
         rows={3}
-        placeholder="写下评论…支持 Markdown 与 @ 提及"
+        placeholder="写下评论…"
         aria-label="评论内容"
         invalid={!!error}
         onKeyDown={(e) => {

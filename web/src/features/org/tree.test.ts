@@ -16,7 +16,7 @@ function node(id: string, parentId: string | null, rank: string, extra?: Partial
     id,
     projectId: null,
     parentId,
-    kind: 'unit',
+    kind: 'group',
     title: id,
     description: null,
     rank,

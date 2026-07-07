@@ -222,7 +222,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
             <Input
               id="task-title"
               autoFocus
-              placeholder="简要描述这个任务"
+              placeholder="任务标题"
               invalid={!!errors.title}
               {...register('title', { required: '标题不能为空' })}
             />
@@ -234,7 +234,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
             <Textarea
               id="task-desc"
               rows={4}
-              placeholder="补充背景、验收标准等"
+              placeholder="描述（可选）"
               {...register('description')}
             />
           </div>
@@ -263,7 +263,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
                 type="number"
                 min={0}
                 inputMode="numeric"
-                placeholder="如 3"
+                placeholder="点数"
                 {...register('points')}
               />
             </div>

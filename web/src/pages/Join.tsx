@@ -91,7 +91,7 @@ export default function JoinPage(): JSX.Element {
                     id="join-code"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="请输入邀请码"
+                    placeholder="邀请码"
                     autoFocus
                   />
                 </div>

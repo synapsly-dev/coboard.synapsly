@@ -506,7 +506,7 @@ export const orgNodes = pgTable(
     parentId: uuid('parent_id').references((): AnyPgColumn => orgNodes.id, {
       onDelete: 'cascade',
     }),
-    kind: orgNodeKindEnum('kind').notNull().default('unit'),
+    kind: orgNodeKindEnum('kind').notNull().default('group'),
     title: text('title').notNull(),
     description: text('description'),
     // Lexicographic ordering key among siblings (mirrors tasks.rank).

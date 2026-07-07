@@ -244,7 +244,7 @@ function AnnouncementForm({
         <Input
           id="announcement-title"
           autoFocus
-          placeholder="简要标题"
+          placeholder="标题"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           invalid={!title.trim() && error !== null}

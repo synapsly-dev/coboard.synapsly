@@ -61,7 +61,7 @@ export function TextDeliverySection({ task, permCtx }: TextDeliverySectionProps)
         <div className="flex flex-col gap-2">
           <Textarea
             rows={3}
-            placeholder="填写交付内容…支持 Markdown"
+            placeholder="填写交付内容…"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             invalid={!!error}

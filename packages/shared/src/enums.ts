@@ -68,10 +68,10 @@ export type IdeaStatus = (typeof ideaStatuses)[number];
 
 /**
  * Org-tree node kind (team org / division-of-labor page). Purely a visual/semantic
- * label — the tree nests to any depth regardless of kind. `department` and `group`
- * are the common levels; `unit` is a generic catch-all for anything else.
+ * label — the tree nests to any depth regardless of kind: `department` (部门) and
+ * `group` (小组) are the two levels.
  */
-export const orgNodeKinds = ['department', 'group', 'unit'] as const;
+export const orgNodeKinds = ['department', 'group'] as const;
 export const orgNodeKindSchema = z.enum(orgNodeKinds);
 export type OrgNodeKind = (typeof orgNodeKinds)[number];
 

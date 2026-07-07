@@ -252,7 +252,7 @@ function IdeaComposer({ taskId }: { taskId: string }): JSX.Element {
         value={body}
         onChange={(e) => setBody(e.target.value)}
         rows={3}
-        placeholder="分享一个想法或灵感…支持 Markdown"
+        placeholder="分享一个想法或灵感…"
         aria-label="想法内容"
         invalid={!!error}
         onKeyDown={(e) => {

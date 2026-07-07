@@ -131,7 +131,7 @@ function DevLoginBox({ redirectTo }: { redirectTo: string }): JSX.Element {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder="邮箱"
         />
         {error && <p className="text-xs text-destructive">{error}</p>}
         <Button

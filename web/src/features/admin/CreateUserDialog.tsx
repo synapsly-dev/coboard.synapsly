@@ -114,7 +114,7 @@ export function CreateUserDialog(): JSX.Element {
               id="new-user-email"
               type="email"
               autoComplete="off"
-              placeholder="name@example.com"
+              placeholder="邮箱"
               invalid={Boolean(errors.email)}
               {...register('email', {
                 onBlur: (e) => {
@@ -138,7 +138,7 @@ export function CreateUserDialog(): JSX.Element {
             <Input
               id="new-user-name"
               autoComplete="off"
-              placeholder="如：张三"
+              placeholder="昵称"
               invalid={Boolean(errors.displayName)}
               {...register('displayName')}
             />
