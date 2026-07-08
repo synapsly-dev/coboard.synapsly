@@ -102,55 +102,53 @@ export default function OrgPage(): JSX.Element {
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="mx-auto flex w-full max-w-4xl shrink-0 flex-col gap-3 px-4 pb-4 pt-6 sm:px-6">
-        <div className="flex items-center gap-2.5">
+      <div className="mx-auto flex w-full max-w-4xl shrink-0 flex-col px-4 pb-4 pt-6 sm:px-6">
+        <div className="flex items-start gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Network className="h-5 w-5" />
           </span>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-lg font-semibold tracking-tight">团队架构</h1>
             <p className="text-xs text-muted-foreground">团队分工与职位的可视化组织树</p>
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="ml-auto flex items-center gap-2">
-            {/* View toggle (icon-only): 图谱 vs 列表. */}
-            <div className="inline-flex items-center rounded-md border border-border bg-background p-0.5">
-              {(
-                [
-                  { key: 'chart', label: '图谱', icon: GitBranch },
-                  { key: 'list', label: '列表', icon: List },
-                ] as const
-              ).map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setView(key)}
-                  className={cn(
-                    'inline-flex items-center justify-center rounded p-1.5 transition-[background-color,color,transform] duration-base ease-standard active:scale-[0.94]',
-                    view === key
-                      ? 'bg-secondary text-foreground'
-                      : 'text-muted-foreground hover:-translate-y-0.5 hover:text-foreground',
-                  )}
-                  aria-pressed={view === key}
-                  aria-label={label}
-                  title={label}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
-              ))}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {/* View toggle (icon-only): 图谱 vs 列表. */}
+              <div className="inline-flex items-center rounded-md border border-border bg-background p-0.5">
+                {(
+                  [
+                    { key: 'chart', label: '图谱', icon: GitBranch },
+                    { key: 'list', label: '列表', icon: List },
+                  ] as const
+                ).map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setView(key)}
+                    className={cn(
+                      'inline-flex items-center justify-center rounded p-1.5 transition-[background-color,color,transform] duration-base ease-standard active:scale-[0.94]',
+                      view === key
+                        ? 'bg-secondary text-foreground'
+                        : 'text-muted-foreground hover:-translate-y-0.5 hover:text-foreground',
+                    )}
+                    aria-pressed={view === key}
+                    aria-label={label}
+                    title={label}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                ))}
+              </div>
+
+              {editable && (
+                <OrgAddNodeButton
+                  label="新建根部门"
+                  kind="department"
+                  onSelectKind={(kind) =>
+                    setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
+                  }
+                />
+              )}
             </div>
-
-            {editable && (
-              <OrgAddNodeButton
-                label="新建根部门"
-                kind="department"
-                onSelectKind={(kind) =>
-                  setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
-                }
-              />
-            )}
           </div>
         </div>
       </div>
