@@ -170,6 +170,7 @@ function ChartNode({
                 size="icon"
                 align="center"
                 className="h-7 w-7 border-border bg-card opacity-100 shadow-sm transition-[background-color,border-color,box-shadow,opacity,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md sm:pointer-events-none sm:opacity-0 sm:group-hover/chart-node:pointer-events-auto sm:group-hover/chart-node:opacity-100 sm:group-focus-within/chart-node:pointer-events-auto sm:group-focus-within/chart-node:opacity-100"
+                openClassName="pointer-events-auto opacity-100 sm:pointer-events-auto sm:opacity-100"
                 onSelectKind={(kind) => onAddChild(node, kind)}
                 onAddMember={onMembers ? () => onMembers(node) : undefined}
               />

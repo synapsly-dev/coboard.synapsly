@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronsUpDown, FolderKanban, GitBranch, List, Network, Users2 } from 'lucide-react';
+import { GitBranch, List, Network } from 'lucide-react';
 import type { MoveOrgNodeInput, OrgNode, OrgNodeKind, OrgScope } from 'shared';
 import {
   Button,
@@ -10,19 +10,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
   EmptyState,
   Spinner,
 } from '../components/ui';
 import { cn } from '../lib/utils';
 import { queryKeys } from '../lib/query';
 import { useAuth } from '../lib/auth-context';
-import { useProjects, useProjectMembers } from '../api/projects';
 import { usersApi } from '../api/users';
 import { useDeleteOrgNode, useMoveOrgNode, useOrgTree } from '../api/org';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
@@ -35,11 +28,10 @@ import { OrgMembersDialog, type OrgCandidate } from '../features/org/OrgMembersD
 
 /**
  * 团队架构 (/org) — a flexible, editable org tree showing division of labor and
- * positions. A scope switcher toggles between the whole-team tree and each project's
- * tree. Any member may view; a global admin (whole-team) or a project lead (project
- * tree) may edit directly. Per-node controls expose add / edit / members from the
- * chart and add / edit / reorder / delete from the list. Structure changes go
- * through button-based move primitives; SSE keeps everyone's view fresh.
+ * positions. Any member may view; global admins may edit directly. Per-node controls
+ * expose add / edit / members from the chart and add / edit / reorder / delete from
+ * the list. Structure changes go through button-based move primitives; SSE keeps
+ * everyone's view fresh.
  */
 
 const WHOLE_TEAM: OrgScope = 'all';
@@ -51,57 +43,37 @@ type NodeDialogState =
 
 export default function OrgPage(): JSX.Element {
   const { user } = useAuth();
-  const [scope, setScope] = useState<OrgScope>(WHOLE_TEAM);
-  // Default to the org chart (图谱); admins and project leads can edit in place.
+  // Default to the org chart (图谱); admins can edit in place.
   const [view, setView] = useState<'list' | 'chart'>('chart');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
   const [membersNode, setMembersNode] = useState<OrgNode | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrgTreeNode | null>(null);
 
-  const { data: projects } = useProjects();
-  const { data: nodes, isLoading, isError, refetch } = useOrgTree(scope);
+  const { data: nodes, isLoading, isError, refetch } = useOrgTree(WHOLE_TEAM);
 
-  // The current user's role in the scoped project (drives edit permission + is the
-  // candidate source for a project tree). Disabled for the whole-team scope.
-  const projectId = scope === WHOLE_TEAM ? undefined : scope;
-  const { data: projectMembers, isLoading: membersLoading } = useProjectMembers(projectId);
-  const myProjectRole = useMemo(
-    () => projectMembers?.find((m) => m.userId === user?.id)?.role,
-    [projectMembers, user?.id],
-  );
+  const editable = canEditOrgScope(user, WHOLE_TEAM, undefined);
 
-  const editable = canEditOrgScope(user, scope, myProjectRole);
-
-  // Candidate people for the members dialog: all users (whole-team, admin-only) or
-  // the project's members (project tree). Only fetched when it can actually be used.
+  // Candidate people for the members dialog: all active users in the workspace.
   const allUsersQuery = useQuery({
     queryKey: queryKeys.users(),
     queryFn: async ({ signal }) => (await usersApi.list(signal)).users,
-    enabled: editable && scope === WHOLE_TEAM,
+    enabled: editable,
   });
   const candidates: OrgCandidate[] = useMemo(() => {
-    if (scope === WHOLE_TEAM) {
-      return (allUsersQuery.data ?? [])
-        .filter((u) => u.isActive)
-        .map((u) => ({
-          id: u.id,
-          displayName: u.displayName,
-          avatarColor: u.avatarColor,
-          hasAvatar: u.hasAvatar,
-        }));
-    }
-    return (projectMembers ?? []).map((m) => ({
-      id: m.user.id,
-      displayName: m.user.displayName,
-      avatarColor: m.user.avatarColor,
-      hasAvatar: m.user.hasAvatar,
-    }));
-  }, [scope, allUsersQuery.data, projectMembers]);
-  const candidatesLoading = scope === WHOLE_TEAM ? allUsersQuery.isLoading : membersLoading;
+    return (allUsersQuery.data ?? [])
+      .filter((u) => u.isActive)
+      .map((u) => ({
+        id: u.id,
+        displayName: u.displayName,
+        avatarColor: u.avatarColor,
+        hasAvatar: u.hasAvatar,
+      }));
+  }, [allUsersQuery.data]);
+  const candidatesLoading = allUsersQuery.isLoading;
 
-  const moveMut = useMoveOrgNode(scope);
-  const deleteMut = useDeleteOrgNode(scope);
+  const moveMut = useMoveOrgNode(WHOLE_TEAM);
+  const deleteMut = useDeleteOrgNode(WHOLE_TEAM);
 
   const roots = useMemo(() => buildTree(nodes ?? []), [nodes]);
   const visibleRows = useMemo(() => flattenVisible(roots, collapsed), [roots, collapsed]);
@@ -127,9 +99,6 @@ export default function OrgPage(): JSX.Element {
     }
   };
 
-  const activeProject = projects?.find((p) => p.id === scope);
-  const scopeLabel = scope === WHOLE_TEAM ? '全团队' : (activeProject?.name ?? '项目架构');
-
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Header */}
@@ -145,57 +114,8 @@ export default function OrgPage(): JSX.Element {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Scope switcher */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex h-9 min-w-0 max-w-[16rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-[background-color,border-color,box-shadow,color,transform] duration-base ease-standard',
-                  'hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground hover:shadow-sm active:scale-[0.98] focus:outline-none',
-                  'data-[state=open]:bg-accent',
-                )}
-              >
-                {scope === WHOLE_TEAM ? (
-                  <Users2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <FolderKanban className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate">{scopeLabel}</span>
-                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[14rem]">
-              <DropdownMenuLabel>架构范围</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  setScope(WHOLE_TEAM);
-                }}
-                className={cn(scope === WHOLE_TEAM && 'bg-accent text-accent-foreground')}
-              >
-                <Users2 className="h-4 w-4 text-muted-foreground" /> 全团队
-              </DropdownMenuItem>
-              {(projects ?? []).filter((p) => !p.archived).length > 0 && <DropdownMenuSeparator />}
-              {(projects ?? [])
-                .filter((p) => !p.archived)
-                .map((p) => (
-                  <DropdownMenuItem
-                    key={p.id}
-                    onSelect={() => {
-                      setScope(p.id);
-                    }}
-                    className={cn(scope === p.id && 'bg-accent text-accent-foreground')}
-                  >
-                    <span className="truncate">{p.name}</span>
-                    <span className="ml-auto text-xs text-muted-foreground">{p.key}</span>
-                  </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
           <div className="ml-auto flex items-center gap-2">
-            {/* View toggle (icon-only): read-only 图谱 vs editable 列表. */}
+            {/* View toggle (icon-only): 图谱 vs 列表. */}
             <div className="inline-flex items-center rounded-md border border-border bg-background p-0.5">
               {(
                 [
@@ -262,9 +182,7 @@ export default function OrgPage(): JSX.Element {
             <EmptyState
               icon={Network}
               title="还没有架构"
-              description={
-                editable ? '开始搭建团队分工与职位。' : '管理员或负责人尚未搭建该范围的团队架构。'
-              }
+              description={editable ? '开始搭建团队分工与职位。' : '管理员尚未搭建团队架构。'}
               action={
                 editable ? (
                   <OrgAddNodeButton
@@ -314,7 +232,7 @@ export default function OrgPage(): JSX.Element {
       {nodeDialog?.mode === 'create' && (
         <OrgNodeDialog
           mode="create"
-          scope={scope}
+          scope={WHOLE_TEAM}
           parentId={nodeDialog.parentId}
           defaultKind={nodeDialog.defaultKind}
           open
@@ -324,7 +242,7 @@ export default function OrgPage(): JSX.Element {
       {nodeDialog?.mode === 'edit' && (
         <OrgNodeDialog
           mode="edit"
-          scope={scope}
+          scope={WHOLE_TEAM}
           node={nodeDialog.node}
           open
           onOpenChange={(o) => !o && setNodeDialog(null)}
@@ -334,7 +252,7 @@ export default function OrgPage(): JSX.Element {
       {/* Members dialog */}
       {membersNode && (
         <OrgMembersDialog
-          scope={scope}
+          scope={WHOLE_TEAM}
           node={membersNode}
           candidates={candidates}
           candidatesLoading={candidatesLoading}

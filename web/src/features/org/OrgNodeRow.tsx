@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -64,6 +65,7 @@ export function OrgNodeRow({
   const down = moveDownInput(nodes, node);
   const indent = indentInput(nodes, node);
   const outdent = outdentInput(nodes, node);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   return (
     <div
@@ -146,7 +148,12 @@ export function OrgNodeRow({
       </div>
 
       {editable && (
-        <div className="flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100',
+            addMenuOpen && 'sm:pointer-events-auto sm:translate-x-0 sm:opacity-100',
+          )}
+        >
           <OrgAddNodeButton
             variant="ghost"
             size="icon"
@@ -154,6 +161,7 @@ export function OrgNodeRow({
             title="加子节点"
             onSelectKind={(kind) => onAddChild(node, kind)}
             onAddMember={() => onMembers(node)}
+            onOpenChange={setAddMenuOpen}
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
