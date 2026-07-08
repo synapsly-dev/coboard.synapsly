@@ -23,7 +23,6 @@ import type { OrgTreeNode } from './tree';
 interface OrgChartProps {
   roots: OrgTreeNode[];
   editable?: boolean;
-  onAddRoot?: (kind: OrgNodeKind) => void;
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
@@ -32,7 +31,6 @@ interface OrgChartProps {
 export function OrgChart({
   roots,
   editable = false,
-  onAddRoot,
   onAddChild,
   onEdit,
   onMembers,
@@ -118,16 +116,6 @@ export function OrgChart({
       onPointerCancel={stopPan}
     >
       <div className="org-tree inline-block min-h-full min-w-full px-10 py-8">
-        {editable && onAddRoot && (
-          <div className="mb-5 flex justify-center">
-            <OrgAddNodeButton
-              label="新建根节点"
-              variant="outline"
-              onSelectKind={onAddRoot}
-              align="center"
-            />
-          </div>
-        )}
         <ul>
           {roots.map((root) => (
             <ChartNode
@@ -181,8 +169,9 @@ function ChartNode({
                 variant="outline"
                 size="icon"
                 align="center"
-                className="h-7 w-7 border-border bg-card shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md"
+                className="h-7 w-7 border-border bg-card opacity-100 shadow-sm transition-[background-color,border-color,box-shadow,opacity,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md sm:pointer-events-none sm:opacity-0 sm:group-hover/chart-node:pointer-events-auto sm:group-hover/chart-node:opacity-100 sm:group-focus-within/chart-node:pointer-events-auto sm:group-focus-within/chart-node:opacity-100"
                 onSelectKind={(kind) => onAddChild(node, kind)}
+                onAddMember={onMembers ? () => onMembers(node) : undefined}
               />
             )}
             {hasChildren && (

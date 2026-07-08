@@ -1,4 +1,5 @@
-import { Building2, Plus, UsersRound } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Building2, Plus, UserPlus, UsersRound } from 'lucide-react';
 import type { OrgNodeKind } from 'shared';
 import {
   Button,
@@ -7,12 +8,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../components/ui';
 import { cn } from '../../lib/utils';
 
 interface OrgAddNodeButtonProps {
   onSelectKind: (kind: OrgNodeKind) => void;
+  onAddMember?: () => void;
   label?: string;
   title?: string;
   variant?: ButtonVariant;
@@ -24,6 +27,7 @@ interface OrgAddNodeButtonProps {
 
 export function OrgAddNodeButton({
   onSelectKind,
+  onAddMember,
   label,
   title = '新增节点',
   variant = label ? 'primary' : 'ghost',
@@ -32,10 +36,21 @@ export function OrgAddNodeButton({
   className,
   contentClassName,
 }: OrgAddNodeButtonProps): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const handleOpenChange = (nextOpen: boolean): void => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      window.setTimeout(() => triggerRef.current?.blur(), 0);
+    }
+  };
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
+          ref={triggerRef}
           variant={variant}
           size={size}
           className={cn(label ? undefined : 'h-7 w-7 rounded-full', className)}
@@ -55,6 +70,15 @@ export function OrgAddNodeButton({
           <UsersRound className="h-4 w-4 text-muted-foreground" />
           新增小组
         </DropdownMenuItem>
+        {onAddMember && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onAddMember}>
+              <UserPlus className="h-4 w-4 text-muted-foreground" />
+              加入员工
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

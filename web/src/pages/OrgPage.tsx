@@ -222,7 +222,7 @@ export default function OrgPage(): JSX.Element {
               ))}
             </div>
 
-            {editable && view === 'list' && (
+            {editable && (
               <OrgAddNodeButton
                 label="新建根节点"
                 onSelectKind={(kind) =>
@@ -281,9 +281,6 @@ export default function OrgPage(): JSX.Element {
           <OrgChart
             roots={roots}
             editable={editable}
-            onAddRoot={(kind) =>
-              setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
-            }
             onAddChild={(node, kind) =>
               setNodeDialog({ mode: 'create', parentId: node.id, defaultKind: kind })
             }

@@ -146,13 +146,14 @@ export function OrgNodeRow({
       </div>
 
       {editable && (
-        <div className="flex shrink-0 items-center gap-1 opacity-70 transition-[opacity,transform] duration-base ease-standard group-hover/node:translate-x-0 group-hover/node:opacity-100 sm:translate-x-1">
+        <div className="flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
           <OrgAddNodeButton
             variant="ghost"
             size="icon"
             className="h-7 w-7"
             title="加子节点"
             onSelectKind={(kind) => onAddChild(node, kind)}
+            onAddMember={() => onMembers(node)}
           />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
