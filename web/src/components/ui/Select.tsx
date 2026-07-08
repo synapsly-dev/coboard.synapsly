@@ -13,8 +13,9 @@ import { cn } from '../../lib/utils';
 export const Select = SelectPrimitive.Root;
 export const SelectValue = SelectPrimitive.Value;
 
-export interface SelectTriggerProps
-  extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> {
+export interface SelectTriggerProps extends React.ComponentPropsWithoutRef<
+  typeof SelectPrimitive.Trigger
+> {
   invalid?: boolean;
 }
 
@@ -28,7 +29,7 @@ export const SelectTrigger = forwardRef<
       aria-invalid={invalid || undefined}
       className={cn(
         // text-base on mobile keeps the font >=16px so iOS Safari doesn't auto-zoom on focus; h-10 is a comfier touch height.
-        'group flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1 text-base shadow-sm transition-colors sm:h-9 sm:text-sm',
+        'group flex h-10 w-full items-center justify-between gap-2 rounded-md border bg-background px-3 py-1 text-base shadow-sm transition-[background-color,border-color,box-shadow,color] duration-base ease-standard sm:h-9 sm:text-sm',
         'placeholder:text-muted-foreground data-[placeholder]:text-muted-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
@@ -56,9 +57,11 @@ export const SelectContent = forwardRef<
         position={position}
         className={cn(
           'z-50 max-h-72 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg',
+          'origin-[var(--radix-select-content-transform-origin)] will-change-[opacity,transform]',
           'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           'focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
-          position === 'popper' && 'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
+          position === 'popper' &&
+            'data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1',
           className,
         )}
         {...props}
@@ -85,8 +88,8 @@ export const SelectItem = forwardRef<
       ref={ref}
       className={cn(
         // Taller rows on touch (phones) for comfortable tapping; compact from sm up.
-        'relative flex cursor-pointer select-none items-center rounded-md py-2.5 pl-7 pr-2 text-sm outline-none transition-colors sm:py-1.5',
-        'focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'relative flex cursor-pointer select-none items-center rounded-md py-2.5 pl-7 pr-2 text-sm outline-none transition-[background-color,color,transform] duration-fast ease-standard hover:translate-x-0.5 focus:translate-x-0.5 sm:py-1.5',
+        'hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}

@@ -41,14 +41,11 @@ function readPreference(): ThemePreference {
   } catch {
     /* ignore */
   }
-  return 'system';
+  return 'light';
 }
 
 function systemPrefersDark(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-color-scheme: dark)').matches
-  );
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }): JSX.Element {

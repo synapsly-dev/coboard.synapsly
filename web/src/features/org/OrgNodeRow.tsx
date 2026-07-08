@@ -8,11 +8,10 @@ import {
   MoveDown,
   MoveUp,
   Pencil,
-  Plus,
   Trash2,
   Users,
 } from 'lucide-react';
-import type { MoveOrgNodeInput, OrgNode } from 'shared';
+import type { MoveOrgNodeInput, OrgNode, OrgNodeKind } from 'shared';
 import {
   Avatar,
   Button,
@@ -24,6 +23,7 @@ import {
 } from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
 import { ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
+import { OrgAddNodeButton } from './OrgAddNodeButton';
 import { indentInput, moveDownInput, moveUpInput, outdentInput, type OrgTreeNode } from './tree';
 
 interface OrgNodeRowProps {
@@ -33,7 +33,7 @@ interface OrgNodeRowProps {
   editable: boolean;
   collapsed: boolean;
   onToggleCollapse: (id: string) => void;
-  onAddChild: (node: OrgNode) => void;
+  onAddChild: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit: (node: OrgNode) => void;
   onMembers: (node: OrgNode) => void;
   onDelete: (node: OrgTreeNode) => void;
@@ -67,7 +67,7 @@ export function OrgNodeRow({
 
   return (
     <div
-      className="group/node relative flex items-start gap-2 rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm transition-colors hover:border-border/80 hover:bg-accent/30"
+      className="group/node relative flex items-start gap-2 rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:border-border/80 hover:bg-accent/30 hover:shadow-md"
       style={{ marginLeft: `${node.depth * 1.5}rem` }}
     >
       {/* Collapse toggle (or a spacer to keep titles aligned). */}
@@ -146,16 +146,14 @@ export function OrgNodeRow({
       </div>
 
       {editable && (
-        <div className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover/node:opacity-100">
-          <Button
+        <div className="flex shrink-0 items-center gap-1 opacity-70 transition-[opacity,transform] duration-base ease-standard group-hover/node:translate-x-0 group-hover/node:opacity-100 sm:translate-x-1">
+          <OrgAddNodeButton
             variant="ghost"
             size="icon"
             className="h-7 w-7"
             title="加子节点"
-            onClick={() => onAddChild(node)}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+            onSelectKind={(kind) => onAddChild(node, kind)}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">
@@ -176,8 +174,12 @@ export function OrgNodeRow({
               <DropdownMenuItem disabled={!down} onSelect={() => down && onMove(node.id, down)}>
                 <MoveDown className="h-4 w-4 text-muted-foreground" /> 下移
               </DropdownMenuItem>
-              <DropdownMenuItem disabled={!indent} onSelect={() => indent && onMove(node.id, indent)}>
-                <IndentIncrease className="h-4 w-4 text-muted-foreground" /> 缩进（成为上一项的子级）
+              <DropdownMenuItem
+                disabled={!indent}
+                onSelect={() => indent && onMove(node.id, indent)}
+              >
+                <IndentIncrease className="h-4 w-4 text-muted-foreground" />{' '}
+                缩进（成为上一项的子级）
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={!outdent}

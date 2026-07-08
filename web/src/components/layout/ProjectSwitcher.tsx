@@ -33,11 +33,7 @@ export function ProjectSwitcher(): JSX.Element {
   const active = projects?.find((p) => p.id === projectId);
   const visibleProjects = projects?.filter((p) => !p.archived) ?? [];
 
-  const label = isAll
-    ? '全部项目'
-    : isLoading
-      ? '加载项目…'
-      : (active?.name ?? '选择项目');
+  const label = isAll ? '全部项目' : isLoading ? '加载项目…' : (active?.name ?? '选择项目');
 
   return (
     <DropdownMenu open={menu.open} onOpenChange={menu.onOpenChange} modal={false}>
@@ -47,8 +43,8 @@ export function ProjectSwitcher(): JSX.Element {
           className={cn(
             // Constrain tightly on phones so the nav bar never overflows; the label
             // truncates. sm+ allows a more generous width.
-            'group inline-flex h-9 min-w-0 max-w-[9rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors sm:max-w-[16rem]',
-            'hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
+            'group inline-flex h-9 min-w-0 max-w-[9rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-[background-color,border-color,box-shadow,color,transform] duration-base ease-standard sm:max-w-[16rem]',
+            'hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground hover:shadow-sm active:scale-[0.98] focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
             // Reflect the open state so the trigger reads as connected to its menu.
             'data-[state=open]:bg-accent data-[state=open]:text-accent-foreground',
           )}
@@ -61,7 +57,7 @@ export function ProjectSwitcher(): JSX.Element {
           )}
           <span className="truncate">{label}</span>
           <ChevronsUpDown
-            className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-data-[state=open]:text-foreground"
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-[color,transform] duration-base ease-standard group-data-[state=open]:rotate-180 group-data-[state=open]:text-foreground"
             aria-hidden
           />
         </button>

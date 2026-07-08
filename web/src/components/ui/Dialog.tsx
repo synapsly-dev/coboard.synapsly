@@ -11,8 +11,9 @@ import { Overlay } from './Overlay';
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
 
-export interface DialogContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+export interface DialogContentProps extends React.ComponentPropsWithoutRef<
+  typeof DialogPrimitive.Content
+> {
   /** Hide the default top-right close button. */
   hideClose?: boolean;
 }
@@ -42,7 +43,7 @@ export const DialogContent = forwardRef<
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
-            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-6 sm:w-6"
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-base ease-standard hover:bg-accent hover:text-accent-foreground active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-6 sm:w-6"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -53,11 +54,17 @@ export const DialogContent = forwardRef<
   );
 });
 
-export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
+export function DialogHeader({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return <div className={cn('flex flex-col gap-1.5 text-left', className)} {...props} />;
 }
 
-export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
+export function DialogFooter({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
     <div
       className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}

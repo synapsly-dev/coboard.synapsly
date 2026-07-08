@@ -1,18 +1,42 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronDown, ChevronRight, Crown } from 'lucide-react';
-import type { OrgNodeMember } from 'shared';
-import { Avatar } from '../../components/ui';
+import { ChevronDown, ChevronRight, Crown, MoreHorizontal, Pencil, Users } from 'lucide-react';
+import type { OrgNode, OrgNodeKind, OrgNodeMember } from 'shared';
+import {
+  Avatar,
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
 import { ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
+import { OrgAddNodeButton } from './OrgAddNodeButton';
 import type { OrgTreeNode } from './tree';
 
 /**
- * Read-only org chart (团队架构 图谱视图). The viewport behaves like a draggable
+ * Org chart (团队架构 图谱视图). The viewport behaves like a draggable
  * canvas: wheel/trackpad scrolling still works, and pointer-drag pans the whole
  * diagram. Unit cards show one负责人; ordinary members are rendered as connected
  * person leaf nodes underneath the unit.
  */
-export function OrgChart({ roots }: { roots: OrgTreeNode[] }): JSX.Element {
+interface OrgChartProps {
+  roots: OrgTreeNode[];
+  editable?: boolean;
+  onAddRoot?: (kind: OrgNodeKind) => void;
+  onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
+  onEdit?: (node: OrgNode) => void;
+  onMembers?: (node: OrgNode) => void;
+}
+
+export function OrgChart({
+  roots,
+  editable = false,
+  onAddRoot,
+  onAddChild,
+  onEdit,
+  onMembers,
+}: OrgChartProps): JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     pointerId: number;
@@ -94,9 +118,28 @@ export function OrgChart({ roots }: { roots: OrgTreeNode[] }): JSX.Element {
       onPointerCancel={stopPan}
     >
       <div className="org-tree inline-block min-h-full min-w-full px-10 py-8">
+        {editable && onAddRoot && (
+          <div className="mb-5 flex justify-center">
+            <OrgAddNodeButton
+              label="新建根节点"
+              variant="outline"
+              onSelectKind={onAddRoot}
+              align="center"
+            />
+          </div>
+        )}
         <ul>
           {roots.map((root) => (
-            <ChartNode key={root.id} node={root} collapsed={collapsed} onToggle={toggle} />
+            <ChartNode
+              key={root.id}
+              node={root}
+              collapsed={collapsed}
+              editable={editable}
+              onToggle={toggle}
+              onAddChild={onAddChild}
+              onEdit={onEdit}
+              onMembers={onMembers}
+            />
           ))}
         </ul>
       </div>
@@ -107,11 +150,19 @@ export function OrgChart({ roots }: { roots: OrgTreeNode[] }): JSX.Element {
 function ChartNode({
   node,
   collapsed,
+  editable,
   onToggle,
+  onAddChild,
+  onEdit,
+  onMembers,
 }: {
   node: OrgTreeNode;
   collapsed: Set<string>;
+  editable: boolean;
   onToggle: (id: string) => void;
+  onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
+  onEdit?: (node: OrgNode) => void;
+  onMembers?: (node: OrgNode) => void;
 }): JSX.Element {
   const people = peopleChildren(node);
   const childCount = node.children.length + people.length;
@@ -120,31 +171,54 @@ function ChartNode({
 
   return (
     <li>
-      <div className="inline-flex flex-col items-center">
-        <NodeCard node={node} />
-        {hasChildren && (
-          <button
-            type="button"
-            onClick={() => onToggle(node.id)}
-            className="mt-1.5 inline-flex items-center gap-0.5 rounded-full border border-border bg-card px-2 py-0.5 text-[11px] text-muted-foreground shadow-sm transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={isCollapsed ? '展开下级' : '收起下级'}
-          >
-            {isCollapsed ? (
-              <>
-                <ChevronRight className="h-3 w-3" />
-                {childCount}
-              </>
-            ) : (
-              <ChevronDown className="h-3 w-3" />
+      <div className="group/chart-node inline-flex flex-col items-center">
+        <NodeCard node={node} editable={editable} onEdit={onEdit} onMembers={onMembers} />
+        {(editable || hasChildren) && (
+          <div className="mt-1.5 inline-flex min-h-7 items-center gap-1">
+            {editable && onAddChild && (
+              <OrgAddNodeButton
+                title={`在${node.title}下新增`}
+                variant="outline"
+                size="icon"
+                align="center"
+                className="h-7 w-7 border-border bg-card shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md"
+                onSelectKind={(kind) => onAddChild(node, kind)}
+              />
             )}
-          </button>
+            {hasChildren && (
+              <button
+                type="button"
+                onClick={() => onToggle(node.id)}
+                className="inline-flex h-7 items-center gap-0.5 rounded-full border border-border bg-card px-2 text-[11px] text-muted-foreground shadow-sm transition-[background-color,color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:bg-accent hover:text-foreground hover:shadow-md"
+                aria-label={isCollapsed ? '展开下级' : '收起下级'}
+              >
+                {isCollapsed ? (
+                  <>
+                    <ChevronRight className="h-3 w-3" />
+                    {childCount}
+                  </>
+                ) : (
+                  <ChevronDown className="h-3 w-3" />
+                )}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
       {hasChildren && !isCollapsed && (
         <ul>
           {node.children.map((child) => (
-            <ChartNode key={child.id} node={child} collapsed={collapsed} onToggle={onToggle} />
+            <ChartNode
+              key={child.id}
+              node={child}
+              collapsed={collapsed}
+              editable={editable}
+              onToggle={onToggle}
+              onAddChild={onAddChild}
+              onEdit={onEdit}
+              onMembers={onMembers}
+            />
           ))}
           {people.map((person) => (
             <PersonNode key={person.userId} person={person} />
@@ -155,11 +229,52 @@ function ChartNode({
   );
 }
 
-/** A single unit card — kind badge, title, and the one负责人. Purely presentational. */
-function NodeCard({ node }: { node: OrgTreeNode }): JSX.Element {
+/** A single unit card — kind badge, title, and the one负责人. */
+function NodeCard({
+  node,
+  editable,
+  onEdit,
+  onMembers,
+}: {
+  node: OrgTreeNode;
+  editable: boolean;
+  onEdit?: (node: OrgNode) => void;
+  onMembers?: (node: OrgNode) => void;
+}): JSX.Element {
   const lead = node.leads[0];
   return (
-    <div className="inline-flex min-w-[9rem] max-w-[15rem] flex-col items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-center shadow-sm">
+    <div className="group/card relative inline-flex min-w-[9rem] max-w-[15rem] flex-col items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-center shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-1 hover:border-border/80 hover:shadow-md">
+      {editable && (onEdit || onMembers) && (
+        <div className="absolute -right-2 -top-2 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:translate-y-1 sm:opacity-0 sm:group-hover/card:translate-y-0 sm:group-hover/card:opacity-100 sm:group-focus-within/card:translate-y-0 sm:group-focus-within/card:opacity-100">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7 rounded-full bg-card shadow-sm"
+                title="节点操作"
+                aria-label="节点操作"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[9rem]">
+              {onEdit && (
+                <DropdownMenuItem onSelect={() => onEdit(node)}>
+                  <Pencil className="h-4 w-4 text-muted-foreground" />
+                  编辑
+                </DropdownMenuItem>
+              )}
+              {onMembers && (
+                <DropdownMenuItem onSelect={() => onMembers(node)}>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  负责人 / 成员
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <span
         className={cn(
           'rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none',
@@ -185,7 +300,7 @@ function NodeCard({ node }: { node: OrgTreeNode }): JSX.Element {
 function PersonNode({ person }: { person: OrgNodeMember }): JSX.Element {
   return (
     <li>
-      <div className="inline-flex min-w-[7.5rem] max-w-[12rem] items-center gap-2 rounded-lg border border-border bg-secondary/60 px-3 py-2 text-left shadow-sm">
+      <div className="inline-flex min-w-[7.5rem] max-w-[12rem] items-center gap-2 rounded-lg border border-border bg-secondary/60 px-3 py-2 text-left shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md">
         <PersonAvatar person={person} />
         <div className="min-w-0">
           <p className="truncate text-xs font-medium text-foreground">{person.displayName}</p>

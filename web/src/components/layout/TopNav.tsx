@@ -48,8 +48,12 @@ export function TopNav(): JSX.Element {
     <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
       <div className="flex h-14 items-center gap-2 px-4 sm:gap-4 sm:px-6">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2" aria-label="Coboard 首页">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <Link
+          to="/"
+          className="group flex items-center gap-2 transition-[opacity,transform] duration-base ease-standard active:scale-[0.98]"
+          aria-label="Coboard 首页"
+        >
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform duration-base ease-standard group-hover:-translate-y-0.5">
             <SynapseMark className="h-4 w-4" />
           </span>
           <span className="hidden text-base font-semibold tracking-tight sm:inline">Coboard</span>
@@ -70,10 +74,10 @@ export function TopNav(): JSX.Element {
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-[background-color,color,transform] duration-base ease-standard active:scale-[0.98]',
                     isActive
                       ? 'bg-secondary text-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                      : 'text-muted-foreground hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground',
                   )
                 }
               >
@@ -97,7 +101,7 @@ export function TopNav(): JSX.Element {
               <DropdownMenuTrigger asChild {...userMenu.triggerProps}>
                 <button
                   type="button"
-                  className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full p-1.5 transition-colors hover:bg-accent focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-0 sm:min-w-0 sm:p-0.5"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-full p-1.5 transition-[background-color,transform] duration-base ease-standard hover:-translate-y-0.5 hover:bg-accent active:scale-[0.96] focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-0 sm:min-w-0 sm:p-0.5"
                   aria-label="用户菜单"
                 >
                   <Avatar
@@ -110,7 +114,9 @@ export function TopNav(): JSX.Element {
               </DropdownMenuTrigger>
               <DropdownMenuContent {...userMenu.contentProps}>
                 <DropdownMenuLabel className="flex max-w-[16rem] flex-col gap-0.5">
-                  <span className="truncate text-sm font-medium text-foreground">{user.displayName}</span>
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {user.displayName}
+                  </span>
                   <span className="truncate text-xs font-normal text-muted-foreground">
                     {user.email}
                   </span>

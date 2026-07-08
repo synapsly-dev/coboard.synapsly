@@ -1,17 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  ChevronsUpDown,
-  FolderKanban,
-  GitBranch,
-  List,
-  Network,
-  Plus,
-  Users2,
-} from 'lucide-react';
-import type { MoveOrgNodeInput, OrgNode, OrgScope } from 'shared';
+import { ChevronsUpDown, FolderKanban, GitBranch, List, Network, Users2 } from 'lucide-react';
+import type { MoveOrgNodeInput, OrgNode, OrgNodeKind, OrgScope } from 'shared';
 import {
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -20,58 +18,42 @@ import {
   DropdownMenuTrigger,
   EmptyState,
   Spinner,
-  Switch,
 } from '../components/ui';
 import { cn } from '../lib/utils';
 import { queryKeys } from '../lib/query';
 import { useAuth } from '../lib/auth-context';
 import { useProjects, useProjectMembers } from '../api/projects';
 import { usersApi } from '../api/users';
-import {
-  useDeleteOrgNode,
-  useMoveOrgNode,
-  useOrgTree,
-} from '../api/org';
+import { useDeleteOrgNode, useMoveOrgNode, useOrgTree } from '../api/org';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
 import { canEditOrgScope } from '../features/org/permissions';
 import { OrgChart } from '../features/org/OrgChart';
+import { OrgAddNodeButton } from '../features/org/OrgAddNodeButton';
 import { OrgNodeRow } from '../features/org/OrgNodeRow';
 import { OrgNodeDialog } from '../features/org/OrgNodeDialog';
-import {
-  OrgMembersDialog,
-  type OrgCandidate,
-} from '../features/org/OrgMembersDialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui';
+import { OrgMembersDialog, type OrgCandidate } from '../features/org/OrgMembersDialog';
 
 /**
  * 团队架构 (/org) — a flexible, editable org tree showing division of labor and
  * positions. A scope switcher toggles between the whole-team tree and each project's
  * tree. Any member may view; a global admin (whole-team) or a project lead (project
- * tree) may edit — an 「编辑」 toggle then reveals per-node controls (add / edit /
- * reorder / members / delete). Structure changes go through the button-based move
- * primitives; SSE keeps everyone's view fresh.
+ * tree) may edit directly. Per-node controls expose add / edit / members from the
+ * chart and add / edit / reorder / delete from the list. Structure changes go
+ * through button-based move primitives; SSE keeps everyone's view fresh.
  */
 
 const WHOLE_TEAM: OrgScope = 'all';
 
 type NodeDialogState =
-  | { mode: 'create'; parentId: string | null }
+  | { mode: 'create'; parentId: string | null; defaultKind?: OrgNodeKind }
   | { mode: 'edit'; node: OrgNode }
   | null;
 
 export default function OrgPage(): JSX.Element {
   const { user } = useAuth();
   const [scope, setScope] = useState<OrgScope>(WHOLE_TEAM);
-  // Default to the org chart (图谱); switch to 列表 to edit.
+  // Default to the org chart (图谱); admins and project leads can edit in place.
   const [view, setView] = useState<'list' | 'chart'>('chart');
-  const [editMode, setEditMode] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
   const [membersNode, setMembersNode] = useState<OrgNode | null>(null);
@@ -90,15 +72,13 @@ export default function OrgPage(): JSX.Element {
   );
 
   const editable = canEditOrgScope(user, scope, myProjectRole);
-  // The chart view is always read-only — editing lives in the list view.
-  const isEditing = editable && editMode && view === 'list';
 
   // Candidate people for the members dialog: all users (whole-team, admin-only) or
   // the project's members (project tree). Only fetched when it can actually be used.
   const allUsersQuery = useQuery({
     queryKey: queryKeys.users(),
     queryFn: async ({ signal }) => (await usersApi.list(signal)).users,
-    enabled: isEditing && scope === WHOLE_TEAM,
+    enabled: editable && scope === WHOLE_TEAM,
   });
   const candidates: OrgCandidate[] = useMemo(() => {
     if (scope === WHOLE_TEAM) {
@@ -171,8 +151,8 @@ export default function OrgPage(): JSX.Element {
               <button
                 type="button"
                 className={cn(
-                  'inline-flex h-9 min-w-0 max-w-[16rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors',
-                  'hover:bg-accent hover:text-accent-foreground focus:outline-none',
+                  'inline-flex h-9 min-w-0 max-w-[16rem] items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium transition-[background-color,border-color,box-shadow,color,transform] duration-base ease-standard',
+                  'hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground hover:shadow-sm active:scale-[0.98] focus:outline-none',
                   'data-[state=open]:bg-accent',
                 )}
               >
@@ -191,7 +171,6 @@ export default function OrgPage(): JSX.Element {
               <DropdownMenuItem
                 onSelect={() => {
                   setScope(WHOLE_TEAM);
-                  setEditMode(false);
                 }}
                 className={cn(scope === WHOLE_TEAM && 'bg-accent text-accent-foreground')}
               >
@@ -205,7 +184,6 @@ export default function OrgPage(): JSX.Element {
                     key={p.id}
                     onSelect={() => {
                       setScope(p.id);
-                      setEditMode(false);
                     }}
                     className={cn(scope === p.id && 'bg-accent text-accent-foreground')}
                   >
@@ -230,10 +208,10 @@ export default function OrgPage(): JSX.Element {
                   type="button"
                   onClick={() => setView(key)}
                   className={cn(
-                    'inline-flex items-center justify-center rounded p-1.5 transition-colors',
+                    'inline-flex items-center justify-center rounded p-1.5 transition-[background-color,color,transform] duration-base ease-standard active:scale-[0.94]',
                     view === key
                       ? 'bg-secondary text-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
+                      : 'text-muted-foreground hover:-translate-y-0.5 hover:text-foreground',
                   )}
                   aria-pressed={view === key}
                   aria-label={label}
@@ -244,16 +222,13 @@ export default function OrgPage(): JSX.Element {
               ))}
             </div>
 
-            {view === 'list' && editable && (
-              <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-muted-foreground">
-                编辑
-                <Switch checked={editMode} onCheckedChange={setEditMode} />
-              </label>
-            )}
-            {isEditing && (
-              <Button size="sm" onClick={() => setNodeDialog({ mode: 'create', parentId: null })}>
-                <Plus className="h-4 w-4" /> 新建根节点
-              </Button>
+            {editable && view === 'list' && (
+              <OrgAddNodeButton
+                label="新建根节点"
+                onSelectKind={(kind) =>
+                  setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
+                }
+              />
             )}
           </div>
         </div>
@@ -292,22 +267,29 @@ export default function OrgPage(): JSX.Element {
               }
               action={
                 editable ? (
-                  <Button
-                    onClick={() => {
-                      // Start building from either view: drop into the editable list.
-                      setView('list');
-                      setEditMode(true);
-                      setNodeDialog({ mode: 'create', parentId: null });
-                    }}
-                  >
-                    <Plus className="h-4 w-4" /> 新建根节点
-                  </Button>
+                  <OrgAddNodeButton
+                    label="新建根节点"
+                    onSelectKind={(kind) =>
+                      setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
+                    }
+                  />
                 ) : undefined
               }
             />
           </div>
         ) : view === 'chart' ? (
-          <OrgChart roots={roots} />
+          <OrgChart
+            roots={roots}
+            editable={editable}
+            onAddRoot={(kind) =>
+              setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
+            }
+            onAddChild={(node, kind) =>
+              setNodeDialog({ mode: 'create', parentId: node.id, defaultKind: kind })
+            }
+            onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
+            onMembers={(node) => setMembersNode(node)}
+          />
         ) : (
           <div className="mx-auto w-full max-w-4xl space-y-1.5 px-4 pb-6 sm:px-6">
             {visibleRows.map((node) => (
@@ -315,10 +297,12 @@ export default function OrgPage(): JSX.Element {
                 key={node.id}
                 node={node}
                 nodes={nodes ?? []}
-                editable={isEditing}
+                editable={editable}
                 collapsed={collapsed.has(node.id)}
                 onToggleCollapse={toggleCollapse}
-                onAddChild={(n) => setNodeDialog({ mode: 'create', parentId: n.id })}
+                onAddChild={(n, kind) =>
+                  setNodeDialog({ mode: 'create', parentId: n.id, defaultKind: kind })
+                }
                 onEdit={(n) => setNodeDialog({ mode: 'edit', node: n })}
                 onMembers={(n) => setMembersNode(n)}
                 onDelete={(n) => setDeleteTarget(n)}
@@ -335,6 +319,7 @@ export default function OrgPage(): JSX.Element {
           mode="create"
           scope={scope}
           parentId={nodeDialog.parentId}
+          defaultKind={nodeDialog.defaultKind}
           open
           onOpenChange={(o) => !o && setNodeDialog(null)}
         />

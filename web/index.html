@@ -5,17 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#0c0c0d" />
+    <meta name="theme-color" content="#fafaf8" />
     <title>Coboard · 团队协作 · by Synapsly</title>
     <!-- Apply the saved theme before first paint to avoid a flash. -->
     <script>
       (function () {
         try {
-          var p = localStorage.getItem('coboard-theme') || 'system';
+          var p = localStorage.getItem('coboard-theme') || 'light';
           var dark =
             p === 'dark' ||
-            (p === 'system' &&
-              window.matchMedia('(prefers-color-scheme: dark)').matches);
+            (p === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           var el = document.documentElement;
           el.dataset.theme = dark ? 'dark' : 'light';
           if (dark) el.classList.add('dark');

@@ -11,8 +11,9 @@ import { Overlay } from './Overlay';
 export const Drawer = DialogPrimitive.Root;
 export const DrawerTrigger = DialogPrimitive.Trigger;
 
-export interface DrawerContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+export interface DrawerContentProps extends React.ComponentPropsWithoutRef<
+  typeof DialogPrimitive.Content
+> {
   /** Drawer width; defaults to a comfortable detail-panel size. */
   widthClassName?: string;
   hideClose?: boolean;
@@ -41,7 +42,7 @@ export const DrawerContent = forwardRef<
         {children}
         {!hideClose && (
           <DialogPrimitive.Close
-            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-6 sm:w-6"
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color,transform] duration-base ease-standard hover:bg-accent hover:text-accent-foreground active:scale-[0.94] focus-visible:ring-2 focus-visible:ring-ring sm:right-4 sm:top-4 sm:h-6 sm:w-6"
             aria-label="关闭"
           >
             <X className="h-4 w-4" />
@@ -52,7 +53,10 @@ export const DrawerContent = forwardRef<
   );
 });
 
-export function DrawerHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
+export function DrawerHeader({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
     <div
       className={cn('flex flex-col gap-1 border-b border-border px-6 py-4', className)}
@@ -61,13 +65,19 @@ export function DrawerHeader({ className, ...props }: React.HTMLAttributes<HTMLD
   );
 }
 
-export function DrawerBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
+export function DrawerBody({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
     <div className={cn('scrollbar-thin flex-1 overflow-y-auto px-6 py-4', className)} {...props} />
   );
 }
 
-export function DrawerFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
+export function DrawerFooter({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>): JSX.Element {
   return (
     <div
       className={cn(

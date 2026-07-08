@@ -32,6 +32,8 @@ interface CreateProps {
   scope: OrgScope;
   /** Parent to append under; null creates a new root. */
   parentId: string | null;
+  /** Optional fast-path kind selected from a "+" menu before the form opens. */
+  defaultKind?: OrgNodeKind;
 }
 
 interface EditProps {
@@ -69,7 +71,11 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
       setDescription(editingNode.description ?? '');
     } else {
       setTitle('');
-      setKind(mode === 'create' && props.parentId ? 'group' : 'department');
+      setKind(
+        mode === 'create'
+          ? (props.defaultKind ?? (props.parentId ? 'group' : 'department'))
+          : 'department',
+      );
       setDescription('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

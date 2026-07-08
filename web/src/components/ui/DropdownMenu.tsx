@@ -18,6 +18,7 @@ export const DropdownMenuContent = forwardRef<
         align={align}
         className={cn(
           'z-50 min-w-[10rem] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
+          'origin-[var(--radix-dropdown-menu-content-transform-origin)] will-change-[opacity,transform]',
           'data-[state=open]:animate-popover-in data-[state=closed]:animate-popover-out',
           'focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0',
           className,
@@ -28,8 +29,9 @@ export const DropdownMenuContent = forwardRef<
   );
 });
 
-export interface DropdownMenuItemProps
-  extends React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> {
+export interface DropdownMenuItemProps extends React.ComponentPropsWithoutRef<
+  typeof DropdownMenuPrimitive.Item
+> {
   /** Destructive styling for actions like delete/logout. */
   destructive?: boolean;
 }
@@ -43,9 +45,10 @@ export const DropdownMenuItem = forwardRef<
       ref={ref}
       className={cn(
         // Taller rows on touch (phones) for comfortable tapping; compact from sm up.
-        'relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-2.5 text-sm outline-none transition-colors sm:py-1.5',
-        'focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        destructive && 'text-destructive focus:bg-destructive/10 focus:text-destructive',
+        'relative flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-2.5 text-sm outline-none transition-[background-color,color,transform] duration-fast ease-standard hover:translate-x-0.5 focus:translate-x-0.5 sm:py-1.5',
+        'hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus-visible:ring-0 focus-visible:ring-offset-0 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        destructive &&
+          'text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive',
         className,
       )}
       {...props}
