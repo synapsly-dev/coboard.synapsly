@@ -144,7 +144,8 @@ export default function OrgPage(): JSX.Element {
 
             {editable && (
               <OrgAddNodeButton
-                label="新建根节点"
+                label="新建根部门"
+                kind="department"
                 onSelectKind={(kind) =>
                   setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
                 }
@@ -186,7 +187,8 @@ export default function OrgPage(): JSX.Element {
               action={
                 editable ? (
                   <OrgAddNodeButton
-                    label="新建根节点"
+                    label="新建根部门"
+                    kind="department"
                     onSelectKind={(kind) =>
                       setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
                     }

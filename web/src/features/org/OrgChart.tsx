@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronDown, ChevronRight, Crown, MoreHorizontal, Pencil, Users } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Crown,
+  MoreHorizontal,
+  Pencil,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import type { OrgNode, OrgNodeKind, OrgNodeMember } from 'shared';
 import {
   Avatar,
@@ -164,16 +172,31 @@ function ChartNode({
         {(editable || hasChildren) && (
           <div className="mt-1.5 inline-flex min-h-7 items-center gap-1">
             {editable && onAddChild && (
-              <OrgAddNodeButton
-                title={`在${node.title}下新增`}
-                variant="outline"
-                size="icon"
-                align="center"
-                className="h-7 w-7 border-border bg-card opacity-100 shadow-sm transition-[background-color,border-color,box-shadow,opacity,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md sm:pointer-events-none sm:opacity-0 sm:group-hover/chart-node:pointer-events-auto sm:group-hover/chart-node:opacity-100 sm:group-focus-within/chart-node:pointer-events-auto sm:group-focus-within/chart-node:opacity-100"
-                openClassName="pointer-events-auto opacity-100 sm:pointer-events-auto sm:opacity-100"
-                onSelectKind={(kind) => onAddChild(node, kind)}
-                onAddMember={onMembers ? () => onMembers(node) : undefined}
-              />
+              <div className="inline-flex items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:opacity-0 sm:group-hover/chart-node:pointer-events-auto sm:group-hover/chart-node:opacity-100 sm:group-focus-within/chart-node:pointer-events-auto sm:group-focus-within/chart-node:opacity-100">
+                <OrgAddNodeButton
+                  title={`在${node.title}下新增小组`}
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 border-border bg-card shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md"
+                  kind="group"
+                  onSelectKind={(kind) => onAddChild(node, kind)}
+                />
+                {onMembers && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7 rounded-full border-border bg-card shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-0.5 hover:shadow-md"
+                    title={`为${node.title}加入员工`}
+                    aria-label={`为${node.title}加入员工`}
+                    onClick={(event) => {
+                      event.currentTarget.blur();
+                      onMembers(node);
+                    }}
+                  >
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             )}
             {hasChildren && (
               <button

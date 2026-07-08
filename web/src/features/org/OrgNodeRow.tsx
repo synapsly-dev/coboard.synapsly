@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -10,6 +9,7 @@ import {
   MoveUp,
   Pencil,
   Trash2,
+  UserPlus,
   Users,
 } from 'lucide-react';
 import type { MoveOrgNodeInput, OrgNode, OrgNodeKind } from 'shared';
@@ -65,7 +65,6 @@ export function OrgNodeRow({
   const down = moveDownInput(nodes, node);
   const indent = indentInput(nodes, node);
   const outdent = outdentInput(nodes, node);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   return (
     <div
@@ -148,21 +147,28 @@ export function OrgNodeRow({
       </div>
 
       {editable && (
-        <div
-          className={cn(
-            'flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100',
-            addMenuOpen && 'sm:pointer-events-auto sm:translate-x-0 sm:opacity-100',
-          )}
-        >
+        <div className="flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
           <OrgAddNodeButton
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            title="加子节点"
+            title="新增小组"
+            kind="group"
             onSelectKind={(kind) => onAddChild(node, kind)}
-            onAddMember={() => onMembers(node)}
-            onOpenChange={setAddMenuOpen}
           />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="加入员工"
+            aria-label="加入员工"
+            onClick={(event) => {
+              event.currentTarget.blur();
+              onMembers(node);
+            }}
+          >
+            <UserPlus className="h-4 w-4" />
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">
