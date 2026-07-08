@@ -46,7 +46,7 @@ export async function maybeSeed(db: Database): Promise<void> {
       passwordHash: null,
       displayName: '演示管理员',
       avatarColor: AVATAR_COLORS[0]!,
-      role: 'admin',
+      role: 'super_admin',
       isActive: true,
     })
     .returning();

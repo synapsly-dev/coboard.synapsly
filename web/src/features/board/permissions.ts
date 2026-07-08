@@ -1,4 +1,10 @@
-import type { ProjectMemberWithUser, ProjectRole, Task, User } from 'shared';
+import {
+  isAdminRole,
+  type ProjectMemberWithUser,
+  type ProjectRole,
+  type Task,
+  type User,
+} from 'shared';
 
 /**
  * Front-end permission predicates (§6.3). These mirror the server guards so the
@@ -36,7 +42,7 @@ export function isPoolTask(task: Task): boolean {
  */
 export function isManager(ctx: TaskPermissionContext, task: Task): boolean {
   if (!ctx.user) return false;
-  if (ctx.user.role === 'admin') return true;
+  if (isAdminRole(ctx.user.role)) return true;
   if (isPoolTask(task)) return task.createdBy === ctx.user.id;
   return ctx.projectRole === 'lead';
 }
@@ -110,7 +116,7 @@ export function canDeliver(ctx: TaskPermissionContext, task: Task): boolean {
  */
 function isReviewer(ctx: TaskPermissionContext, task: Task): boolean {
   if (!ctx.user) return false;
-  if (ctx.user.role === 'admin') return true;
+  if (isAdminRole(ctx.user.role)) return true;
   if (isPoolTask(task)) return false;
   return ctx.projectRole === 'lead';
 }

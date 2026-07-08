@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
+import { isAdminRole } from 'shared';
 import type {
   AssignTaskInput,
   CreateTaskInput,
@@ -445,7 +446,7 @@ export async function listAllVisibleTasks(
 ): Promise<Task[]> {
   // Visible project set: every project for an admin, else the caller's memberships.
   let visibleProjectIds: string[];
-  if (user.role === 'admin') {
+  if (isAdminRole(user.role)) {
     const rows = await db.select({ id: projects.id }).from(projects);
     visibleProjectIds = rows.map((r) => r.id);
   } else {

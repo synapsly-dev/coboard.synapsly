@@ -1,4 +1,5 @@
 import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { isAdminRole } from 'shared';
 import type {
   LeaderboardEntry,
   MyStatsResponse,
@@ -83,7 +84,7 @@ export async function resolveVisibleScope(
   db: Database,
   user: UserRow,
 ): Promise<StatsScope> {
-  if (user.role === 'admin') {
+  if (isAdminRole(user.role)) {
     return { kind: 'all' };
   }
   const rows = await db

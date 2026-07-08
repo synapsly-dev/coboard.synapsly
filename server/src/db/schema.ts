@@ -96,6 +96,9 @@ export const users = pgTable(
     uniqueIndex('users_email_uniq').on(table.email),
     // Unique when present; Postgres allows many NULLs so un-linked rows coexist.
     uniqueIndex('users_synapsly_sub_uniq').on(table.synapslySub),
+    uniqueIndex('users_super_admin_uniq')
+      .on(table.role)
+      .where(sql`role = 'super_admin'`),
   ],
 );
 

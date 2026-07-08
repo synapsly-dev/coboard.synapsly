@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { isAdminRole } from 'shared';
 import type {
   AuthUserResponse,
   CompleteJoinInput,
@@ -150,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       user,
       loading: meQuery.isLoading,
       isAuthenticated: user !== null,
-      isAdmin: user?.role === 'admin',
+      isAdmin: isAdminRole(user?.role),
       loginWithSynapsly,
       completeJoin,
       devLogin,

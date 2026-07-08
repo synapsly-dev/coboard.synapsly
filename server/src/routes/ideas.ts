@@ -9,6 +9,7 @@ import {
   type IdeaResponse,
   type IdeasResponse,
   type IdeasWithContextResponse,
+  isAdminRole,
 } from 'shared';
 import { projectMembers, type IdeaRow, type UserRow } from '../db/schema.js';
 import { forbidden } from '../lib/errors.js';
@@ -53,7 +54,7 @@ import type { Database } from '../db/index.js';
  * visibility scope).
  */
 async function resolveIdeaScope(db: Database, user: UserRow): Promise<IdeaScope> {
-  if (user.role === 'admin') {
+  if (isAdminRole(user.role)) {
     return { kind: 'all' };
   }
   const rows = await db
@@ -77,7 +78,7 @@ async function authorizeIdeaReview(
 ): Promise<{ user: UserRow; projectId: string | null }> {
   if (idea.taskId === null) {
     const user = requireAuth(request);
-    if (user.role !== 'admin') {
+    if (!isAdminRole(user.role)) {
       throw forbidden('需要管理员权限');
     }
     return { user, projectId: null };
@@ -110,7 +111,7 @@ async function authorizeIdeaDelete(
 ): Promise<{ user: UserRow; projectId: string | null }> {
   if (idea.taskId === null) {
     const user = requireAuth(request);
-    if (user.role !== 'admin' && idea.authorId !== user.id) {
+    if (!isAdminRole(user.role) && idea.authorId !== user.id) {
       throw forbidden('只能删除自己发布的想法');
     }
     return { user, projectId: null };
@@ -170,11 +171,7 @@ const ideasRoutes: FastifyPluginAsync = async (fastify) => {
     const user = requireAuth(request);
     const input = parseBody(createStandaloneIdeaInputSchema, request.body);
 
-    const idea = await createStandaloneIdea(
-      db,
-      { authorId: user.id, body: input.body },
-      bus,
-    );
+    const idea = await createStandaloneIdea(db, { authorId: user.id, body: input.body }, bus);
 
     reply.code(201);
     return { idea };

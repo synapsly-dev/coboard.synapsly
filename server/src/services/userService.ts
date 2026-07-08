@@ -3,6 +3,7 @@ import type {
   CreateUserInput,
   UpdateUserInput,
   User,
+  UserRole,
   UserProjectMembership,
   UserWithProjects,
 } from 'shared';
@@ -61,6 +62,19 @@ export async function listUsers(db: Database): Promise<UserRow[]> {
   return db.select().from(users).orderBy(asc(users.createdAt));
 }
 
+/** The one local super admin, if already assigned. */
+export async function findSuperAdmin(db: Database): Promise<UserRow | null> {
+  const rows = await db.select().from(users).where(eq(users.role, 'super_admin')).limit(1);
+  return rows[0] ?? null;
+}
+
+async function assertSuperAdminSlotAvailable(db: Database, targetUserId?: string): Promise<void> {
+  const existing = await findSuperAdmin(db);
+  if (existing && existing.id !== targetUserId) {
+    throw conflict('超级管理员只能有一位');
+  }
+}
+
 /**
  * List all users (admin §7) each joined with their project memberships
  * `{ projectId, projectName, role }`. Uses a single grouped query over
@@ -97,7 +111,7 @@ export async function listUsersWithProjects(db: Database): Promise<UserWithProje
 export interface CreateUserParams {
   email: string;
   displayName: string;
-  role: 'admin' | 'member';
+  role: UserRole;
   avatarColor?: string | undefined;
   /** Optional Synapsly subject to link at creation (SSO provisioning). */
   synapslySub?: string | undefined;
@@ -113,6 +127,9 @@ export async function createUser(db: Database, params: CreateUserParams): Promis
   const existing = await findUserByEmail(db, params.email);
   if (existing) {
     throw conflict('该邮箱已被注册');
+  }
+  if (params.role === 'super_admin') {
+    await assertSuperAdminSlotAvailable(db);
   }
 
   const avatarColor = params.avatarColor ?? pickAvatarColor(params.email);
@@ -163,7 +180,7 @@ export async function findUserBySynapslySub(db: Database, sub: string): Promise<
 export interface CreateSsoUserParams {
   email: string;
   displayName: string;
-  role: 'admin' | 'member';
+  role: UserRole;
   synapslySub: string;
   avatarColor?: string | undefined;
 }
@@ -196,11 +213,15 @@ export async function linkSynapslySub(db: Database, userId: string, sub: string)
  * Synapsly's baseline `role` claim into the local role on every login — only ever
  * upward, never a downgrade.
  */
-export async function setUserRole(
-  db: Database,
-  userId: string,
-  role: 'admin' | 'member',
-): Promise<UserRow> {
+export async function setUserRole(db: Database, userId: string, role: UserRole): Promise<UserRow> {
+  const target = await findUserById(db, userId);
+  if (!target) throw notFound('用户不存在');
+  if (target.role === 'super_admin' && role !== 'super_admin') {
+    throw validationError('不能降级唯一超级管理员');
+  }
+  if (role === 'super_admin') {
+    await assertSuperAdminSlotAvailable(db, userId);
+  }
   const updated = await db.update(users).set({ role }).where(eq(users.id, userId)).returning();
   const row = updated[0];
   if (!row) throw notFound('用户不存在');
@@ -220,6 +241,17 @@ export async function updateUser(
   const target = await findUserById(db, id);
   if (!target) {
     throw notFound('用户不存在');
+  }
+  if (target.role === 'super_admin') {
+    if (input.role !== undefined && input.role !== 'super_admin') {
+      throw validationError('不能降级唯一超级管理员');
+    }
+    if (input.isActive === false) {
+      throw validationError('不能停用唯一超级管理员');
+    }
+  }
+  if (input.role === 'super_admin') {
+    await assertSuperAdminSlotAvailable(db, id);
   }
 
   const patch: Partial<UserRow> = {};

@@ -218,3 +218,48 @@ describe('0006 no-project tasks migration', () => {
     expect(activity.rows[0]?.project_id).toBeNull();
   });
 });
+
+describe('0016_unique_super_admin migration', () => {
+  it('promotes the first admin and enforces a single super_admin', async () => {
+    pglite = new PGlite();
+    const tags = await orderedTags();
+    const superAdminTag = '0016_unique_super_admin';
+    const superAdminIndex = tags.indexOf(superAdminTag);
+    expect(superAdminIndex).toBeGreaterThan(0);
+
+    for (const tag of tags.slice(0, superAdminIndex)) {
+      await applyMigration(pglite, tag);
+    }
+
+    await pglite.exec(`
+      INSERT INTO users (email, password_hash, display_name, avatar_color, role, created_at)
+      VALUES
+        ('first-admin@x.com', NULL, 'First Admin', '#3b82f6', 'admin', '2026-01-01T00:00:00Z'),
+        ('second-admin@x.com', NULL, 'Second Admin', '#ef4444', 'admin', '2026-01-02T00:00:00Z'),
+        ('member@x.com', NULL, 'Member', '#10b981', 'member', '2026-01-03T00:00:00Z');
+    `);
+
+    await applyMigration(pglite, superAdminTag);
+
+    const enumRows = await pglite.query<{ value: string }>(
+      `SELECT unnest(enum_range(NULL::user_role))::text AS value;`,
+    );
+    expect(enumRows.rows.map((r) => r.value)).toContain('super_admin');
+
+    const roles = await pglite.query<{ email: string; role: string }>(
+      `SELECT email, role::text AS role FROM users ORDER BY created_at;`,
+    );
+    expect(roles.rows).toEqual([
+      { email: 'first-admin@x.com', role: 'super_admin' },
+      { email: 'second-admin@x.com', role: 'admin' },
+      { email: 'member@x.com', role: 'member' },
+    ]);
+
+    await expect(
+      pglite.exec(`
+        INSERT INTO users (email, password_hash, display_name, avatar_color, role)
+        VALUES ('second-sa@x.com', NULL, 'Second SA', '#64748b', 'super_admin');
+      `),
+    ).rejects.toThrow();
+  });
+});

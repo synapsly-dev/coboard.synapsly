@@ -7,9 +7,19 @@ import { z } from 'zod';
  */
 
 /** Global account role (§5 users.role, §6.3). */
-export const userRoles = ['admin', 'member'] as const;
+export const userRoles = ['super_admin', 'admin', 'member'] as const;
 export const userRoleSchema = z.enum(userRoles);
 export type UserRole = (typeof userRoles)[number];
+
+/** Highest local role. Exactly one active Coboard account may hold it. */
+export function isSuperAdminRole(role: UserRole | null | undefined): boolean {
+  return role === 'super_admin';
+}
+
+/** Global admin tier: super_admin plus ordinary admin. */
+export function isAdminRole(role: UserRole | null | undefined): boolean {
+  return role === 'super_admin' || role === 'admin';
+}
 
 /** Per-project membership role (§5 project_members.role, §6.3). */
 export const projectRoles = ['lead', 'member'] as const;

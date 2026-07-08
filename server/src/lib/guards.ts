@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
-import type { ProjectRole } from 'shared';
+import { isAdminRole, isSuperAdminRole, type ProjectRole } from 'shared';
 import type { Database } from '../db/index.js';
 import {
   projectMembers,
@@ -28,8 +28,17 @@ export function requireAuth(request: FastifyRequest): UserRow {
 /** Require a global admin. */
 export function requireAdmin(request: FastifyRequest): UserRow {
   const user = requireAuth(request);
-  if (user.role !== 'admin') {
+  if (!isAdminRole(user.role)) {
     throw forbidden('需要管理员权限');
+  }
+  return user;
+}
+
+/** Require the unique highest local administrator. */
+export function requireSuperAdmin(request: FastifyRequest): UserRow {
+  const user = requireAuth(request);
+  if (!isSuperAdminRole(user.role)) {
+    throw forbidden('需要超级管理员权限');
   }
   return user;
 }
@@ -85,7 +94,7 @@ export async function requireProjectMember(
   // happen to be enrolled in with a lower membership role. Resolve their role to
   // 'lead' regardless, so lead-gated actions (review, assign, manage members) don't
   // 403 just because an admin is also a plain member of the project.
-  const isGlobalAdmin = user.role === 'admin';
+  const isGlobalAdmin = isAdminRole(user.role);
 
   if (membership) {
     return {
@@ -152,7 +161,7 @@ export async function requireTaskVisibility(
   }
   const membership = await requireProjectMember(db, request, task.projectId);
   const isLead =
-    membership.projectRole === 'lead' || membership.user.role === 'admin';
+    membership.projectRole === 'lead' || isAdminRole(membership.user.role);
   return { user: membership.user, membership, isLead };
 }
 
@@ -167,7 +176,7 @@ export async function requireTaskVisibility(
  */
 export function canEditTask(membership: ProjectMembership, task: TaskRow): boolean {
   const { user, projectRole } = membership;
-  if (user.role === 'admin') return true;
+  if (isAdminRole(user.role)) return true;
   if (projectRole === 'lead') return true;
   return task.createdBy === user.id;
 }
@@ -177,7 +186,7 @@ export function canEditTask(membership: ProjectMembership, task: TaskRow): boole
  * project lead, the gate is: the task creator OR a global admin.
  */
 export function canEditNoProjectTask(user: UserRow, task: TaskRow): boolean {
-  return user.role === 'admin' || task.createdBy === user.id;
+  return isAdminRole(user.role) || task.createdBy === user.id;
 }
 
 /**
@@ -187,6 +196,5 @@ export function canEditNoProjectTask(user: UserRow, task: TaskRow): boolean {
  * they created it; that would let non-leads complete tasks and self-credit points.)
  */
 export function canReviewNoProjectTask(user: UserRow): boolean {
-  return user.role === 'admin';
+  return isAdminRole(user.role);
 }
-

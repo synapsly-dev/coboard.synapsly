@@ -8,6 +8,7 @@ import type { ProjectRole, UserRole } from 'shared';
 
 /** Global account role labels (§6.3 users.role). */
 export const userRoleLabels: Record<UserRole, string> = {
+  super_admin: '超级管理员',
   admin: '管理员',
   member: '成员',
 };

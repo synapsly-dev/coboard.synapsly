@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AuthConfigResponse, AuthUserResponse, UsersListResponse } from 'shared';
+import type { AuthConfigResponse, AuthUserResponse, UserRole, UsersListResponse } from 'shared';
 import type { TestContext } from './helpers.js';
 import { createTestContext } from './helpers.js';
 import { SESSION_COOKIE, createSession } from '../src/auth/session.js';
@@ -28,7 +28,7 @@ describe('auth + users', () => {
 
   /** Seed a user and return its row plus a signed session cookie header. */
   async function seedUser(
-    role: 'admin' | 'member',
+    role: UserRole,
     email = `${role}@coboard.local`,
   ): Promise<{ user: UserRow; cookie: string }> {
     const [user] = await ctx.db
@@ -37,7 +37,7 @@ describe('auth + users', () => {
         email,
         passwordHash: null,
         synapslySub: `sub:${email}`,
-        displayName: role === 'admin' ? '管理员' : '成员',
+        displayName: role === 'super_admin' ? '超级管理员' : role === 'admin' ? '管理员' : '成员',
         avatarColor: '#0b0b0c',
         role,
         isActive: true,
@@ -112,6 +112,100 @@ describe('auth + users', () => {
     });
     expect(listRes.statusCode).toBe(200);
     expect((listRes.json() as UsersListResponse).users).toHaveLength(2);
+  });
+
+  it('super admin can create admin accounts', async () => {
+    const { cookie: superAdminCookie } = await seedUser('super_admin');
+
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/users',
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { email: 'admin-created@coboard.local', displayName: '管理员乙', role: 'admin' },
+    });
+    expect(created.statusCode).toBe(201);
+    expect((created.json() as AuthUserResponse).user.role).toBe('admin');
+  });
+
+  it('ordinary admin cannot create admins or adjust global roles', async () => {
+    const { cookie: adminCookie } = await seedUser('admin');
+    const { user: member } = await seedUser('member', 'role-target@coboard.local');
+
+    const createAdmin = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/users',
+      headers: { ...CSRF_HEADERS, cookie: adminCookie },
+      payload: { email: 'admin-denied@coboard.local', displayName: '管理员丙', role: 'admin' },
+    });
+    expect(createAdmin.statusCode).toBe(403);
+
+    const promote = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${member.id}`,
+      headers: { ...CSRF_HEADERS, cookie: adminCookie },
+      payload: { role: 'admin' },
+    });
+    expect(promote.statusCode).toBe(403);
+  });
+
+  it('super admin can promote and demote ordinary admins', async () => {
+    const { cookie: superAdminCookie } = await seedUser('super_admin');
+    const { user: member } = await seedUser('member', 'promote-target@coboard.local');
+
+    const promote = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${member.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { role: 'admin' },
+    });
+    expect(promote.statusCode).toBe(200);
+    expect((promote.json() as AuthUserResponse).user.role).toBe('admin');
+
+    const demote = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${member.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { role: 'member' },
+    });
+    expect(demote.statusCode).toBe(200);
+    expect((demote.json() as AuthUserResponse).user.role).toBe('member');
+  });
+
+  it('does not allow creating, assigning, demoting, or deactivating super admin through user management', async () => {
+    const { cookie: superAdminCookie, user: superAdmin } = await seedUser('super_admin');
+    const { user: member } = await seedUser('member', 'sa-target@coboard.local');
+
+    const createSecond = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/users',
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { email: 'second-sa@coboard.local', displayName: 'SA2', role: 'super_admin' },
+    });
+    expect(createSecond.statusCode).toBe(400);
+
+    const assignSecond = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${member.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { role: 'super_admin' },
+    });
+    expect(assignSecond.statusCode).toBe(400);
+
+    const demoteSelf = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${superAdmin.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { role: 'member' },
+    });
+    expect(demoteSelf.statusCode).toBe(400);
+
+    const deactivateSelf = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${superAdmin.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { isActive: false },
+    });
+    expect(deactivateSelf.statusCode).toBe(400);
   });
 
   it('creating a user with a duplicate email returns 409', async () => {
@@ -203,7 +297,7 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
     expect((res.json() as AuthConfigResponse).devLogin).toBe(true);
   });
 
-  it('creates + authenticates an admin by email', async () => {
+  it('creates + authenticates a super admin by email', async () => {
     const res = await ctx.app.inject({
       method: 'POST',
       url: '/api/auth/dev-login',
@@ -213,7 +307,7 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json() as AuthUserResponse;
     expect(body.user.email).toBe('newbie@coboard.local');
-    expect(body.user.role).toBe('admin');
+    expect(body.user.role).toBe('super_admin');
     const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
     expect(cookie).toBeDefined();
 

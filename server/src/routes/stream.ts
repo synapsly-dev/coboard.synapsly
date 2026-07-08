@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { eq } from 'drizzle-orm';
-import type { RealtimeEvent } from 'shared';
+import { isAdminRole, type RealtimeEvent } from 'shared';
 import { projectMembers, projects } from '../db/schema.js';
 import { requireAuth } from '../lib/guards.js';
 import type { Database } from '../db/index.js';
@@ -50,7 +50,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     const projectIds = await resolveSubscribedProjectIds(
       fastify.db,
       user.id,
-      user.role === 'admin',
+      isAdminRole(user.role),
     );
 
     // Take over the raw response to stream manually.

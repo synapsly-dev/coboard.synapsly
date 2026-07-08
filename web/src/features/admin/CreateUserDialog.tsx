@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { UserPlus } from 'lucide-react';
-import { createUserInputSchema, type CreateUserInput } from 'shared';
+import { createUserInputSchema, isSuperAdminRole, type CreateUserInput } from 'shared';
 import {
   Button,
   Dialog,
@@ -22,18 +22,21 @@ import {
 import { isApiClientError } from '../../api/client';
 import { applyFieldErrors } from '../../lib/form-errors';
 import { useCreateUser } from '../../api/users';
+import { useAuth } from '../../lib/auth-context';
 import { cn } from '../../lib/utils';
 import { avatarColorPalette, pickAvatarColor, userRoleLabels } from './labels';
 
 /**
- * Create-account dialog (§6.3, §7 POST /users). An admin sets the email, an
- * initial password (the member can change it later, §8), a display name, a global
- * role, and an avatar color. Validates with the shared `createUserInputSchema`.
+ * Create-account dialog (§6.3, §7 POST /users). An admin sets the email, display
+ * name, global role, and avatar color. The account is passwordless and links by
+ * verified Syna ID email on first login.
  */
 export function CreateUserDialog(): JSX.Element {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const createUser = useCreateUser();
   const [formError, setFormError] = useState<string | null>(null);
+  const canCreateAdmin = isSuperAdminRole(user?.role);
 
   const {
     register,
@@ -72,7 +75,7 @@ export function CreateUserDialog(): JSX.Element {
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     try {
-      await createUser.mutateAsync(values);
+      await createUser.mutateAsync(canCreateAdmin ? values : { ...values, role: 'member' });
       setOpen(false);
     } catch (err) {
       if (isApiClientError(err)) {
@@ -155,11 +158,13 @@ export function CreateUserDialog(): JSX.Element {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="member">{userRoleLabels.member}</SelectItem>
-                <SelectItem value="admin">{userRoleLabels.admin}</SelectItem>
+                {canCreateAdmin && <SelectItem value="admin">{userRoleLabels.admin}</SelectItem>}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              管理员可管理用户与项目；成员仅参与项目协作。
+              {canCreateAdmin
+                ? '管理员可管理用户与项目；成员仅参与项目协作。'
+                : '管理员可创建成员账号；管理员权限由超级管理员授予。'}
             </p>
           </div>
 

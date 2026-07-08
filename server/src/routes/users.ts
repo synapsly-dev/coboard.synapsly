@@ -5,9 +5,10 @@ import {
   updateUserInputSchema,
   type AuthUserResponse,
   type UsersListResponse,
+  isSuperAdminRole,
 } from 'shared';
 import { requireAdmin, requireAuth } from '../lib/guards.js';
-import { notFound } from '../lib/errors.js';
+import { forbidden, notFound, validationError } from '../lib/errors.js';
 import { parseBody, parseParams } from '../lib/validate.js';
 import {
   createUser,
@@ -19,8 +20,8 @@ import {
 } from '../services/userService.js';
 
 /**
- * User management routes, admin-only (§7, §6.3): GET /users, POST /users (create
- * an account with an initial password), PATCH /users/:id (rename / change role /
+ * User management routes, admin-only (§7, §6.3): GET /users, POST /users
+ * (pre-provision a passwordless account), PATCH /users/:id (rename / change role /
  * (de)activate). Every handler gates on requireAdmin first.
  */
 const usersRoutes: FastifyPluginAsync = async (fastify) => {
@@ -31,17 +32,31 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   fastify.post('/users', async (request, reply): Promise<AuthUserResponse> => {
-    requireAdmin(request);
+    const actor = requireAdmin(request);
     const input = parseBody(createUserInputSchema, request.body);
+    if (input.role === 'super_admin') {
+      throw validationError('超级管理员唯一，不能通过新建账号创建');
+    }
+    if (input.role === 'admin' && !isSuperAdminRole(actor.role)) {
+      throw forbidden('只有超级管理员可以创建管理员');
+    }
     const user = await createUser(fastify.db, createUserParamsFromInput(input));
     reply.code(201);
     return { user: serializeUser(user) };
   });
 
   fastify.patch('/users/:id', async (request): Promise<AuthUserResponse> => {
-    requireAdmin(request);
+    const actor = requireAdmin(request);
     const { id } = parseParams(idParamSchema, request.params);
     const input = parseBody(updateUserInputSchema, request.body);
+    if (input.role !== undefined) {
+      if (!isSuperAdminRole(actor.role)) {
+        throw forbidden('只有超级管理员可以调整全局角色');
+      }
+      if (input.role === 'super_admin') {
+        throw validationError('超级管理员唯一，不能通过用户管理转移');
+      }
+    }
     const user = await updateUser(fastify.db, id, input);
     return { user: serializeUser(user) };
   });

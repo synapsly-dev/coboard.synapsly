@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Trash2, UserPlus } from 'lucide-react';
-import type { Project, ProjectRole } from 'shared';
+import { isAdminRole, isSuperAdminRole, type Project, type ProjectRole } from 'shared';
 import {
   Avatar,
   Badge,
@@ -192,9 +192,9 @@ function MembersBody({ project }: { project: Project }): JSX.Element {
                     <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
                       <span className="truncate">{m.user.displayName}</span>
                       {isSelf && <span className="shrink-0 text-xs font-normal text-muted-foreground">（我）</span>}
-                      {m.user.role === 'admin' && (
+                      {isAdminRole(m.user.role) && (
                         <Badge variant="primary" className="ml-1 shrink-0">
-                          管理员
+                          {isSuperAdminRole(m.user.role) ? '超级管理员' : '管理员'}
                         </Badge>
                       )}
                     </div>

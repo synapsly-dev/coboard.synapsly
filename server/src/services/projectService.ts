@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { isAdminRole } from 'shared';
 import type {
   CreateProjectInput,
   Project,
@@ -96,7 +97,7 @@ export async function listVisibleProjects(
   db: Database,
   user: UserRow,
 ): Promise<Project[]> {
-  if (user.role === 'admin') {
+  if (isAdminRole(user.role)) {
     const rows = await db
       .select()
       .from(projects)

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FolderPlus, MoreHorizontal, ShieldCheck, ShieldOff, UserCheck, UserX, Users as UsersIcon } from 'lucide-react';
-import type { User, UserRole, UserWithProjects } from 'shared';
+import { isAdminRole, isSuperAdminRole, type User, type UserRole, type UserWithProjects } from 'shared';
 import {
   Avatar,
   Badge,
@@ -24,9 +24,9 @@ import { userRoleLabels } from './labels';
 
 /**
  * Users management tab (§6.3, §7 GET/POST /users, PATCH /users/:id). Lists every
- * account and lets an admin create new ones, switch a user between admin/member,
- * and activate/deactivate them. The server is the real authority (§6.3); the
- * front end guards self-demotion/self-deactivation as a UX safety net.
+ * account and lets admins create new ones, while super admin can switch a user
+ * between admin/member. The server is the real authority (§6.3); the front end
+ * guards self-demotion/self-deactivation as a UX safety net.
  */
 export function UsersTab(): JSX.Element {
   const { user: currentUser } = useAuth();
@@ -37,6 +37,7 @@ export function UsersTab(): JSX.Element {
   const [pendingId, setPendingId] = useState<string | null>(null);
   /** User whose "加入项目" dialog is open. */
   const [addingTo, setAddingTo] = useState<UserWithProjects | null>(null);
+  const isCurrentSuperAdmin = isSuperAdminRole(currentUser?.role);
 
   async function patchUser(
     id: string,
@@ -54,6 +55,7 @@ export function UsersTab(): JSX.Element {
   }
 
   const toggleRole = (u: User): void => {
+    if (isSuperAdminRole(u.role)) return;
     const nextRole: UserRole = u.role === 'admin' ? 'member' : 'admin';
     void patchUser(u.id, { role: nextRole });
   };
@@ -93,6 +95,7 @@ export function UsersTab(): JSX.Element {
    */
   function renderActionsMenu(u: UserWithProjects): JSX.Element {
     const isSelf = u.id === currentUser?.id;
+    const rowSuperAdmin = isSuperAdminRole(u.role);
     const rowPending = pendingId === u.id;
     return (
       <DropdownMenu>
@@ -111,24 +114,28 @@ export function UsersTab(): JSX.Element {
             <FolderPlus className="h-4 w-4" aria-hidden />
             加入项目
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => toggleRole(u)} disabled={isSelf}>
-            {u.role === 'admin' ? (
-              <>
-                <ShieldOff className="h-4 w-4" aria-hidden />
-                降为成员
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="h-4 w-4" aria-hidden />
-                设为管理员
-              </>
-            )}
-          </DropdownMenuItem>
+          {isCurrentSuperAdmin && !rowSuperAdmin && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => toggleRole(u)} disabled={isSelf}>
+                {u.role === 'admin' ? (
+                  <>
+                    <ShieldOff className="h-4 w-4" aria-hidden />
+                    降为成员
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-4 w-4" aria-hidden />
+                    设为管理员
+                  </>
+                )}
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => toggleActive(u)}
-            disabled={isSelf}
+            disabled={isSelf || rowSuperAdmin}
             destructive={u.isActive}
           >
             {u.isActive ? (
@@ -154,7 +161,10 @@ export function UsersTab(): JSX.Element {
         <div>
           <h2 className="text-base font-semibold">用户</h2>
           <p className="text-sm text-muted-foreground">
-            共 {list.length} 个账号。管理员可创建账号、调整角色与启用状态。
+            共 {list.length} 个账号。
+            {isCurrentSuperAdmin
+              ? '超级管理员可创建管理员、调整角色与启用状态。'
+              : '管理员可创建成员账号并维护启用状态。'}
           </p>
         </div>
         <CreateUserDialog />
@@ -207,7 +217,7 @@ export function UsersTab(): JSX.Element {
                   <div className="shrink-0">{renderActionsMenu(u)}</div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                  <Badge variant={u.role === 'admin' ? 'primary' : 'neutral'}>
+                  <Badge variant={isAdminRole(u.role) ? 'primary' : 'neutral'}>
                     {userRoleLabels[u.role]}
                   </Badge>
                   {u.isActive ? (
@@ -275,7 +285,7 @@ export function UsersTab(): JSX.Element {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={u.role === 'admin' ? 'primary' : 'neutral'}>
+                      <Badge variant={isAdminRole(u.role) ? 'primary' : 'neutral'}>
                         {userRoleLabels[u.role]}
                       </Badge>
                     </td>

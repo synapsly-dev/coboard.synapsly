@@ -1,4 +1,4 @@
-import type { OrgScope, ProjectRole, User } from 'shared';
+import { isAdminRole, type OrgScope, type ProjectRole, type User } from 'shared';
 
 /**
  * Who may edit an org tree (团队架构) — the client-side mirror of the server's scope
@@ -15,7 +15,7 @@ export function canEditOrgScope(
   projectRole: ProjectRole | undefined,
 ): boolean {
   if (!user) return false;
-  if (user.role === 'admin') return true;
+  if (isAdminRole(user.role)) return true;
   if (scope === 'all') return false;
   return projectRole === 'lead';
 }
