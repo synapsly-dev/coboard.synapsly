@@ -39,6 +39,8 @@ export const queryKeys = {
   users: () => ['users'] as const,
   projects: () => ['projects'] as const,
   projectDirectory: () => ['projects', 'directory'] as const,
+  /** All 赛道 (tracks, P0 §2) visible to the current user. */
+  tracks: () => ['tracks'] as const,
   project: (projectId: string) => ['projects', projectId] as const,
   projectMembers: (projectId: string) => ['projects', projectId, 'members'] as const,
   board: (projectId: string) => ['projects', projectId, 'tasks'] as const,
@@ -68,4 +70,7 @@ export const queryKeys = {
     ['stats', 'me', params] as const,
   trend: (params: Record<string, string | undefined>) =>
     ['stats', 'trend', params] as const,
+  /** Contribution rolled up by 赛道 (P0 §2 GET /stats/tracks). */
+  trackStats: (params: Record<string, string | undefined>) =>
+    ['stats', 'tracks', params] as const,
 };

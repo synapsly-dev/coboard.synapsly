@@ -7,6 +7,8 @@ import {
   prioritySchema,
   projectRoleSchema,
   taskStatusSchema,
+  taskTypeSchema,
+  trackMemberRoleSchema,
   userRoleSchema,
 } from './enums.js';
 
@@ -43,6 +45,18 @@ export const projectKeySchema = z
   .min(2, '项目标识至少 2 位')
   .max(10, '项目标识最多 10 位')
   .regex(/^[A-Z0-9]+$/, '项目标识只能包含大写字母和数字');
+
+/** Track short key — a lowercase slug identifying a 赛道 (P0 §2). */
+export const trackKeySchema = z
+  .string()
+  .trim()
+  .min(2, '赛道标识至少 2 位')
+  .max(20, '赛道标识最多 20 位')
+  .regex(/^[a-z0-9-]+$/, '赛道标识只能包含小写字母、数字和连字符');
+/** Track display name. */
+export const trackNameSchema = z.string().trim().min(1, '赛道名称不能为空').max(60);
+/** Free-text weekly goal / minimum-KPI blurb for a track (§3 赛道层). */
+export const trackWeeklyGoalSchema = z.string().trim().max(2000);
 
 /** Hex color for a task label, e.g. "#ef4444". */
 export const labelColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/, '颜色应为 #RRGGBB 格式');
@@ -82,6 +96,8 @@ export const projectSchema = z.object({
   key: projectKeySchema,
   description: z.string().nullable(),
   archived: z.boolean(),
+  /** Owning 赛道 (P0 §2). Null = not yet grouped under a track (未归类). */
+  trackId: uuidSchema.nullable(),
   createdBy: uuidSchema,
   createdAt: isoDateTimeSchema,
 });
@@ -169,6 +185,12 @@ export const taskSchema = z.object({
   status: taskStatusSchema,
   points: z.number().int().nonnegative().nullable(),
   priority: prioritySchema,
+  /**
+   * Task type A/B/C/D (运营需求 §4.1); null = 未分类. Orthogonal to `priority` —
+   * governs responsibility/claim model (see taskTypes enum). Rendered as a prominent
+   * badge on the card.
+   */
+  taskType: taskTypeSchema.nullable(),
   /**
    * Claim-count limits (claim-limits feature). `minClaimants` (>= 1) is the lower
    * bound: while the claimant count is below it the task stays in 待认领 (open) and
@@ -732,6 +754,8 @@ export const createProjectInputSchema = z.object({
   name: z.string().trim().min(1, '项目名称不能为空').max(120),
   key: projectKeySchema,
   description: z.string().max(2000).optional(),
+  /** Optionally group the new project under a 赛道 (P0 §2). */
+  trackId: uuidSchema.nullable().optional(),
 });
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
 
@@ -741,6 +765,8 @@ export const updateProjectInputSchema = z
     name: z.string().trim().min(1).max(120).optional(),
     description: z.string().max(2000).nullable().optional(),
     archived: z.boolean().optional(),
+    /** Reassign the project's owning 赛道; null clears it (未归类). */
+    trackId: uuidSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: '至少修改一个字段',
@@ -758,6 +784,101 @@ export const addProjectMemberInputSchema = z.object({
   role: projectRoleSchema.default('member'),
 });
 export type AddProjectMemberInput = z.infer<typeof addProjectMemberInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Tracks / 赛道 (P0 §2) — the top operational grouping above projects.
+//
+// A 赛道 groups projects(小组) and carries 赛道运营经理(manager) + members. The
+// manager is lead-equivalent over every project in the track (see guards §3). Track
+// CRUD + manager assignment is global-admin only; the listing is readable by all.
+// ---------------------------------------------------------------------------
+
+/** A person on a track — public display summary plus their track role. */
+export const trackMemberSchema = z.object({
+  userId: uuidSchema,
+  displayName: displayNameSchema,
+  avatarColor: avatarColorSchema,
+  hasAvatar: z.boolean(),
+  role: trackMemberRoleSchema,
+});
+export type TrackMember = z.infer<typeof trackMemberSchema>;
+
+/**
+ * A 赛道 as returned by GET /tracks — the track plus its people (split into
+ * `managers`/`members` by role) and how many projects it owns. `weeklyGoal` is the
+ * free-text 本周目标/最低KPI blurb.
+ */
+export const trackSchema = z.object({
+  id: uuidSchema,
+  name: trackNameSchema,
+  key: trackKeySchema,
+  description: z.string().nullable(),
+  weeklyGoal: z.string().nullable(),
+  archived: z.boolean(),
+  rank: z.string(),
+  /** Track managers (赛道运营经理), ordered by display rank. */
+  managers: z.array(trackMemberSchema),
+  /** Plain track members, ordered by display rank. */
+  members: z.array(trackMemberSchema),
+  /** How many projects are grouped under this track. */
+  projectCount: z.number().int().nonnegative(),
+  createdBy: uuidSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type Track = z.infer<typeof trackSchema>;
+
+export const tracksResponseSchema = z.object({
+  tracks: z.array(trackSchema),
+});
+export type TracksResponse = z.infer<typeof tracksResponseSchema>;
+
+/** POST/PATCH /tracks — single-track response wrapper. */
+export const trackResponseSchema = z.object({
+  track: trackSchema,
+});
+export type TrackResponse = z.infer<typeof trackResponseSchema>;
+
+/** POST /tracks — create a 赛道 (global admin; 409 on duplicate key). */
+export const createTrackInputSchema = z.object({
+  name: trackNameSchema,
+  key: trackKeySchema,
+  description: z.string().max(2000).optional(),
+  weeklyGoal: trackWeeklyGoalSchema.optional(),
+});
+export type CreateTrackInput = z.infer<typeof createTrackInputSchema>;
+
+/** PATCH /tracks/:id — edit a 赛道 (global admin). At least one field. */
+export const updateTrackInputSchema = z
+  .object({
+    name: trackNameSchema.optional(),
+    description: z.string().max(2000).nullable().optional(),
+    weeklyGoal: trackWeeklyGoalSchema.nullable().optional(),
+    archived: z.boolean().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: '至少修改一个字段' });
+export type UpdateTrackInput = z.infer<typeof updateTrackInputSchema>;
+
+/**
+ * PUT /tracks/:id/members — replace the track's people (global admin). `managers`
+ * and `members` are disjoint user-id sets; the track's membership becomes exactly
+ * these. Managers gain lead-equivalent authority over the track's projects.
+ */
+export const setTrackMembersInputSchema = z
+  .object({
+    managers: z.array(uuidSchema).max(20),
+    members: z.array(uuidSchema).max(200),
+  })
+  .refine(
+    (v) => new Set([...v.managers, ...v.members]).size === v.managers.length + v.members.length,
+    { message: '同一个人不能同时是赛道经理和成员' },
+  );
+export type SetTrackMembersInput = z.infer<typeof setTrackMembersInputSchema>;
+
+/** PATCH /projects/:id — assign/clear the project's owning 赛道 (lead/admin). */
+export const setProjectTrackInputSchema = z.object({
+  trackId: uuidSchema.nullable(),
+});
+export type SetProjectTrackInput = z.infer<typeof setProjectTrackInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Labels (task-labels feature) — a GLOBAL custom-label catalog
@@ -836,6 +957,8 @@ export const createTaskInputSchema = z
     title: z.string().trim().min(1, '标题不能为空').max(200),
     description: z.string().max(20000).optional(),
     priority: prioritySchema.default('medium'),
+    /** Task type A/B/C/D (§4.1); omit/null for 未分类. */
+    taskType: taskTypeSchema.nullable().optional(),
     points: z.number().int().nonnegative().max(1000).nullable().optional(),
     /** Lower bound on claimants (>= 1). Defaults to 1 (current behaviour). */
     minClaimants: claimantBoundSchema.default(MIN_CLAIMANTS_FLOOR),
@@ -865,6 +988,8 @@ export const updateTaskInputSchema = z
     description: z.string().max(20000).nullable().optional(),
     status: taskStatusSchema.optional(),
     priority: prioritySchema.optional(),
+    /** Task type A/B/C/D (§4.1); null clears it (未分类). */
+    taskType: taskTypeSchema.nullable().optional(),
     points: z.number().int().nonnegative().max(1000).nullable().optional(),
     /** Lower bound on claimants (>= 1). */
     minClaimants: claimantBoundSchema.optional(),
@@ -1048,6 +1173,27 @@ export const trendResponseSchema = z.object({
 });
 export type TrendResponse = z.infer<typeof trendResponseSchema>;
 
+/**
+ * Per-赛道 contribution rollup (P0 §2 stats dimension). One entry per track the
+ * caller can see, plus a synthetic `trackId: null` bucket for pool / 未归类 tasks.
+ * Aggregates done-task share points (and their counts) by the task's owning
+ * project's track.
+ */
+export const trackStatsEntrySchema = z.object({
+  /** Track id; null = the pool / no-track (未归类) bucket. */
+  trackId: uuidSchema.nullable(),
+  /** Track display name; null for the pool / 未归类 bucket. */
+  trackName: z.string().nullable(),
+  completedCount: z.number().int().nonnegative(),
+  pointsSum: z.number().int().nonnegative(),
+});
+export type TrackStatsEntry = z.infer<typeof trackStatsEntrySchema>;
+
+export const trackStatsResponseSchema = z.object({
+  entries: z.array(trackStatsEntrySchema),
+});
+export type TrackStatsResponse = z.infer<typeof trackStatsResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Realtime / SSE (§6.5)
 // ---------------------------------------------------------------------------
@@ -1061,6 +1207,7 @@ export const realtimeEntitySchema = z.enum([
   'idea',
   'announcement',
   'org',
+  'track',
 ]);
 export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 

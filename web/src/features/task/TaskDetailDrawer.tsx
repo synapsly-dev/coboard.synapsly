@@ -12,7 +12,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import type { Priority, Task } from 'shared';
+import type { Priority, Task, TaskType } from 'shared';
 import { updateTaskInputSchema, type UpdateTaskInput } from 'shared';
 import {
   Avatar,
@@ -51,7 +51,14 @@ import { DeliverDialog } from '../board/DeliverDialog';
 import { ReviewActions } from '../board/ReviewActions';
 import { RevokeApprovalButton } from '../board/RevokeApprovalButton';
 import { dueInfo } from '../board/format';
-import { PRIORITY_BADGE, PRIORITY_LABELS, STATUS_LABELS } from '../board/labels';
+import {
+  PRIORITY_BADGE,
+  PRIORITY_LABELS,
+  STATUS_LABELS,
+  TASK_TYPE_META,
+  TASK_TYPE_OPTIONS,
+} from '../board/labels';
+import { TaskTypeBadge } from '../board/TaskTypeBadge';
 import {
   canAssign,
   canDeleteTask,
@@ -82,6 +89,8 @@ import { useTaskIdeas } from '../../api/ideas';
  * delivered/reviewed/rejected). All edits go through the optimistic task mutations.
  */
 const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent'];
+/** Sentinel select value for the 「未分类」 task-type option (P0 §2). */
+const NO_TASK_TYPE = '__no_task_type__';
 /** Only the direct board moves are PATCHable; deliver/review own the rest (§3). */
 const STATUSES = ['open', 'in_progress'] as const;
 
@@ -195,6 +204,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
       <DrawerHeader className="flex flex-row items-center justify-between gap-2 pr-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <Badge variant={statusVariant}>{STATUS_LABELS[task.status]}</Badge>
+          <TaskTypeBadge taskType={task.taskType} />
           <Badge variant={PRIORITY_BADGE[task.priority].variant} className="gap-1">
             <span
               className={`h-1.5 w-1.5 rounded-full ${PRIORITY_BADGE[task.priority].dot}`}
@@ -635,6 +645,8 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [priority, setPriority] = useState<Priority>(task.priority);
+  // Task type A/B/C/D, or the 未分类 sentinel (P0 §2).
+  const [taskType, setTaskType] = useState<string>(task.taskType ?? NO_TASK_TYPE);
   const [points, setPoints] = useState(task.points != null ? String(task.points) : '');
   const [minClaimants, setMinClaimants] = useState(String(task.minClaimants));
   const [maxClaimants, setMaxClaimants] = useState(
@@ -651,6 +663,8 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
       title: title.trim(),
       description: description.trim() ? description.trim() : null,
       priority,
+      // 未分类 clears the type (null); otherwise the chosen A/B/C/D.
+      taskType: taskType === NO_TASK_TYPE ? null : (taskType as TaskType),
       points: points.trim() ? Number(points) : null,
       // Claim limits (claim-limits): min coerced to a number; max null = unlimited.
       minClaimants: minClaimants.trim() ? Number(minClaimants) : 1,
@@ -688,6 +702,22 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+      </div>
+      <div className="grid gap-1.5">
+        <Label>任务类型</Label>
+        <Select value={taskType} onValueChange={setTaskType}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_TASK_TYPE}>未分类</SelectItem>
+            {TASK_TYPE_OPTIONS.map((t) => (
+              <SelectItem key={t} value={t}>
+                {TASK_TYPE_META[t].label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="grid gap-1.5">

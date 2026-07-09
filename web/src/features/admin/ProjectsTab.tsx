@@ -8,6 +8,7 @@ import {
   Users as UsersIcon,
 } from 'lucide-react';
 import type { Project } from 'shared';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Badge,
   Button,
@@ -17,12 +18,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   EmptyState,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Spinner,
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import { useProjects, useUpdateProject } from '../../api/projects';
+import { useTracks } from '../../api/tracks';
+import { queryKeys } from '../../lib/query';
 import { ProjectFormDialog } from './ProjectFormDialog';
 import { ProjectMembersDialog } from './ProjectMembersDialog';
+
+/** Sentinel select value for the 「未归类」 (no track) option (P0 §2). */
+const NO_TRACK = '__no_track__';
 
 /**
  * Projects management tab (§6.3, §7). Lists every visible project (admins see
@@ -32,12 +43,15 @@ import { ProjectMembersDialog } from './ProjectMembersDialog';
  */
 export function ProjectsTab(): JSX.Element {
   const { data: projects, isLoading, isError, refetch } = useProjects();
+  const { data: tracks } = useTracks();
   const updateProject = useUpdateProject();
+  const queryClient = useQueryClient();
 
   const [editing, setEditing] = useState<Project | null>(null);
   const [managingMembers, setManagingMembers] = useState<Project | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [trackPendingId, setTrackPendingId] = useState<string | null>(null);
 
   async function toggleArchived(project: Project): Promise<void> {
     setActionError(null);
@@ -53,6 +67,24 @@ export function ProjectsTab(): JSX.Element {
       setPendingId(null);
     }
   }
+
+  async function assignTrack(project: Project, value: string): Promise<void> {
+    const nextTrackId = value === NO_TRACK ? null : value;
+    if (nextTrackId === project.trackId) return;
+    setActionError(null);
+    setTrackPendingId(project.id);
+    try {
+      await updateProject.mutateAsync({ id: project.id, input: { trackId: nextTrackId } });
+      // Reassigning changes each track's projectCount.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+    } catch (err) {
+      setActionError(isApiClientError(err) ? err.message : '设置赛道失败，请稍后重试');
+    } finally {
+      setTrackPendingId(null);
+    }
+  }
+
+  const activeTracks = (tracks ?? []).filter((t) => !t.archived);
 
   if (isLoading) {
     return (
@@ -172,7 +204,34 @@ export function ProjectsTab(): JSX.Element {
                 </DropdownMenu>
               </div>
 
-              <div className="mt-auto flex items-center gap-2 pt-1">
+              {/* Assign the project's owning 赛道 (P0 §2). */}
+              <div className="mt-auto grid gap-1.5 pt-1">
+                <label
+                  className="text-xs font-medium text-muted-foreground"
+                  htmlFor={`project-track-${project.id}`}
+                >
+                  所属赛道
+                </label>
+                <Select
+                  value={project.trackId ?? NO_TRACK}
+                  onValueChange={(v) => void assignTrack(project, v)}
+                  disabled={trackPendingId === project.id}
+                >
+                  <SelectTrigger id={`project-track-${project.id}`} className="h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_TRACK}>未归类</SelectItem>
+                    {activeTracks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"

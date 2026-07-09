@@ -64,6 +64,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     status: 'open',
     points: 5,
     priority: 'high',
+    taskType: null,
     minClaimants: 1,
     maxClaimants: null,
     dueDate: '2026-06-20',

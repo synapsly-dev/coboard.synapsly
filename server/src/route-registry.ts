@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
 import projectsRoutes from './routes/projects.js';
+import tracksRoutes from './routes/tracks.js';
 import tasksRoutes from './routes/tasks.js';
 import labelsRoutes from './routes/labels.js';
 import commentsRoutes from './routes/comments.js';
@@ -25,6 +26,7 @@ export const registerRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(authRoutes);
   await fastify.register(usersRoutes);
   await fastify.register(projectsRoutes);
+  await fastify.register(tracksRoutes);
   await fastify.register(tasksRoutes);
   await fastify.register(labelsRoutes);
   await fastify.register(commentsRoutes);

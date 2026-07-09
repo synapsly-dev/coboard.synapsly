@@ -6,6 +6,9 @@ import type { Config } from 'tailwindcss';
  * border, primary, muted, …) keep components themeable and consistent.
  */
 const config: Config = {
+  // Theme is toggled by adding `.dark` to <html> (see src/lib/theme.tsx), so
+  // `dark:` variants must key off that class, not the OS `prefers-color-scheme`.
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {

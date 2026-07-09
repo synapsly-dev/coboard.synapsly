@@ -13,6 +13,7 @@ import type { Database } from '../db/index.js';
 import {
   projectMembers,
   projects,
+  tracks,
   users,
   type ProjectMemberRow,
   type ProjectRow,
@@ -66,9 +67,27 @@ export function presentProject(row: ProjectRow): Project {
     key: row.key,
     description: row.description,
     archived: row.archived,
+    trackId: row.trackId,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/**
+ * Validate that `trackId` refers to an existing 赛道 (P0 §2). A null is always valid
+ * (未归类). Called before writing `projects.track_id` so a bad id surfaces as a clean
+ * 404 rather than a raw FK violation.
+ */
+async function assertTrackExists(db: Database, trackId: string | null): Promise<void> {
+  if (trackId === null) return;
+  const [row] = await db
+    .select({ id: tracks.id })
+    .from(tracks)
+    .where(eq(tracks.id, trackId))
+    .limit(1);
+  if (!row) {
+    throw notFound('赛道不存在');
+  }
 }
 
 function presentMember(
@@ -195,6 +214,8 @@ export async function createProject(
   creator: UserRow,
   input: CreateProjectInput,
 ): Promise<Project> {
+  await assertTrackExists(db, input.trackId ?? null);
+
   let row: ProjectRow | undefined;
   try {
     [row] = await db
@@ -203,6 +224,7 @@ export async function createProject(
         name: input.name,
         key: input.key,
         description: input.description ?? null,
+        trackId: input.trackId ?? null,
         createdBy: creator.id,
       })
       .returning();
@@ -247,6 +269,10 @@ export async function updateProject(
   if (input.name !== undefined) patch.name = input.name;
   if (input.description !== undefined) patch.description = input.description;
   if (input.archived !== undefined) patch.archived = input.archived;
+  if (input.trackId !== undefined) {
+    await assertTrackExists(db, input.trackId);
+    patch.trackId = input.trackId;
+  }
 
   const [row] = await db
     .update(projects)

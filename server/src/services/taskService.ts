@@ -190,6 +190,7 @@ export function serializeTask(
     status: row.status,
     points: row.points,
     priority: row.priority,
+    taskType: row.taskType,
     minClaimants: row.minClaimants,
     maxClaimants: row.maxClaimants,
     dueDate: row.dueDate,
@@ -551,6 +552,7 @@ export async function createTask(
       status,
       points: input.points ?? null,
       priority: input.priority,
+      taskType: input.taskType ?? null,
       minClaimants,
       maxClaimants,
       dueDate: input.dueDate ?? null,
@@ -643,6 +645,7 @@ export async function updateTask(
   if (input.title !== undefined) patch.title = input.title;
   if (input.description !== undefined) patch.description = input.description;
   if (input.priority !== undefined) patch.priority = input.priority;
+  if (input.taskType !== undefined) patch.taskType = input.taskType;
   if (input.points !== undefined) patch.points = input.points;
   if (input.dueDate !== undefined) patch.dueDate = input.dueDate;
   if (input.rank !== undefined) patch.rank = input.rank;

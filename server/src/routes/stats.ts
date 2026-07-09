@@ -5,6 +5,7 @@ import {
   trendQuerySchema,
   type LeaderboardResponse,
   type MyStatsResponse,
+  type TrackStatsResponse,
   type TrendResponse,
 } from 'shared';
 import { requireAuth, requireProjectMember } from '../lib/guards.js';
@@ -12,6 +13,7 @@ import { parseQuery } from '../lib/validate.js';
 import {
   getLeaderboard,
   getMyStats,
+  getTrackStats,
   getTrend,
   resolveVisibleScope,
   type StatsScope,
@@ -92,6 +94,22 @@ const statsRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     const body: TrendResponse = { points };
+    return body;
+  });
+
+  // Contribution rolled up by 赛道 (P0 §2), over the caller's visible scope.
+  fastify.get('/stats/tracks', async (request) => {
+    const user = requireAuth(request);
+    const query = parseQuery(myStatsQuerySchema, request.query);
+
+    const scope = await resolveVisibleScope(fastify.db, user);
+    const entries = await getTrackStats(fastify.db, {
+      scope,
+      from: toDate(query.from),
+      to: toDate(query.to),
+    });
+
+    const body: TrackStatsResponse = { entries };
     return body;
   });
 };

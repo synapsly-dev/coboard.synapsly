@@ -1,24 +1,46 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Compass, LayoutGrid, LogOut, Users as UsersIcon } from 'lucide-react';
-import type { ProjectDirectoryItem } from 'shared';
-import { Badge, Button, EmptyState, Spinner } from '../components/ui';
+import { Compass, LayoutGrid, LogOut, Route, Target, Users as UsersIcon } from 'lucide-react';
+import type { ProjectDirectoryItem, Track, TrackMember } from 'shared';
+import { Avatar, Badge, Button, EmptyState, Spinner } from '../components/ui';
 import { isApiClientError } from '../api/client';
 import {
   useJoinProject,
   useLeaveProject,
   useProjectDirectory,
 } from '../api/projects';
+import { useTracks } from '../api/tracks';
+import { avatarUrl } from '../lib/utils';
 
 /**
  * Project directory (§6.3) — a browsable list of every non-archived project that
- * any logged-in user can self-join as a `member` or leave. Mirrors the admin
- * ProjectsTab card styling (name + key badge + description + member count). Join/
- * leave only ever affect the caller's own membership; the server enforces authz
- * (e.g. the sole-lead 409 surfaced inline below).
+ * any logged-in user can self-join as a `member` or leave. Projects are grouped by
+ * 赛道 (P0 §2): one section per non-archived track (header = name + 本周目标 + 运营
+ * 经理), plus a final 「未归类」 group for projects with no (or an archived) track.
+ * Join/leave only ever affect the caller's own membership; the server enforces authz.
  */
 export default function ProjectsPage(): JSX.Element {
   const { data: projects, isLoading, isError, refetch } = useProjectDirectory();
+  const { data: tracks } = useTracks();
+
+  // Group projects by owning track. Non-archived tracks (in server rank order) each
+  // get a section; projects with a null / archived / unknown track fall into 未归类.
+  const { orderedTracks, byTrack, ungrouped } = useMemo(() => {
+    const activeTracks = (tracks ?? []).filter((t) => !t.archived);
+    const trackIds = new Set(activeTracks.map((t) => t.id));
+    const grouped = new Map<string, ProjectDirectoryItem[]>();
+    const pool: ProjectDirectoryItem[] = [];
+    for (const project of projects ?? []) {
+      if (project.trackId && trackIds.has(project.trackId)) {
+        const bucket = grouped.get(project.trackId);
+        if (bucket) bucket.push(project);
+        else grouped.set(project.trackId, [project]);
+      } else {
+        pool.push(project);
+      }
+    }
+    return { orderedTracks: activeTracks, byTrack: grouped, ungrouped: pool };
+  }, [projects, tracks]);
 
   if (isLoading) {
     return (
@@ -49,27 +71,129 @@ export default function ProjectsPage(): JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 motion-safe:animate-fade-in sm:px-6">
-      <div>
-        <h1 className="text-base font-semibold">项目</h1>
-        <p className="text-sm text-muted-foreground">
-          共 {list.length} 个项目。加入感兴趣的项目即可查看其看板。
-        </p>
-      </div>
+      <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 motion-safe:animate-fade-in sm:px-6">
+        <div>
+          <h1 className="text-base font-semibold">项目</h1>
+          <p className="text-sm text-muted-foreground">
+            共 {list.length} 个项目，按赛道分组。加入感兴趣的项目即可查看其看板。
+          </p>
+        </div>
 
-      {list.length === 0 ? (
-        <EmptyState
-          icon={Compass}
-          title="还没有可加入的项目"
-          description="等待管理员创建项目后，这里会列出所有可加入的项目。"
-        />
+        {list.length === 0 ? (
+          <EmptyState
+            icon={Compass}
+            title="还没有可加入的项目"
+            description="等待管理员创建项目后，这里会列出所有可加入的项目。"
+          />
+        ) : (
+          <>
+            {orderedTracks.map((track) => (
+              <TrackSection
+                key={track.id}
+                track={track}
+                projects={byTrack.get(track.id) ?? []}
+              />
+            ))}
+            {ungrouped.length > 0 && <UngroupedSection projects={ungrouped} />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** One 赛道 section: header (name + 本周目标 + 运营经理) over its project cards. */
+function TrackSection({
+  track,
+  projects,
+}: {
+  track: Track;
+  projects: ProjectDirectoryItem[];
+}): JSX.Element {
+  return (
+    <section className="space-y-3">
+      <header className="space-y-1.5 border-b border-border pb-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Route className="h-4 w-4" aria-hidden />
+          </span>
+          <h2 className="text-sm font-semibold text-foreground">{track.name}</h2>
+          <Badge variant="outline" className="font-mono">
+            {track.key}
+          </Badge>
+          <span className="text-xs text-muted-foreground">{projects.length} 个项目</span>
+          <ManagerAvatars managers={track.managers} className="ml-auto" />
+        </div>
+        {track.weeklyGoal && (
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Target className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>{track.weeklyGoal}</span>
+          </p>
+        )}
+      </header>
+      {projects.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+          该赛道暂无可加入的项目。
+        </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {list.map((project) => (
+          {projects.map((project) => (
             <DirectoryCard key={project.id} project={project} />
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+/** The trailing 「未归类」 group for projects with no owning track. */
+function UngroupedSection({ projects }: { projects: ProjectDirectoryItem[] }): JSX.Element {
+  return (
+    <section className="space-y-3">
+      <header className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+          <Compass className="h-4 w-4" aria-hidden />
+        </span>
+        <h2 className="text-sm font-semibold text-foreground">未归类</h2>
+        <span className="text-xs text-muted-foreground">{projects.length} 个项目</span>
+      </header>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {projects.map((project) => (
+          <DirectoryCard key={project.id} project={project} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** A compact stacked-avatar row for a track's 运营经理 (managers). */
+function ManagerAvatars({
+  managers,
+  className,
+}: {
+  managers: TrackMember[];
+  className?: string;
+}): JSX.Element | null {
+  if (managers.length === 0) return null;
+  const shown = managers.slice(0, 4);
+  const extra = managers.length - shown.length;
+  return (
+    <div className={className}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-muted-foreground">运营经理</span>
+        <div className="flex -space-x-2">
+          {shown.map((m) => (
+            <Avatar
+              key={m.userId}
+              name={m.displayName}
+              color={m.avatarColor}
+              imageUrl={m.hasAvatar ? avatarUrl(m.userId) : undefined}
+              size="xs"
+              className="ring-2 ring-background"
+            />
+          ))}
+        </div>
+        {extra > 0 && <span className="text-xs text-muted-foreground">+{extra}</span>}
       </div>
     </div>
   );

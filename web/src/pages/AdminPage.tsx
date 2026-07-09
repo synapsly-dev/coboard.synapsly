@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FolderKanban, Settings, Users } from 'lucide-react';
+import { FolderKanban, Route, Settings, Users } from 'lucide-react';
 import { useAuth } from '../lib/auth-context';
 import { cn } from '../lib/utils';
-import { ProjectsTab, SettingsTab, UsersTab } from '../features/admin';
+import { ProjectsTab, SettingsTab, TracksTab, UsersTab } from '../features/admin';
 
 /**
  * Admin console (§6.3). Two tabs — Users and Projects — for managing accounts and
@@ -12,7 +12,7 @@ import { ProjectsTab, SettingsTab, UsersTab } from '../features/admin';
  * (§6.3); the guard below is a defensive belt-and-braces redirect.
  */
 
-type AdminTab = 'users' | 'projects' | 'settings';
+type AdminTab = 'users' | 'projects' | 'tracks' | 'settings';
 
 interface TabDef {
   id: AdminTab;
@@ -22,6 +22,7 @@ interface TabDef {
 
 const tabs: readonly TabDef[] = [
   { id: 'users', label: '用户', icon: Users },
+  { id: 'tracks', label: '赛道', icon: Route },
   { id: 'projects', label: '项目', icon: FolderKanban },
   { id: 'settings', label: '设置', icon: Settings },
 ];
@@ -108,6 +109,7 @@ export default function AdminPage(): JSX.Element {
             alike) — signals the content actually switched. */}
         <div key={active} className="motion-safe:animate-fade-in">
           {active === 'users' && <UsersTab />}
+          {active === 'tracks' && <TracksTab />}
           {active === 'projects' && <ProjectsTab />}
           {active === 'settings' && <SettingsTab />}
         </div>

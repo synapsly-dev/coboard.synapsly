@@ -23,6 +23,8 @@ import {
   priorities,
   projectRoles,
   taskStatuses,
+  taskTypes,
+  trackMemberRoles,
   userRoles,
 } from 'shared';
 
@@ -40,6 +42,8 @@ import {
 export const userRoleEnum = pgEnum('user_role', userRoles);
 export const projectRoleEnum = pgEnum('project_role', projectRoles);
 export const taskStatusEnum = pgEnum('task_status', taskStatuses);
+export const taskTypeEnum = pgEnum('task_type', taskTypes);
+export const trackMemberRoleEnum = pgEnum('track_member_role', trackMemberRoles);
 export const priorityEnum = pgEnum('priority', priorities);
 export const activityTypeEnum = pgEnum('activity_type', activityTypes);
 export const ideaStatusEnum = pgEnum('idea_status', ideaStatuses);
@@ -143,6 +147,60 @@ export const sessions = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// tracks — 赛道 (P0 §2). The top operational grouping above projects. Each track
+// groups projects(小组) and carries 赛道运营经理(manager) + members via
+// track_members. `weekly_goal` is the free-text 本周目标/最低KPI blurb. `rank`
+// orders tracks (lexicographic, like tasks.rank).
+// ---------------------------------------------------------------------------
+
+export const tracks = pgTable(
+  'tracks',
+  {
+    id: primaryId,
+    name: text('name').notNull(),
+    key: text('key').notNull(),
+    description: text('description'),
+    weeklyGoal: text('weekly_goal'),
+    archived: boolean('archived').notNull().default(false),
+    rank: text('rank').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex('tracks_key_uniq').on(table.key)],
+);
+
+// ---------------------------------------------------------------------------
+// track_members — the people on a 赛道. A track may carry multiple `manager`
+// (赛道运营经理 — lead-equivalent over the track's projects, see guards §3) and
+// multiple `member` rows. One row per (track, user). `rank` orders the avatars.
+// Both sides cascade so rows detach when a track or a user is deleted.
+// ---------------------------------------------------------------------------
+
+export const trackMembers = pgTable(
+  'track_members',
+  {
+    trackId: uuid('track_id')
+      .notNull()
+      .references(() => tracks.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: trackMemberRoleEnum('role').notNull(),
+    rank: text('rank').notNull(),
+    createdAt,
+  },
+  (table) => [
+    primaryKey({ columns: [table.trackId, table.userId] }),
+    index('track_members_user_id_idx').on(table.userId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // projects (§5)
 // ---------------------------------------------------------------------------
 
@@ -154,12 +212,21 @@ export const projects = pgTable(
     key: text('key').notNull(),
     description: text('description'),
     archived: boolean('archived').notNull().default(false),
+    // Owning 赛道 (P0 §2). NULL = not yet grouped under a track (未归类). A track is
+    // never hard-deleted while it owns projects (service guards); set null on delete
+    // is the DB-level safety net.
+    trackId: uuid('track_id').references(() => tracks.id, {
+      onDelete: 'set null',
+    }),
     createdBy: uuid('created_by')
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt,
   },
-  (table) => [uniqueIndex('projects_key_uniq').on(table.key)],
+  (table) => [
+    uniqueIndex('projects_key_uniq').on(table.key),
+    index('projects_track_id_idx').on(table.trackId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -205,6 +272,8 @@ export const tasks = pgTable(
     title: text('title').notNull(),
     description: text('description'),
     status: taskStatusEnum('status').notNull().default('open'),
+    // Task type A/B/C/D (运营需求 §4.1); NULL = 未分类. Orthogonal to `priority`.
+    taskType: taskTypeEnum('task_type'),
     // DEPRECATED (lifecycle v2 §2.2): single-assignee model replaced by the
     // `task_claimants` set. Column kept (not dropped) to de-risk the migration;
     // no code reads/writes it going forward.
@@ -572,6 +641,10 @@ export type UserAvatarRow = typeof userAvatars.$inferSelect;
 export type NewUserAvatarRow = typeof userAvatars.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
+export type TrackRow = typeof tracks.$inferSelect;
+export type NewTrackRow = typeof tracks.$inferInsert;
+export type TrackMemberRow = typeof trackMembers.$inferSelect;
+export type NewTrackMemberRow = typeof trackMembers.$inferInsert;
 export type ProjectRow = typeof projects.$inferSelect;
 export type NewProjectRow = typeof projects.$inferInsert;
 export type ProjectMemberRow = typeof projectMembers.$inferSelect;
@@ -608,6 +681,8 @@ export const schema = {
   users,
   userAvatars,
   sessions,
+  tracks,
+  trackMembers,
   projects,
   projectMembers,
   tasks,
@@ -626,6 +701,8 @@ export const schema = {
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,
+  taskTypeEnum,
+  trackMemberRoleEnum,
   priorityEnum,
   activityTypeEnum,
   ideaStatusEnum,

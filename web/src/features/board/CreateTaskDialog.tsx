@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Plus } from 'lucide-react';
-import { createTaskInputSchema, type CreateTaskInput, type Priority } from 'shared';
+import {
+  createTaskInputSchema,
+  type CreateTaskInput,
+  type Priority,
+  type TaskType,
+} from 'shared';
 import {
   Button,
   Dialog,
@@ -24,7 +29,7 @@ import { isApiClientError } from '../../api/client';
 import { useProjects } from '../../api/projects';
 import { ALL_PROJECTS, useCreateTask, useProjectMembers } from '../../api/tasks';
 import { LabelPicker } from './LabelPicker';
-import { PRIORITY_LABELS } from './labels';
+import { PRIORITY_LABELS, TASK_TYPE_META, TASK_TYPE_OPTIONS } from './labels';
 
 /**
  * Create-task dialog (§6.1, §8). A 项目 select at the top chooses the owning project
@@ -38,11 +43,15 @@ const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent'];
 const UNASSIGNED = '__unassigned__';
 /** Sentinel select value for the 「不指定项目（任务池）」 option (§8). */
 const NO_PROJECT = '__no_project__';
+/** Sentinel select value for the 「未分类」 task-type option (P0 §2). */
+const NO_TASK_TYPE = '__no_task_type__';
 
 interface FormValues {
   title: string;
   description: string;
   priority: Priority;
+  /** Task type A/B/C/D, or {@link NO_TASK_TYPE} for 未分类 (P0 §2). */
+  taskType: string;
   points: string;
   /** Claim-count lower bound (>= 1); below it the task waits in 待认领. */
   minClaimants: string;
@@ -98,6 +107,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
       title: '',
       description: '',
       priority: 'medium',
+      taskType: NO_TASK_TYPE,
       points: '',
       minClaimants: '1',
       maxClaimants: '',
@@ -107,6 +117,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
   });
 
   const priority = watch('priority');
+  const taskType = watch('taskType');
   const assigneeId = watch('assigneeId');
   const isPoolTask = selectedProject === NO_PROJECT;
 
@@ -128,6 +139,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
       minClaimants: min,
     };
     if (values.description.trim()) payload.description = values.description.trim();
+    if (values.taskType !== NO_TASK_TYPE) payload.taskType = values.taskType as TaskType;
     if (values.points.trim()) {
       const pts = Number(values.points);
       if (Number.isInteger(pts) && pts >= 0) payload.points = pts;
@@ -239,7 +251,24 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label>任务类型（选填）</Label>
+              <Select value={taskType} onValueChange={(v) => setValue('taskType', v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_TASK_TYPE}>未分类</SelectItem>
+                  {TASK_TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TASK_TYPE_META[t].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-1.5">
               <Label>优先级</Label>
               <Select value={priority} onValueChange={(v) => setValue('priority', v as Priority)}>

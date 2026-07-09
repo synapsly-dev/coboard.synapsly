@@ -5,6 +5,7 @@
 export { StatFilters } from './StatFilters';
 export { Leaderboard } from './Leaderboard';
 export { PersonalSummary } from './PersonalSummary';
+export { TrackStatsPanel } from './TrackStatsPanel';
 export { ChartCard, TrendChart, PerPersonChart } from './ContributionChart';
 export {
   ALL_PROJECTS,

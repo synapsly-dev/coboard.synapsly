@@ -26,6 +26,7 @@ const ENTITY_CHANNELS: readonly RealtimeEntity[] = [
   'idea',
   'announcement',
   'org',
+  'track',
 ];
 
 function safeParse(raw: string): RealtimeEvent | null {
@@ -110,6 +111,15 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       // (the `['org', scope]` prefix), since the payload's scope is enough context
       // and trees are small.
       void queryClient.invalidateQueries({ queryKey: ['org'] });
+      break;
+    }
+    case 'track': {
+      // An admin created/edited/deleted a 赛道 or reassigned a project's track (P0
+      // §2). Refresh the track list, the projects list (grouping + projectCount),
+      // and the per-track stats rollup.
+      void queryClient.invalidateQueries({ queryKey: ['tracks'] });
+      void queryClient.invalidateQueries({ queryKey: ['projects'] });
+      void queryClient.invalidateQueries({ queryKey: ['stats', 'tracks'] });
       break;
     }
     default: {

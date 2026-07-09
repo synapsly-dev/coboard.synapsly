@@ -46,6 +46,27 @@ export const prioritySchema = z.enum(priorities);
 export type Priority = (typeof priorities)[number];
 
 /**
+ * Track membership role (P0 §3). A 赛道 (track) carries `manager`s (赛道运营经理 —
+ * the new middle management tier, lead-equivalent over every project in the track)
+ * and plain `member`s. Distinct from projectRoles / orgMemberRoles.
+ */
+export const trackMemberRoles = ['manager', 'member'] as const;
+export const trackMemberRoleSchema = z.enum(trackMemberRoles);
+export type TrackMemberRole = (typeof trackMemberRoles)[number];
+
+/**
+ * Task type A/B/C/D (运营需求 §4.1). Orthogonal to `priority`. Values are English
+ * semantic identifiers; the UI renders the letter code + Chinese label:
+ *   critical  → A 类·关键任务  (高价值/高风险/跨部门；必须指定主负责人)
+ *   baseline  → B 类·底线任务  (每个活跃成员每周最低交付；点对点分配)
+ *   claimable → C 类·认领任务  (进入公共任务池，主动认领)
+ *   collab    → D 类·协作任务  (轻量辅助支持；开放辅助认领)
+ */
+export const taskTypes = ['critical', 'baseline', 'claimable', 'collab'] as const;
+export const taskTypeSchema = z.enum(taskTypes);
+export type TaskType = (typeof taskTypes)[number];
+
+/**
  * Activity / timeline event type (§5 activities.type). Lifecycle v2 (§3) adds
  * `delivered` (a claimant/lead submitted points allocations for review) and
  * `rejected` (a lead/admin sent the task back to in_progress).

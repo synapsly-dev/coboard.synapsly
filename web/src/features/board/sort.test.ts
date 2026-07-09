@@ -28,6 +28,7 @@ function task(over: Partial<Task> & { id: string }): Task {
     status: 'open',
     points: null,
     priority: 'medium',
+    taskType: null,
     minClaimants: 1,
     maxClaimants: null,
     dueDate: null,

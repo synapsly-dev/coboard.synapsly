@@ -111,7 +111,7 @@ PK `(track_id, user_id)`；索引 `track_members_user_id_idx`。
 
 ## 5. 迁移与向后兼容
 - 所有新列可空；不动存量数据的读路径。
-- 迁移末尾/或首启 seed（`server/src/db/seed.ts`）：若存在项目但无任何赛道，则建一条 `未归类`（key `uncategorized`）赛道，并把 `track_id IS NULL` 的项目指向它。**幂等**：已存在则跳过。
+- **实现决定（最终）**：不新建"未归类"种子赛道行。`projects.track_id IS NULL`（含存量项目）与任务池任务一起，统一归入前端/统计里的合成 **「未归类」** 分组。更简单、无需 seed、生产不受影响（生产不 seed）。
 - `task_type` 存量任务保持 null，UI 显示"未分类"。
 
 ## 6. 前端（`web/src`）

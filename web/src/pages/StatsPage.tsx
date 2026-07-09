@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useLeaderboard, useTrend } from '../api/stats';
+import { useLeaderboard, useTrackStats, useTrend } from '../api/stats';
 import { useAuth } from '../lib/auth-context';
 import {
   ChartCard,
@@ -8,6 +8,7 @@ import {
   PerPersonChart,
   PersonalSummary,
   StatFilters,
+  TrackStatsPanel,
   TrendChart,
   bucketForRange,
   resolveStatsQuery,
@@ -51,6 +52,9 @@ export default function StatsPage(): JSX.Element {
     to: resolved.to,
     bucket,
   });
+
+  // Per-赛道 rollup over the same window (P0 §2). Not project-scoped.
+  const trackStats = useTrackStats({ from: resolved.from, to: resolved.to });
 
   // The current user's 1-based rank within the (already sorted) leaderboard.
   const myRank = useMemo(() => {
@@ -118,6 +122,12 @@ export default function StatsPage(): JSX.Element {
               />
             </ChartCard>
           </div>
+        </div>
+
+        {/* Per-赛道 rollup (P0 §2) — spans the full width below the leaderboard. */}
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-foreground">按赛道</h2>
+          <TrackStatsPanel entries={trackStats.data} isLoading={trackStats.isLoading} />
         </div>
       </div>
     </div>

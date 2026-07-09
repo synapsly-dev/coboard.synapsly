@@ -4,6 +4,7 @@ import type {
   LeaderboardEntry,
   MyStatsResponse,
   StatsSort,
+  TrackStatsEntry,
   TrendBucket,
   TrendPoint,
   User,
@@ -12,8 +13,10 @@ import type { Database } from '../db/index.js';
 import {
   ideas,
   projectMembers,
+  projects,
   taskClaimants,
   tasks,
+  tracks,
   users,
   type UserRow,
 } from '../db/schema.js';
@@ -509,4 +512,70 @@ export async function getTrend(
   }
 
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ---------------------------------------------------------------------------
+// Per-赛道 rollup (GET /stats/tracks) — P0 §2 stats dimension
+// ---------------------------------------------------------------------------
+
+export interface TrackStatsArgs {
+  scope: StatsScope;
+  from?: Date;
+  to?: Date;
+}
+
+/**
+ * Contribution rolled up by 赛道 (P0 §2). Aggregates done-task share points and their
+ * counts by the task's owning project's `track_id`. Pool tasks (no project) and
+ * projects with no track collapse into a single synthetic `trackId: null` bucket
+ * (未归类/无赛道). Reward points are NOT included here (this dimension is task-only;
+ * standalone ideas have no track). Ordered by pointsSum desc, then completedCount
+ * desc, with the null bucket last.
+ */
+export async function getTrackStats(
+  db: Database,
+  args: TrackStatsArgs,
+): Promise<TrackStatsEntry[]> {
+  const where = buildBaseFilters({ scope: args.scope, from: args.from, to: args.to });
+  if (where === 'never') return [];
+
+  const rows = await db
+    .select({
+      trackId: projects.trackId,
+      completedCount: completedCountSql,
+      pointsSum: pointsSumSql,
+    })
+    .from(taskClaimants)
+    .innerJoin(tasks, eq(tasks.id, taskClaimants.taskId))
+    .leftJoin(projects, eq(projects.id, tasks.projectId))
+    .where(where)
+    .groupBy(projects.trackId);
+
+  const trackIds = rows
+    .map((r) => r.trackId)
+    .filter((id): id is string => id !== null);
+  const nameById = new Map<string, string>();
+  if (trackIds.length > 0) {
+    const trackRows = await db
+      .select({ id: tracks.id, name: tracks.name })
+      .from(tracks)
+      .where(inArray(tracks.id, trackIds));
+    for (const t of trackRows) nameById.set(t.id, t.name);
+  }
+
+  const entries: TrackStatsEntry[] = rows.map((r) => ({
+    trackId: r.trackId,
+    trackName: r.trackId === null ? null : (nameById.get(r.trackId) ?? null),
+    completedCount: r.completedCount,
+    pointsSum: r.pointsSum,
+  }));
+
+  entries.sort((a, b) => {
+    if (b.pointsSum !== a.pointsSum) return b.pointsSum - a.pointsSum;
+    if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+    // Null bucket (未归类) sorts last among equals.
+    return (a.trackName ?? '￿').localeCompare(b.trackName ?? '￿');
+  });
+
+  return entries;
 }

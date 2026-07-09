@@ -5,6 +5,7 @@ import type { Database } from '../db/index.js';
 import {
   projectMembers,
   projects,
+  trackMembers,
   type ProjectRow,
   type TaskRow,
   type UserRow,
@@ -50,6 +51,12 @@ export interface ProjectMembership {
   projectRole: ProjectRole;
   /** True if the user is a real member row (false for admins acting cross-project). */
   isMemberRow: boolean;
+  /**
+   * True when the caller's lead-equivalent authority comes from being a 赛道运营经理
+   * (manager of the project's owning 赛道), not a real project membership or global
+   * admin (P0 §3). Lets handlers/audit distinguish the source; does not change gating.
+   */
+  viaTrackManager: boolean;
 }
 
 /** Load a project by id or throw 404. */
@@ -64,6 +71,31 @@ async function loadProject(db: Database, projectId: string): Promise<ProjectRow>
     throw notFound('项目不存在');
   }
   return project;
+}
+
+/**
+ * Whether `userId` is a manager (赛道运营经理) of `trackId` (P0 §3). A track manager
+ * is lead-equivalent over every project in the track. Returns false for a null track
+ * (未归类 projects have no track and thus no track manager).
+ */
+export async function isTrackManager(
+  db: Database,
+  userId: string,
+  trackId: string | null,
+): Promise<boolean> {
+  if (trackId === null) return false;
+  const rows = await db
+    .select({ role: trackMembers.role })
+    .from(trackMembers)
+    .where(
+      and(
+        eq(trackMembers.trackId, trackId),
+        eq(trackMembers.userId, userId),
+        eq(trackMembers.role, 'manager'),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**
@@ -95,18 +127,40 @@ export async function requireProjectMember(
   // 'lead' regardless, so lead-gated actions (review, assign, manage members) don't
   // 403 just because an admin is also a plain member of the project.
   const isGlobalAdmin = isAdminRole(user.role);
+  // A 赛道运营经理 (manager of the project's owning track) is lead-equivalent over
+  // every project in that track (P0 §3). Only checked when not already a global admin.
+  const isTrackMgr =
+    !isGlobalAdmin && (await isTrackManager(db, user.id, project.trackId));
 
   if (membership) {
     return {
       user,
       project,
-      projectRole: isGlobalAdmin ? 'lead' : membership.role,
+      projectRole: isGlobalAdmin || isTrackMgr ? 'lead' : membership.role,
       isMemberRow: true,
+      viaTrackManager: isTrackMgr && membership.role !== 'lead',
     };
   }
 
   if (isGlobalAdmin) {
-    return { user, project, projectRole: 'lead', isMemberRow: false };
+    return {
+      user,
+      project,
+      projectRole: 'lead',
+      isMemberRow: false,
+      viaTrackManager: false,
+    };
+  }
+
+  if (isTrackMgr) {
+    // A track manager need not be enrolled in the project to manage it.
+    return {
+      user,
+      project,
+      projectRole: 'lead',
+      isMemberRow: false,
+      viaTrackManager: true,
+    };
   }
 
   // Non-members must not learn whether the project exists.

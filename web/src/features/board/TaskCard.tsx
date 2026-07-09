@@ -12,6 +12,7 @@ import { ReviewActions } from './ReviewActions';
 import { RevokeApprovalButton } from './RevokeApprovalButton';
 import { dueInfo } from './format';
 import { PRIORITY_BADGE, PRIORITY_LABELS } from './labels';
+import { TaskTypeBadge } from './TaskTypeBadge';
 import {
   canClaim,
   canDeliver,
@@ -102,14 +103,18 @@ export function TaskCard({
         </Badge>
       )}
 
-      {/* Priority + points row */}
+      {/* Task type (A/B/C/D) + priority + points row */}
       <div className="flex items-center justify-between gap-2">
-        <Badge variant={priority.variant} className="gap-1">
-          <span className={cn('h-1.5 w-1.5 rounded-full', priority.dot)} aria-hidden />
-          {PRIORITY_LABELS[task.priority]}
-        </Badge>
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          {/* Task-type chip is the marquee signal — render it first (null → nothing). */}
+          <TaskTypeBadge taskType={task.taskType} />
+          <Badge variant={priority.variant} className="gap-1">
+            <span className={cn('h-1.5 w-1.5 rounded-full', priority.dot)} aria-hidden />
+            {PRIORITY_LABELS[task.priority]}
+          </Badge>
+        </div>
         {task.points != null && (
-          <Badge variant="primary" aria-label={`${task.points} 点`}>
+          <Badge variant="primary" className="shrink-0" aria-label={`${task.points} 点`}>
             {task.points} 点
           </Badge>
         )}

@@ -4,6 +4,8 @@ import type {
   LeaderboardResponse,
   MyStatsResponse,
   StatsSort,
+  TrackStatsEntry,
+  TrackStatsResponse,
   TrendBucket,
   TrendPoint,
   TrendResponse,
@@ -94,6 +96,12 @@ export const statsApi = {
       },
       signal,
     }),
+
+  tracks: (params: MyStatsParams, signal?: AbortSignal): Promise<TrackStatsResponse> =>
+    api.get<TrackStatsResponse>('/stats/tracks', {
+      query: { from: params.from, to: params.to },
+      signal,
+    }),
 };
 
 /** Ranked per-user contribution list (§7 GET /stats/leaderboard). */
@@ -121,6 +129,18 @@ export function useMyStats(params: MyStatsParams): UseQueryResult<MyStatsRespons
   return useQuery<MyStatsResponse>({
     queryKey: queryKeys.myStats(keyParams),
     queryFn: ({ signal }) => statsApi.me(params, signal),
+  });
+}
+
+/** Contribution rolled up by 赛道 (P0 §2 GET /stats/tracks). */
+export function useTrackStats(params: MyStatsParams): UseQueryResult<TrackStatsEntry[]> {
+  const keyParams = toKeyParams({ from: params.from, to: params.to });
+  return useQuery<TrackStatsEntry[]>({
+    queryKey: queryKeys.trackStats(keyParams),
+    queryFn: async ({ signal }) => {
+      const res = await statsApi.tracks(params, signal);
+      return res.entries;
+    },
   });
 }
 

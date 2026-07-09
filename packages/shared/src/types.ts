@@ -10,6 +10,8 @@ export type {
   ProjectRole,
   TaskStatus,
   Priority,
+  TaskType,
+  TrackMemberRole,
   ActivityType,
   OrgNodeKind,
   OrgMemberRole,
@@ -48,6 +50,15 @@ export type {
   UpdateProjectInput,
   ProjectMembersResponse,
   AddProjectMemberInput,
+  // tracks (赛道)
+  TrackMember,
+  Track,
+  TracksResponse,
+  TrackResponse,
+  CreateTrackInput,
+  UpdateTrackInput,
+  SetTrackMembersInput,
+  SetProjectTrackInput,
   // tasks
   TaskClaimant,
   BoardResponse,
@@ -76,6 +87,8 @@ export type {
   TrendQuery,
   TrendPoint,
   TrendResponse,
+  TrackStatsEntry,
+  TrackStatsResponse,
   // org tree (团队架构)
   OrgScope,
   OrgNode,
