@@ -1,14 +1,17 @@
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import { isAdminRole } from 'shared';
+import { FINAL_REVIEW_POINTS_THRESHOLD, isAdminRole } from 'shared';
 import type {
   AssignTaskInput,
   CreateTaskInput,
   DeliverTaskInput,
   Label,
+  ReviewStage,
   ReviewTaskInput,
   Task,
   TaskClaimant,
+  TaskReview,
   TaskStatus,
+  TransferTaskInput,
   UpdateTaskInput,
   UserSummary,
 } from 'shared';
@@ -17,7 +20,9 @@ import {
   projectMembers,
   projects,
   taskClaimants,
+  taskReviews,
   tasks,
+  trackMembers,
   users,
   type TaskClaimantRow,
   type TaskRow,
@@ -179,6 +184,7 @@ export function serializeTask(
   labels: Label[] = [],
   reviewer: UserSummary | null = null,
   deliverer: UserSummary | null = null,
+  firstApprover: UserSummary | null = null,
 ): Task {
   return {
     id: row.id,
@@ -191,6 +197,13 @@ export function serializeTask(
     points: row.points,
     priority: row.priority,
     taskType: row.taskType,
+    deliverableSpec: row.deliverableSpec,
+    acceptanceCriteria: row.acceptanceCriteria,
+    qualityGrade: row.qualityGrade,
+    needsFinalReview: row.needsFinalReview,
+    firstApprovedBy: row.firstApprovedBy,
+    firstApprover,
+    firstApprovedAt: row.firstApprovedAt ? row.firstApprovedAt.toISOString() : null,
     minClaimants: row.minClaimants,
     maxClaimants: row.maxClaimants,
     dueDate: row.dueDate,
@@ -306,12 +319,26 @@ function delivererFor(
   return row.deliveredBy ? byId.get(row.deliveredBy) ?? null : null;
 }
 
-/** The reviewer + deliverer user ids referenced by a set of task rows (for batch load). */
-function reviewerDelivererIds(rows: Array<Pick<TaskRow, 'reviewedBy' | 'deliveredBy'>>): string[] {
+/** Resolve a task row's 初审人 summary from `firstApprovedBy` (P2 §3), or null. */
+function firstApproverFor(
+  row: Pick<TaskRow, 'firstApprovedBy'>,
+  byId: Map<string, UserSummary>,
+): UserSummary | null {
+  return row.firstApprovedBy ? byId.get(row.firstApprovedBy) ?? null : null;
+}
+
+/**
+ * The reviewer + deliverer + 初审人 user ids referenced by a set of task rows
+ * (for batch summary load).
+ */
+function taskPeopleIds(
+  rows: Array<Pick<TaskRow, 'reviewedBy' | 'deliveredBy' | 'firstApprovedBy'>>,
+): string[] {
   const ids: string[] = [];
   for (const r of rows) {
     if (r.reviewedBy) ids.push(r.reviewedBy);
     if (r.deliveredBy) ids.push(r.deliveredBy);
+    if (r.firstApprovedBy) ids.push(r.firstApprovedBy);
   }
   return ids;
 }
@@ -321,7 +348,7 @@ async function serializeTaskById(db: Database, row: TaskRow): Promise<Task> {
   const byTask = await loadClaimantsForTasks(db, [row.id]);
   const project = await loadProjectContext(db, row.projectId);
   const labelsByTask = await loadLabelsForTasks(db, [row.id]);
-  const people = await loadUserSummaries(db, reviewerDelivererIds([row]));
+  const people = await loadUserSummaries(db, taskPeopleIds([row]));
   return serializeTask(
     row,
     byTask.get(row.id) ?? [],
@@ -329,6 +356,53 @@ async function serializeTaskById(db: Database, row: TaskRow): Promise<Task> {
     labelsByTask.get(row.id) ?? [],
     reviewerFor(row, people),
     delivererFor(row, people),
+    firstApproverFor(row, people),
+  );
+}
+
+/**
+ * Batch-serialize a set of task rows with their claimants, owning-project context,
+ * labels, and people summaries — the shared internals of GET /tasks/all, reused by
+ * the workbench reads (P2 §4) so every list endpoint stays N+1-free.
+ */
+async function serializeTaskRows(db: Database, rows: TaskRow[]): Promise<Task[]> {
+  const byTask = await loadClaimantsForTasks(
+    db,
+    rows.map((r) => r.id),
+  );
+
+  // Batch-load project context (name/key) for every distinct owning project.
+  const projectIds = [
+    ...new Set(rows.map((r) => r.projectId).filter((id): id is string => id !== null)),
+  ];
+  const projectById = new Map<string, TaskProjectContext>();
+  if (projectIds.length > 0) {
+    const projectRows = await db
+      .select({ id: projects.id, name: projects.name, key: projects.key })
+      .from(projects)
+      .where(inArray(projects.id, projectIds));
+    for (const p of projectRows) {
+      projectById.set(p.id, { name: p.name, key: p.key });
+    }
+  }
+
+  const labelsByTask = await loadLabelsForTasks(
+    db,
+    rows.map((r) => r.id),
+  );
+
+  const people = await loadUserSummaries(db, taskPeopleIds(rows));
+
+  return rows.map((row) =>
+    serializeTask(
+      row,
+      byTask.get(row.id) ?? [],
+      row.projectId === null ? null : projectById.get(row.projectId) ?? null,
+      labelsByTask.get(row.id) ?? [],
+      reviewerFor(row, people),
+      delivererFor(row, people),
+      firstApproverFor(row, people),
+    ),
   );
 }
 
@@ -417,7 +491,7 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
     db,
     rows.map((r) => r.id),
   );
-  const people = await loadUserSummaries(db, reviewerDelivererIds(rows));
+  const people = await loadUserSummaries(db, taskPeopleIds(rows));
   return rows.map((row) =>
     serializeTask(
       row,
@@ -426,6 +500,7 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
       labelsByTask.get(row.id) ?? [],
       reviewerFor(row, people),
       delivererFor(row, people),
+      firstApproverFor(row, people),
     ),
   );
 }
@@ -470,43 +545,7 @@ export async function listAllVisibleTasks(
     .where(where)
     .orderBy(asc(tasks.rank), asc(tasks.createdAt));
 
-  const byTask = await loadClaimantsForTasks(
-    db,
-    rows.map((r) => r.id),
-  );
-
-  // Batch-load project context (name/key) for every distinct owning project.
-  const projectIds = [
-    ...new Set(rows.map((r) => r.projectId).filter((id): id is string => id !== null)),
-  ];
-  const projectById = new Map<string, TaskProjectContext>();
-  if (projectIds.length > 0) {
-    const projectRows = await db
-      .select({ id: projects.id, name: projects.name, key: projects.key })
-      .from(projects)
-      .where(inArray(projects.id, projectIds));
-    for (const p of projectRows) {
-      projectById.set(p.id, { name: p.name, key: p.key });
-    }
-  }
-
-  const labelsByTask = await loadLabelsForTasks(
-    db,
-    rows.map((r) => r.id),
-  );
-
-  const people = await loadUserSummaries(db, reviewerDelivererIds(rows));
-
-  return rows.map((row) =>
-    serializeTask(
-      row,
-      byTask.get(row.id) ?? [],
-      row.projectId === null ? null : projectById.get(row.projectId) ?? null,
-      labelsByTask.get(row.id) ?? [],
-      reviewerFor(row, people),
-      delivererFor(row, people),
-    ),
-  );
+  return serializeTaskRows(db, rows);
 }
 
 // ---------------------------------------------------------------------------
@@ -549,6 +588,8 @@ export async function createTask(
       projectId,
       title: input.title,
       description: input.description ?? null,
+      deliverableSpec: input.deliverableSpec ?? null,
+      acceptanceCriteria: input.acceptanceCriteria ?? null,
       status,
       points: input.points ?? null,
       priority: input.priority,
@@ -644,6 +685,10 @@ export async function updateTask(
   const patch: Partial<TaskRow> = {};
   if (input.title !== undefined) patch.title = input.title;
   if (input.description !== undefined) patch.description = input.description;
+  if (input.deliverableSpec !== undefined) patch.deliverableSpec = input.deliverableSpec;
+  if (input.acceptanceCriteria !== undefined) {
+    patch.acceptanceCriteria = input.acceptanceCriteria;
+  }
   if (input.priority !== undefined) patch.priority = input.priority;
   if (input.taskType !== undefined) patch.taskType = input.taskType;
   if (input.points !== undefined) patch.points = input.points;
@@ -729,6 +774,24 @@ export async function updateTask(
       actorId: actor.id,
       type: 'updated',
       meta: { fields },
+    }, bus);
+  }
+
+  // 改期 (P2 §5): when the DDL actually changed AND a reason was supplied, record a
+  // dedicated `due_changed` activity {from, to, reason}. The reason itself is never
+  // persisted on the task row — it lives only in the activity trail.
+  if (
+    input.dueDate !== undefined &&
+    input.dueDate !== task.dueDate &&
+    typeof input.dueChangeReason === 'string' &&
+    input.dueChangeReason.length > 0
+  ) {
+    await recordActivity(db, {
+      taskId,
+      projectId: updated.projectId,
+      actorId: actor.id,
+      type: 'due_changed',
+      meta: { from: task.dueDate, to: input.dueDate, reason: input.dueChangeReason },
     }, bus);
   }
 
@@ -1047,10 +1110,17 @@ export async function deliverTask(
   }
 
   // Persist: task → pending_review + deliver metadata (+ points if it was unset).
+  // 两级复核 (P2 §3): whether THIS delivery requires a final admin review is decided
+  // now — A类(critical) or resolved total points ≥ threshold — and a fresh delivery
+  // always restarts the review chain (any earlier 初审 is void).
   const taskPatch: Partial<TaskRow> = {
     status: 'pending_review',
     deliveredAt: new Date(),
     deliveredBy: actor.id,
+    needsFinalReview:
+      task.taskType === 'critical' || total >= FINAL_REVIEW_POINTS_THRESHOLD,
+    firstApprovedBy: null,
+    firstApprovedAt: null,
   };
   if (task.points == null) taskPatch.points = total;
 
@@ -1089,12 +1159,21 @@ export async function deliverTask(
 
 /**
  * Review a delivered task (lifecycle v2 §3; task must be `pending_review`). Permitted
- * to a project lead/admin on a project task, or the task creator/admin on a no-project
- * (pool) task (§8 — pool tasks have no project lead). `approve` → `done` with
- * `completed_at`/`reviewed_by` set (the shares stay locked) and records `completed`.
- * `reject` → `in_progress`, clears `delivered_at`/`delivered_by` and every claimant's
- * points, sets `reviewed_by`, and records `rejected` (the optional `comment` is the
- * rejection reason).
+ * to a project lead/admin on a project task, or a global admin on a no-project (pool)
+ * task (§8 — pool tasks have no project lead).
+ *
+ * P2 §2/§3 structured review + 两级复核 state machine:
+ * - Every review action inserts a first-class `task_reviews` row (stage/decision/
+ *   grade/comment), and an optional `qualityGrade` is snapshotted onto the task
+ *   (latest wins).
+ * - `reject` (either stage) → `in_progress`, clears the deliver state, every
+ *   claimant's share AND the 初审 record; records `rejected`.
+ * - `approve` on a task NOT needing final review → `done` (unchanged flow).
+ * - `approve` on a `needsFinalReview` task by a NON-admin: first time is the 初审
+ *   (task STAYS `pending_review`, `first_approved_by/at` set); a second non-admin
+ *   approve is forbidden — only a global admin (总运营) may 复核.
+ * - `approve` by a global admin is the final authority: completes the task whether
+ *   or not a 初审 happened (stage `final`).
  */
 export async function reviewTask(
   db: Database,
@@ -1122,14 +1201,66 @@ export async function reviewTask(
     throw conflict('只有待审阅的任务可以审阅');
   }
 
+  const isGlobalAdmin = isAdminRole(actor.role);
+  // 交付质量 snapshot (P2 §2): the latest grade from any review action wins.
+  const gradePatch: Partial<TaskRow> =
+    input.qualityGrade !== undefined ? { qualityGrade: input.qualityGrade } : {};
+
+  /** Append the first-class review record for this action (P2 §2). */
+  const recordReview = async (stage: ReviewStage): Promise<void> => {
+    await db.insert(taskReviews).values({
+      taskId,
+      reviewerId: actor.id,
+      stage,
+      decision: input.decision,
+      qualityGrade: input.qualityGrade ?? null,
+      comment: input.comment ?? null,
+    });
+  };
+
   if (input.decision === 'approve') {
+    if (task.needsFinalReview && !isGlobalAdmin) {
+      if (task.firstApprovedAt !== null) {
+        // 初审 already passed — only the 总运营 (global admin) may 复核.
+        throw forbidden('需要总运营（管理员）复核');
+      }
+      // 初审通过: the task stays 待审阅 (now awaiting 复核); record who/when.
+      const [updated] = await db
+        .update(tasks)
+        .set({
+          ...gradePatch,
+          firstApprovedBy: actor.id,
+          firstApprovedAt: new Date(),
+        })
+        .where(eq(tasks.id, taskId))
+        .returning();
+      if (!updated) throw notFound('任务不存在');
+
+      await recordReview('first');
+      // Not `completed` — the chain isn't done; flag the 初审 on the timeline.
+      await recordActivity(db, {
+        taskId,
+        projectId: task.projectId,
+        actorId: actor.id,
+        type: 'updated',
+        meta: { firstApproved: true },
+      }, bus);
+
+      publishTaskChange(bus, 'updated', updated);
+      return serializeTaskById(db, updated);
+    }
+
+    // Completing approve: the single approve of a no-review-needed task (stage
+    // `first`), or a global admin's 复核/direct approve (stage `final`).
+    const stage: ReviewStage = task.needsFinalReview ? 'final' : 'first';
     const [updated] = await db
       .update(tasks)
-      .set({ status: 'done', completedAt: new Date(), reviewedBy: actor.id })
+      .set({ ...gradePatch, status: 'done', completedAt: new Date(), reviewedBy: actor.id })
       .where(eq(tasks.id, taskId))
       .returning();
     if (!updated) throw notFound('任务不存在');
 
+    await recordReview(stage);
     await recordActivity(db, {
       taskId,
       projectId: task.projectId,
@@ -1142,17 +1273,23 @@ export async function reviewTask(
     return serializeTaskById(db, updated);
   }
 
-  // reject → back to the claimable pool; clear deliver state + each claimant's share.
+  // reject → back to the claimable pool; clear deliver state + each claimant's share
+  // + the 初审 record (the whole chain re-runs on the next delivery, P2 §3).
   // Choose open vs in_progress by the lower bound (claim-limits) so a task that no
   // longer meets minClaimants returns to 待认领 (未达下限) rather than 进行中.
+  const rejectStage: ReviewStage =
+    isGlobalAdmin && task.firstApprovedAt !== null ? 'final' : 'first';
   const rejectCount = (await loadClaimantIds(db, taskId)).length;
   const [updated] = await db
     .update(tasks)
     .set({
+      ...gradePatch,
       status: poolStatusFor(rejectCount, task.minClaimants),
       deliveredAt: null,
       deliveredBy: null,
       reviewedBy: actor.id,
+      firstApprovedBy: null,
+      firstApprovedAt: null,
     })
     .where(eq(tasks.id, taskId))
     .returning();
@@ -1163,6 +1300,7 @@ export async function reviewTask(
     .set({ points: null })
     .where(eq(taskClaimants.taskId, taskId));
 
+  await recordReview(rejectStage);
   await recordActivity(db, {
     taskId,
     projectId: task.projectId,
@@ -1183,10 +1321,12 @@ export async function reviewTask(
  * Revoke a completed task's approval (撤销通过): a `done` task returns to
  * `pending_review` so it can be reviewed again — re-approved or 驳回'd back to
  * 进行中 via the normal review flow. The delivery stands (deliver state + each
- * claimant's points are kept); only `completed_at`/`reviewed_by` are cleared, so the
- * task no longer counts toward contribution stats until re-approved. Permitted to the
- * same reviewer tier as review (project lead/admin for a project task; global admin
- * only for a pool task, §8). Records `reopened`.
+ * claimant's points are kept); only `completed_at`/`reviewed_by` are cleared — plus
+ * `first_approved_by/at` (P2 §3: the FULL two-stage chain re-runs) — so the task no
+ * longer counts toward contribution stats until re-approved. The `quality_grade`
+ * snapshot stands until a later review overwrites it. Permitted to the same reviewer
+ * tier as review (project lead/admin for a project task; global admin only for a pool
+ * task, §8). Records `reopened`.
  */
 export async function revokeApproval(
   db: Database,
@@ -1213,7 +1353,13 @@ export async function revokeApproval(
 
   const [updated] = await db
     .update(tasks)
-    .set({ status: 'pending_review', completedAt: null, reviewedBy: null })
+    .set({
+      status: 'pending_review',
+      completedAt: null,
+      reviewedBy: null,
+      firstApprovedBy: null,
+      firstApprovedAt: null,
+    })
     .where(eq(tasks.id, taskId))
     .returning();
   if (!updated) throw notFound('任务不存在');
@@ -1232,6 +1378,240 @@ export async function revokeApproval(
 
   publishTaskChange(bus, 'reopened', updated);
   return serializeTaskById(db, updated);
+}
+
+// ---------------------------------------------------------------------------
+// Transfer (P2 §5 异常流 — POST /tasks/:id/transfer)
+// ---------------------------------------------------------------------------
+
+/**
+ * Transfer a task from one claimant to another (P2 §5 转让): atomically release
+ * `fromUserId` and dispatch `toUserId`, keeping the claimant count — and therefore
+ * the task status — unchanged. The incoming claimant starts fresh (points null,
+ * claimedAt now). Permitted to the task-manage authority, same as assign/dispatch:
+ * project lead (incl. 赛道经理-derived lead) / admin on a project task; the
+ * creator/admin on a no-project (pool) task (§8). Records a single `transferred`
+ * activity {from, to, reason?} preserving the responsibility chain.
+ */
+export async function transferTask(
+  db: Database,
+  bus: RealtimeBus,
+  request: FastifyRequest,
+  taskId: string,
+  input: TransferTaskInput,
+): Promise<Task> {
+  const task = await loadTask(db, taskId);
+
+  let actor: UserRow;
+  if (task.projectId === null) {
+    // No-project (pool) task → creator or global admin (§8).
+    actor = requireAuth(request);
+    if (!canEditNoProjectTask(actor, task)) {
+      throw forbidden('只有任务创建者或管理员可以转让');
+    }
+  } else {
+    // Project task → lead/admin only, via the project lead guard.
+    actor = (await requireProjectLead(db, request, task.projectId)).user;
+  }
+
+  if (task.status === 'done') {
+    throw conflict('已完成的任务不能转让');
+  }
+
+  const claimantIds = await loadClaimantIds(db, taskId);
+  if (!claimantIds.includes(input.fromUserId)) {
+    throw notFound('该成员未认领此任务');
+  }
+  if (claimantIds.includes(input.toUserId)) {
+    throw conflict('目标成员已认领此任务');
+  }
+
+  // The incoming member must exist and be active.
+  const targetRows = await db
+    .select({ id: users.id, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, input.toUserId))
+    .limit(1);
+  const target = targetRows[0];
+  if (!target || !target.isActive) {
+    throw notFound('目标成员不存在或已停用');
+  }
+
+  // Swap the claimant rows: count unchanged → status unchanged.
+  await db
+    .delete(taskClaimants)
+    .where(
+      and(eq(taskClaimants.taskId, taskId), eq(taskClaimants.userId, input.fromUserId)),
+    );
+  await db
+    .insert(taskClaimants)
+    .values({ taskId, userId: input.toUserId, points: null, claimedAt: new Date() });
+
+  await recordActivity(db, {
+    taskId,
+    projectId: task.projectId,
+    actorId: actor.id,
+    type: 'transferred',
+    meta: {
+      from: input.fromUserId,
+      to: input.toUserId,
+      ...(input.reason ? { reason: input.reason } : {}),
+    },
+  }, bus);
+
+  publishTaskChange(bus, 'transferred', task);
+  return serializeTaskById(db, task);
+}
+
+// ---------------------------------------------------------------------------
+// Review history read (P2 §2 GET /tasks/:id/reviews)
+// ---------------------------------------------------------------------------
+
+/**
+ * The structured review history of a task (P2 §2), newest first, each row carrying
+ * the reviewer's display summary. Visibility mirrors the task itself (§6.3 / §8).
+ */
+export async function listTaskReviews(
+  db: Database,
+  request: FastifyRequest,
+  taskId: string,
+): Promise<TaskReview[]> {
+  const { task } = await loadTaskAccess(db, request, taskId);
+
+  const rows = await db
+    .select({
+      review: taskReviews,
+      reviewerId: users.id,
+      displayName: users.displayName,
+      avatarColor: users.avatarColor,
+      avatarMime: users.avatarMime,
+    })
+    .from(taskReviews)
+    .innerJoin(users, eq(users.id, taskReviews.reviewerId))
+    .where(eq(taskReviews.taskId, task.id))
+    .orderBy(desc(taskReviews.createdAt));
+
+  return rows.map((r) => ({
+    id: r.review.id,
+    taskId: r.review.taskId,
+    reviewer: {
+      id: r.reviewerId,
+      displayName: r.displayName,
+      avatarColor: r.avatarColor,
+      hasAvatar: r.avatarMime != null,
+    },
+    stage: r.review.stage,
+    decision: r.review.decision,
+    qualityGrade: r.review.qualityGrade,
+    comment: r.review.comment,
+    createdAt: r.review.createdAt.toISOString(),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Workbench reads (P2 §4 — GET /me/review-queue, GET /me/rejected-tasks)
+// ---------------------------------------------------------------------------
+
+/**
+ * 待我审核 (P2 §4): every `pending_review` task the caller may ACT on right now.
+ * - Global admin (总运营): ALL pending_review tasks — projects + the no-project pool
+ *   (including first-approved ones awaiting 复核; the admin is their reviewer).
+ * - Non-admin: tasks in the projects where they are a lead (project_members
+ *   role='lead') or a 赛道经理 (manager of the project's owning track), EXCLUDING
+ *   tasks already 初审-approved — those now await a global admin, not them.
+ * Set-based: lead project ids + managed-track project ids → one task query.
+ */
+export async function listReviewQueue(db: Database, user: UserRow): Promise<Task[]> {
+  let where;
+  if (isAdminRole(user.role)) {
+    where = eq(tasks.status, 'pending_review');
+  } else {
+    const leadRows = await db
+      .select({ projectId: projectMembers.projectId })
+      .from(projectMembers)
+      .where(
+        and(eq(projectMembers.userId, user.id), eq(projectMembers.role, 'lead')),
+      );
+    const managedTrackRows = await db
+      .select({ trackId: trackMembers.trackId })
+      .from(trackMembers)
+      .where(and(eq(trackMembers.userId, user.id), eq(trackMembers.role, 'manager')));
+    const trackIds = managedTrackRows.map((r) => r.trackId);
+    const trackProjectRows =
+      trackIds.length === 0
+        ? []
+        : await db
+            .select({ id: projects.id })
+            .from(projects)
+            .where(inArray(projects.trackId, trackIds));
+    const projectIds = [
+      ...new Set([
+        ...leadRows.map((r) => r.projectId),
+        ...trackProjectRows.map((r) => r.id),
+      ]),
+    ];
+    if (projectIds.length === 0) return [];
+    where = and(
+      eq(tasks.status, 'pending_review'),
+      inArray(tasks.projectId, projectIds),
+      // Already 初审-approved tasks await the 总运营, not this reviewer.
+      isNull(tasks.firstApprovedAt),
+    );
+  }
+
+  const rows = await db
+    .select()
+    .from(tasks)
+    .where(where)
+    .orderBy(asc(tasks.rank), asc(tasks.createdAt));
+  return serializeTaskRows(db, rows);
+}
+
+/** How far back 我被退回 looks for a rejecting review (P2 §4). */
+const REJECTED_TASKS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * 我被退回 (P2 §4): tasks the caller currently claims that are back `in_progress`
+ * because their LATEST review was a reject within the last 14 days. A newer approve
+ * (or an older reject) drops the task off the list.
+ */
+export async function listRejectedTasks(db: Database, user: UserRow): Promise<Task[]> {
+  const claimedRows = await db
+    .select({ task: tasks })
+    .from(tasks)
+    .innerJoin(taskClaimants, eq(taskClaimants.taskId, tasks.id))
+    .where(and(eq(taskClaimants.userId, user.id), eq(tasks.status, 'in_progress')))
+    .orderBy(asc(tasks.rank), asc(tasks.createdAt));
+  if (claimedRows.length === 0) return [];
+
+  // Latest review per task (newest-first scan), then keep recent rejects only.
+  const reviewRows = await db
+    .select()
+    .from(taskReviews)
+    .where(
+      inArray(
+        taskReviews.taskId,
+        claimedRows.map((r) => r.task.id),
+      ),
+    )
+    .orderBy(desc(taskReviews.createdAt));
+  const latestByTask = new Map<string, (typeof reviewRows)[number]>();
+  for (const r of reviewRows) {
+    if (!latestByTask.has(r.taskId)) latestByTask.set(r.taskId, r);
+  }
+
+  const cutoff = Date.now() - REJECTED_TASKS_WINDOW_MS;
+  const rows = claimedRows
+    .map((r) => r.task)
+    .filter((t) => {
+      const latest = latestByTask.get(t.id);
+      return (
+        latest !== undefined &&
+        latest.decision === 'reject' &&
+        latest.createdAt.getTime() >= cutoff
+      );
+    });
+  return serializeTaskRows(db, rows);
 }
 
 // ---------------------------------------------------------------------------

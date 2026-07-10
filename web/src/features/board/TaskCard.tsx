@@ -8,10 +8,10 @@ import { ClaimLimitBadge } from './ClaimLimitBadge';
 import { LabelChip } from './LabelChip';
 import { ClaimantAvatars } from './ClaimantAvatars';
 import { DeliverDialog } from './DeliverDialog';
-import { ReviewActions } from './ReviewActions';
+import { FirstApprovedChip, ReviewActions } from './ReviewActions';
 import { RevokeApprovalButton } from './RevokeApprovalButton';
 import { dueInfo } from './format';
-import { PRIORITY_BADGE, PRIORITY_LABELS } from './labels';
+import { PRIORITY_BADGE, PRIORITY_LABELS, QUALITY_GRADE_META } from './labels';
 import { TaskTypeBadge } from './TaskTypeBadge';
 import {
   canClaim,
@@ -113,11 +113,26 @@ export function TaskCard({
             {PRIORITY_LABELS[task.priority]}
           </Badge>
         </div>
-        {task.points != null && (
-          <Badge variant="primary" className="shrink-0" aria-label={`${task.points} 点`}>
-            {task.points} 点
-          </Badge>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* 交付质量 grade on completed tasks (P2 §2) — a small letter chip. */}
+          {task.status === 'done' && task.qualityGrade && (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-bold leading-none',
+                QUALITY_GRADE_META[task.qualityGrade].className,
+              )}
+              title={`交付质量 ${QUALITY_GRADE_META[task.qualityGrade].letter} · ${QUALITY_GRADE_META[task.qualityGrade].name}`}
+              aria-label={`交付质量 ${QUALITY_GRADE_META[task.qualityGrade].letter}`}
+            >
+              {QUALITY_GRADE_META[task.qualityGrade].letter}
+            </span>
+          )}
+          {task.points != null && (
+            <Badge variant="primary" aria-label={`${task.points} 点`}>
+              {task.points} 点
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Title */}
@@ -190,9 +205,15 @@ export function TaskCard({
           {showReview && <ReviewActions task={task} projectId={projectId} size="sm" />}
 
           {pendingReview && !showReview && (
-            <Badge variant="warning" aria-label="待审阅">
-              待审阅
-            </Badge>
+            // Two-stage chain (P2 §3): once first-approved the card reads 待复核
+            // (violet, 初审人 in the tooltip); before that, 待审阅 as before.
+            task.firstApprovedAt != null ? (
+              <FirstApprovedChip task={task} />
+            ) : (
+              <Badge variant="warning" aria-label="待审阅">
+                待审阅
+              </Badge>
+            )
           )}
         </div>
       )}

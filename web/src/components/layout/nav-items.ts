@@ -1,4 +1,4 @@
-import { LayoutGrid, BarChart3, Compass, Lightbulb, Megaphone, Network, Settings } from 'lucide-react';
+import { LayoutGrid, BarChart3, ClipboardList, Compass, Lightbulb, Megaphone, Network, Settings } from 'lucide-react';
 
 /**
  * Primary navigation destinations (§4), shared by the desktop top-nav and the
@@ -10,11 +10,14 @@ export interface NavItem {
   label: string;
   icon: typeof LayoutGrid;
   adminOnly?: boolean;
+  /** Show the pending-review count badge on this item (工作台, P2 §4). */
+  reviewBadge?: boolean;
 }
 
 export function buildNavItems(boardTarget: string): NavItem[] {
   return [
     { to: `/board/${boardTarget}`, label: '看板', icon: LayoutGrid },
+    { to: '/workbench', label: '工作台', icon: ClipboardList, reviewBadge: true },
     { to: '/projects', label: '项目', icon: Compass },
     { to: '/ideas', label: '灵感', icon: Lightbulb },
     { to: '/org', label: '架构', icon: Network },

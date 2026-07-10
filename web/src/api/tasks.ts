@@ -16,6 +16,9 @@ import type {
   Task,
   TaskClaimant,
   TaskResponse,
+  TaskReview,
+  TaskReviewsResponse,
+  TransferTaskInput,
   UpdateTaskInput,
 } from 'shared';
 import { api } from './client';
@@ -74,6 +77,12 @@ export const tasksApi = {
     api.post<TaskResponse>(`/tasks/${taskId}/deliver`, body),
   review: (taskId: string, body: ReviewTaskInput): Promise<TaskResponse> =>
     api.post<TaskResponse>(`/tasks/${taskId}/review`, body),
+  /** Structured 审核记录 history, newest first (P2 §2). */
+  reviews: (taskId: string, signal?: AbortSignal): Promise<TaskReviewsResponse> =>
+    api.get<TaskReviewsResponse>(`/tasks/${taskId}/reviews`, { signal }),
+  /** 转让 (P2 §5): atomically move a task from one claimant to another. */
+  transfer: (taskId: string, body: TransferTaskInput): Promise<TaskResponse> =>
+    api.post<TaskResponse>(`/tasks/${taskId}/transfer`, body),
   revokeApproval: (taskId: string): Promise<TaskResponse> =>
     api.post<TaskResponse>(`/tasks/${taskId}/revoke-approval`),
   remove: (taskId: string): Promise<void> => api.delete<void>(`/tasks/${taskId}`),
@@ -110,6 +119,18 @@ export function useAllTasks(enabled = true): UseQueryResult<Task[]> {
       return res.tasks;
     },
     enabled,
+  });
+}
+
+/** A task's 审核记录 (P2 §2 GET /tasks/:id/reviews), newest first. */
+export function useTaskReviews(taskId: string | undefined): UseQueryResult<TaskReview[]> {
+  return useQuery<TaskReview[]>({
+    queryKey: taskId ? queryKeys.taskReviews(taskId) : ['tasks', '__none__', 'reviews'],
+    queryFn: async ({ signal }) => {
+      const res = await tasksApi.reviews(taskId!, signal);
+      return res.reviews;
+    },
+    enabled: taskId !== undefined,
   });
 }
 
@@ -209,6 +230,8 @@ function invalidateTask(
   void queryClient.invalidateQueries({ queryKey: queryKeys.activities(taskId) });
   // Completing/reopening shifts contribution stats.
   void queryClient.invalidateQueries({ queryKey: ['stats'] });
+  // 工作台 (P2 §4): review queue / rejected lists mirror task state.
+  void queryClient.invalidateQueries({ queryKey: ['workbench'] });
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +512,30 @@ export function useRevokeApproval(
   return useMutation<TaskResponse, Error, string>({
     mutationFn: (taskId) => tasksApi.revokeApproval(taskId),
     onSettled: (_data, _err, taskId) => {
+      invalidateTask(queryClient, projectId, taskId);
+    },
+  });
+}
+
+/** Variables for transfer: task id + {fromUserId, toUserId, reason?}. */
+export interface TransferTaskVars {
+  taskId: string;
+  input: TransferTaskInput;
+}
+
+/**
+ * 转让 a task between claimants (P2 §5 异常流): release(from) + assign(to) as one
+ * atomic server action, recorded as a `transferred` activity. Manager tier only
+ * (enforced server-side). No optimistic mutation (the server validates both ends);
+ * reconciles on settle like the other task mutations.
+ */
+export function useTransferTask(
+  projectId: string,
+): UseMutationResult<TaskResponse, Error, TransferTaskVars> {
+  const queryClient = useQueryClient();
+  return useMutation<TaskResponse, Error, TransferTaskVars>({
+    mutationFn: ({ taskId, input }) => tasksApi.transfer(taskId, input),
+    onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
     },
   });

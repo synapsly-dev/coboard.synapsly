@@ -6,10 +6,12 @@ import {
   idParamSchema,
   releaseTaskInputSchema,
   reviewTaskInputSchema,
+  transferTaskInputSchema,
   updateTaskInputSchema,
   type BoardResponse,
   type CreateTaskInput,
   type TaskResponse,
+  type TaskReviewsResponse,
 } from 'shared';
 import { z } from 'zod';
 import { requireAuth, requireProjectMember } from '../lib/guards.js';
@@ -23,9 +25,11 @@ import {
   getTask,
   listAllVisibleTasks,
   listBoardTasks,
+  listTaskReviews,
   releaseTask,
   reviewTask,
   revokeApproval,
+  transferTask,
   updateTask,
 } from '../services/taskService.js';
 
@@ -142,6 +146,21 @@ const tasksRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/tasks/:id/revoke-approval', async (request): Promise<TaskResponse> => {
     const { id } = parseParams(idParamSchema, request.params);
     const task = await revokeApproval(db, bus, request, id);
+    return { task };
+  });
+
+  // GET /tasks/:id/reviews — structured review history, newest first (P2 §2).
+  fastify.get('/tasks/:id/reviews', async (request): Promise<TaskReviewsResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    const reviews = await listTaskReviews(db, request, id);
+    return { reviews };
+  });
+
+  // POST /tasks/:id/transfer — lead/赛道经理/admin moves a claim between members (P2 §5).
+  fastify.post('/tasks/:id/transfer', async (request): Promise<TaskResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    const input = parseBody(transferTaskInputSchema, request.body);
+    const task = await transferTask(db, bus, request, id, input);
     return { task };
   });
 

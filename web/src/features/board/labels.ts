@@ -1,4 +1,4 @@
-import type { ActivityType, Priority, TaskStatus, TaskType } from 'shared';
+import type { ActivityType, Priority, QualityGrade, ReviewStage, TaskStatus, TaskType } from 'shared';
 import type { BadgeVariant } from '../../components/ui';
 
 /**
@@ -105,4 +105,61 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   updated: '更新了任务',
   delivered: '交付了任务',
   rejected: '驳回了交付',
+  transferred: '转让了任务',
+  due_changed: '修改了截止时间',
 };
+
+/** Review stage labels (P2 §3 两级复核): first = 初审, final = 复核. */
+export const REVIEW_STAGE_LABELS: Record<ReviewStage, string> = {
+  first: '初审',
+  final: '复核',
+};
+
+/**
+ * 交付质量 A/B/C/D display metadata (P2 §2, 运营需求 §4.2). Same chip recipe as the
+ * task-type chips (`bg-{c}/10 text + ring`, `dark:` text bump) but a distinct hue
+ * ramp — quality is a VERDICT (emerald→rose), not a category. `name` carries the
+ * short Chinese verdict for selectors and tooltips.
+ */
+export interface QualityGradeMeta {
+  /** Uppercase display letter, e.g. "A" (the enum value is lowercase). */
+  letter: string;
+  /** Short verdict, e.g. "超预期". */
+  name: string;
+  /** Tokenized chip classes (background tint + text + ring), theme-aware. */
+  className: string;
+}
+
+export const QUALITY_GRADE_META: Record<QualityGrade, QualityGradeMeta> = {
+  a: {
+    letter: 'A',
+    name: '超预期',
+    className:
+      'bg-emerald-500/10 text-emerald-600 ring-1 ring-inset ring-emerald-500/20 dark:text-emerald-400',
+  },
+  b: {
+    letter: 'B',
+    name: '合格',
+    className: 'bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400',
+  },
+  c: {
+    letter: 'C',
+    name: '需修改',
+    className:
+      'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400',
+  },
+  d: {
+    letter: 'D',
+    name: '无效',
+    className:
+      'bg-rose-500/10 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400',
+  },
+};
+
+/**
+ * Violet-ish chip for the 待复核 state (P2 §3) — a pending_review task that has
+ * passed 初审 and awaits the global admin's 复核. Deliberately distinct from the
+ * amber 待审阅 warning badge so the two review stages read apart at a glance.
+ */
+export const FINAL_REVIEW_CHIP_CLASS =
+  'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/20 dark:text-violet-400';

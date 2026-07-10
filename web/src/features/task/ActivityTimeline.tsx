@@ -38,6 +38,23 @@ function describe(activity: ActivityWithActor): string {
       return `${base}：${comment}`;
     }
   }
+  // 改期 (P2 §5): surface the from→to dates (and the reason when given).
+  if (activity.type === 'due_changed') {
+    const from = activity.meta['from'];
+    const to = activity.meta['to'];
+    const reason = activity.meta['reason'];
+    const main = `将截止时间从「${typeof from === 'string' ? from : '未设置'}」改为「${
+      typeof to === 'string' ? to : '未设置'
+    }」`;
+    return typeof reason === 'string' && reason.trim() ? `${main}：${reason}` : main;
+  }
+  // 转让 (P2 §5): append the reason when one was recorded.
+  if (activity.type === 'transferred') {
+    const reason = activity.meta['reason'];
+    if (typeof reason === 'string' && reason.trim()) {
+      return `${base}：${reason}`;
+    }
+  }
   return base;
 }
 

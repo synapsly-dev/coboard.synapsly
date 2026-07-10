@@ -23,6 +23,9 @@ import {
   orgNodeKinds,
   priorities,
   projectRoles,
+  qualityGrades,
+  reviewDecisions,
+  reviewStages,
   taskStatuses,
   taskTypes,
   trackMemberRoles,
@@ -51,6 +54,9 @@ export const ideaStatusEnum = pgEnum('idea_status', ideaStatuses);
 export const orgNodeKindEnum = pgEnum('org_node_kind', orgNodeKinds);
 export const orgMemberRoleEnum = pgEnum('org_member_role', orgMemberRoles);
 export const applicationStatusEnum = pgEnum('application_status', applicationStatuses);
+export const qualityGradeEnum = pgEnum('quality_grade', qualityGrades);
+export const reviewStageEnum = pgEnum('review_stage', reviewStages);
+export const reviewDecisionEnum = pgEnum('review_decision', reviewDecisions);
 
 const primaryId = uuid('id')
   .primaryKey()
@@ -276,6 +282,18 @@ export const tasks = pgTable(
     status: taskStatusEnum('status').notNull().default('open'),
     // Task type A/B/C/D (运营需求 §4.1); NULL = 未分类. Orthogonal to `priority`.
     taskType: taskTypeEnum('task_type'),
+    // 提交物要求 / 验收标准 (P2 §1, 运营需求 §5.1).
+    deliverableSpec: text('deliverable_spec'),
+    acceptanceCriteria: text('acceptance_criteria'),
+    // 交付质量 A/B/C/D snapshot from the latest review (P2 §2); history in task_reviews.
+    qualityGrade: qualityGradeEnum('quality_grade'),
+    // 两级复核 (P2 §3): set at deliver time (A类 or points ≥ 8); first approve keeps
+    // the task pending_review until a global admin's final approve.
+    needsFinalReview: boolean('needs_final_review').notNull().default(false),
+    firstApprovedBy: uuid('first_approved_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    firstApprovedAt: timestamp('first_approved_at', { withTimezone: true }),
     // DEPRECATED (lifecycle v2 §2.2): single-assignee model replaced by the
     // `task_claimants` set. Column kept (not dropped) to de-risk the migration;
     // no code reads/writes it going forward.
@@ -345,6 +363,32 @@ export const taskClaimants = pgTable(
     primaryKey({ columns: [table.taskId, table.userId] }),
     index('task_claimants_user_id_idx').on(table.userId),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// task_reviews — structured review history (P2 §2, 运营需求 §7). One row per
+// review action (初审/复核 × 通过/驳回), preserving who decided what, the 交付质量
+// grade and the comment — first-class instead of buried in activities.meta.
+// Cascades with the task; reviewer restricted (reviews outlive nothing silently).
+// ---------------------------------------------------------------------------
+
+export const taskReviews = pgTable(
+  'task_reviews',
+  {
+    id: primaryId,
+    taskId: uuid('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    reviewerId: uuid('reviewer_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    stage: reviewStageEnum('stage').notNull(),
+    decision: reviewDecisionEnum('decision').notNull(),
+    qualityGrade: qualityGradeEnum('quality_grade'),
+    comment: text('comment'),
+    createdAt,
+  },
+  (table) => [index('task_reviews_task_created_idx').on(table.taskId, table.createdAt)],
 );
 
 // ---------------------------------------------------------------------------
@@ -695,6 +739,8 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type NewTaskRow = typeof tasks.$inferInsert;
 export type TaskClaimantRow = typeof taskClaimants.$inferSelect;
 export type NewTaskClaimantRow = typeof taskClaimants.$inferInsert;
+export type TaskReviewRow = typeof taskReviews.$inferSelect;
+export type NewTaskReviewRow = typeof taskReviews.$inferInsert;
 export type LabelRow = typeof labels.$inferSelect;
 export type NewLabelRow = typeof labels.$inferInsert;
 export type TaskLabelRow = typeof taskLabels.$inferSelect;
@@ -731,6 +777,7 @@ export const schema = {
   projectMembers,
   tasks,
   taskClaimants,
+  taskReviews,
   labels,
   taskLabels,
   comments,
@@ -754,4 +801,7 @@ export const schema = {
   orgNodeKindEnum,
   orgMemberRoleEnum,
   applicationStatusEnum,
+  qualityGradeEnum,
+  reviewStageEnum,
+  reviewDecisionEnum,
 };

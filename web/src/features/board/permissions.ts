@@ -122,11 +122,31 @@ function isReviewer(ctx: TaskPermissionContext, task: Task): boolean {
 }
 
 /**
+ * Which review stage a `pending_review` task is currently awaiting (P2 §3):
+ * - 'single' — no 复核 needed: one 审阅 completes it.
+ * - 'first'  — needs 复核 but not yet first-approved: awaiting 初审.
+ * - 'final'  — first-approved: awaiting the global admin's 复核.
+ * Only meaningful while the task is pending_review.
+ */
+export type PendingReviewStage = 'single' | 'first' | 'final';
+
+export function pendingReviewStage(task: Task): PendingReviewStage {
+  if (!task.needsFinalReview) return 'single';
+  return task.firstApprovedAt == null ? 'first' : 'final';
+}
+
+/**
  * Can the user review this task? while pending_review, the reviewer tier (v2 §3, §8)
- * — admin/lead for a project task, admin only for a pool task.
+ * — admin/lead for a project task, admin only for a pool task. Two-stage chain
+ * (P2 §3): once a needs-final-review task is first-approved (待复核), ONLY a global
+ * admin (总运营) may act; a lead sees it read-only (已初审 · 待复核).
  */
 export function canReview(ctx: TaskPermissionContext, task: Task): boolean {
-  return task.status === 'pending_review' && isReviewer(ctx, task);
+  if (task.status !== 'pending_review' || !isReviewer(ctx, task)) return false;
+  if (pendingReviewStage(task) === 'final') {
+    return ctx.user != null && isAdminRole(ctx.user.role);
+  }
+  return true;
 }
 
 /**

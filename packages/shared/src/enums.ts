@@ -67,6 +67,37 @@ export const taskTypeSchema = z.enum(taskTypes);
 export type TaskType = (typeof taskTypes)[number];
 
 /**
+ * 交付质量 A/B/C/D (P2 §2, 运营需求 §4.2). Recorded at review time. Distinct from
+ * taskTypes: 任务类型管理任务，交付质量验收成果. Values lowercase to avoid clashing
+ * with the type letters in code; UI renders the uppercase letter.
+ */
+export const qualityGrades = ['a', 'b', 'c', 'd'] as const;
+export const qualityGradeSchema = z.enum(qualityGrades);
+export type QualityGrade = (typeof qualityGrades)[number];
+
+/**
+ * 质量系数 (运营需求 §4.2/§8): suggested final points = base × coefficient. The
+ * system SUGGESTS; the reviewer confirms points manually (docx §13.5).
+ */
+export const QUALITY_COEFFICIENTS: Record<QualityGrade, number> = {
+  a: 1.2,
+  b: 1.0,
+  c: 0.6,
+  d: 0,
+};
+
+/**
+ * Review stage (P2 §3 两级复核): `first` = 初审 (project lead / 赛道经理), `final`
+ * = 复核 (global admin / 总运营) for high-value tasks (A类 or points ≥ 8).
+ */
+export const reviewStages = ['first', 'final'] as const;
+export const reviewStageSchema = z.enum(reviewStages);
+export type ReviewStage = (typeof reviewStages)[number];
+
+/** Review decision (P2 §2; mirrors the wire reviewDecisionSchema). */
+export const reviewDecisions = ['approve', 'reject'] as const;
+
+/**
  * Activity / timeline event type (§5 activities.type). Lifecycle v2 (§3) adds
  * `delivered` (a claimant/lead submitted points allocations for review) and
  * `rejected` (a lead/admin sent the task back to in_progress).
@@ -84,6 +115,9 @@ export const activityTypes = [
   'updated',
   'delivered',
   'rejected',
+  // P2 异常流: a lead moved a task between people / changed the DDL with a reason.
+  'transferred',
+  'due_changed',
 ] as const;
 export const activityTypeSchema = z.enum(activityTypes);
 export type ActivityType = (typeof activityTypes)[number];

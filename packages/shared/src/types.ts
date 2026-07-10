@@ -16,6 +16,8 @@ export type {
   OrgNodeKind,
   OrgMemberRole,
   ApplicationStatus,
+  QualityGrade,
+  ReviewStage,
 } from './enums.js';
 
 export type {
@@ -72,6 +74,9 @@ export type {
   DeliverTaskInput,
   ReviewDecision,
   ReviewTaskInput,
+  TaskReview,
+  TaskReviewsResponse,
+  TransferTaskInput,
   // comments & activities
   CommentsResponse,
   CreateCommentInput,

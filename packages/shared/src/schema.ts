@@ -7,6 +7,9 @@ import {
   orgNodeKindSchema,
   prioritySchema,
   projectRoleSchema,
+  qualityGradeSchema,
+  reviewDecisions,
+  reviewStageSchema,
   taskStatusSchema,
   taskTypeSchema,
   trackMemberRoleSchema,
@@ -192,6 +195,22 @@ export const taskSchema = z.object({
    * badge on the card.
    */
   taskType: taskTypeSchema.nullable(),
+  /** 提交物要求 (P2 §1, 运营需求 §5.1): what to hand in. Null = unspecified. */
+  deliverableSpec: z.string().nullable(),
+  /** 验收标准 (P2 §1, 运营需求 §5.1): what counts as done/qualified. */
+  acceptanceCriteria: z.string().nullable(),
+  /** 交付质量 A/B/C/D snapshot from the latest review (P2 §2); null = ungraded. */
+  qualityGrade: qualityGradeSchema.nullable(),
+  /**
+   * 两级复核 (P2 §3): true when this delivery requires a final admin (总运营)
+   * review after the first approve — set at deliver time for A类 or points ≥ 8.
+   */
+  needsFinalReview: z.boolean(),
+  /** The 初审 approver; null until first-approved (or after reject/revoke). */
+  firstApprovedBy: uuidSchema.nullable(),
+  /** 初审人 summary resolved from `firstApprovedBy`. */
+  firstApprover: userSummarySchema.nullable(),
+  firstApprovedAt: isoDateTimeSchema.nullable(),
   /**
    * Claim-count limits (claim-limits feature). `minClaimants` (>= 1) is the lower
    * bound: while the claimant count is below it the task stays in 待认领 (open) and
@@ -1029,6 +1048,10 @@ export const createTaskInputSchema = z
   .object({
     title: z.string().trim().min(1, '标题不能为空').max(200),
     description: z.string().max(20000).optional(),
+    /** 提交物要求 (P2 §1). */
+    deliverableSpec: z.string().max(20000).optional(),
+    /** 验收标准 (P2 §1). */
+    acceptanceCriteria: z.string().max(20000).optional(),
     priority: prioritySchema.default('medium'),
     /** Task type A/B/C/D (§4.1); omit/null for 未分类. */
     taskType: taskTypeSchema.nullable().optional(),
@@ -1059,11 +1082,20 @@ export const updateTaskInputSchema = z
   .object({
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().max(20000).nullable().optional(),
+    /** 提交物要求 (P2 §1); null clears. */
+    deliverableSpec: z.string().max(20000).nullable().optional(),
+    /** 验收标准 (P2 §1); null clears. */
+    acceptanceCriteria: z.string().max(20000).nullable().optional(),
     status: taskStatusSchema.optional(),
     priority: prioritySchema.optional(),
     /** Task type A/B/C/D (§4.1); null clears it (未分类). */
     taskType: taskTypeSchema.nullable().optional(),
     points: z.number().int().nonnegative().max(1000).nullable().optional(),
+    /**
+     * 改期原因 (P2 §5): when present alongside a dueDate change, the server records
+     * a `due_changed` activity carrying {from, to, reason}. Not persisted on the task.
+     */
+    dueChangeReason: z.string().trim().max(2000).optional(),
     /** Lower bound on claimants (>= 1). */
     minClaimants: claimantBoundSchema.optional(),
     /** Upper bound on claimants; null clears it (unlimited). */
@@ -1127,20 +1159,65 @@ export const deliverTaskInputSchema = z.object({
 });
 export type DeliverTaskInput = z.infer<typeof deliverTaskInputSchema>;
 
-/** Review decision (lifecycle v2 §3). */
-export const reviewDecisionSchema = z.enum(['approve', 'reject']);
+/** Review decision (lifecycle v2 §3; value list shared with the pg enum). */
+export const reviewDecisionSchema = z.enum(reviewDecisions);
 export type ReviewDecision = z.infer<typeof reviewDecisionSchema>;
 
 /**
- * POST /tasks/:id/review — lead/admin approves or rejects a `pending_review` task
- * (lifecycle v2 §3). `approve` → done (shares locked); `reject` → in_progress with
- * shares cleared. `comment` is an optional rejection reason recorded on the activity.
+ * 复核触发阈值 (P2 §3): a delivery needs a final admin review when the task is
+ * A类(critical) OR its total points ≥ this. Single source for server + UI copy.
+ */
+export const FINAL_REVIEW_POINTS_THRESHOLD = 8;
+
+/**
+ * POST /tasks/:id/review — approve or reject a `pending_review` task (lifecycle v2
+ * §3; P2 §2/§3 structured review + two-stage chain).
+ * - reject → in_progress, shares cleared, first-approval cleared.
+ * - approve (task NOT needing final review) → done.
+ * - approve 初审 (needsFinalReview) → stays pending_review, first_approved_* set;
+ *   a global admin's approve then completes it (stage=final).
+ * `qualityGrade` (交付质量 A/B/C/D) may be set by either stage; the latest wins on
+ * the task snapshot. `comment` is recorded on the review row (and activity).
  */
 export const reviewTaskInputSchema = z.object({
   decision: reviewDecisionSchema,
+  qualityGrade: qualityGradeSchema.optional(),
   comment: z.string().trim().max(2000).optional(),
 });
 export type ReviewTaskInput = z.infer<typeof reviewTaskInputSchema>;
+
+/**
+ * One structured review record (P2 §2) — first-class history, newest first via
+ * GET /tasks/:id/reviews. `stage` distinguishes 初审 from 复核.
+ */
+export const taskReviewSchema = z.object({
+  id: uuidSchema,
+  taskId: uuidSchema,
+  reviewer: userSummarySchema,
+  stage: reviewStageSchema,
+  decision: reviewDecisionSchema,
+  qualityGrade: qualityGradeSchema.nullable(),
+  comment: z.string().nullable(),
+  createdAt: isoDateTimeSchema,
+});
+export type TaskReview = z.infer<typeof taskReviewSchema>;
+
+export const taskReviewsResponseSchema = z.object({
+  reviews: z.array(taskReviewSchema),
+});
+export type TaskReviewsResponse = z.infer<typeof taskReviewsResponseSchema>;
+
+/**
+ * POST /tasks/:id/transfer (P2 §5 异常流): a lead/赛道经理/admin moves a task from
+ * one claimant to another, preserving the responsibility chain in one atomic
+ * `transferred` activity {from, to, reason}.
+ */
+export const transferTaskInputSchema = z.object({
+  fromUserId: uuidSchema,
+  toUserId: uuidSchema,
+  reason: z.string().trim().max(2000).optional(),
+});
+export type TransferTaskInput = z.infer<typeof transferTaskInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Comments & activities (§7)

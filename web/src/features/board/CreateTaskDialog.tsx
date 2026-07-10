@@ -49,6 +49,10 @@ const NO_TASK_TYPE = '__no_task_type__';
 interface FormValues {
   title: string;
   description: string;
+  /** 提交物要求 (P2 §1) — what to hand in; optional. */
+  deliverableSpec: string;
+  /** 验收标准 (P2 §1) — what counts as done/qualified; optional. */
+  acceptanceCriteria: string;
   priority: Priority;
   /** Task type A/B/C/D, or {@link NO_TASK_TYPE} for 未分类 (P0 §2). */
   taskType: string;
@@ -106,6 +110,8 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
     defaultValues: {
       title: '',
       description: '',
+      deliverableSpec: '',
+      acceptanceCriteria: '',
       priority: 'medium',
       taskType: NO_TASK_TYPE,
       points: '',
@@ -139,6 +145,10 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
       minClaimants: min,
     };
     if (values.description.trim()) payload.description = values.description.trim();
+    if (values.deliverableSpec.trim()) payload.deliverableSpec = values.deliverableSpec.trim();
+    if (values.acceptanceCriteria.trim()) {
+      payload.acceptanceCriteria = values.acceptanceCriteria.trim();
+    }
     if (values.taskType !== NO_TASK_TYPE) payload.taskType = values.taskType as TaskType;
     if (values.points.trim()) {
       const pts = Number(values.points);
@@ -249,6 +259,28 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
               placeholder="描述（可选）"
               {...register('description')}
             />
+          </div>
+
+          {/* 结构化发布字段 (P2 §1): 交什么 + 什么算合格. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="task-deliverable-spec">提交物要求（选填）</Label>
+              <Textarea
+                id="task-deliverable-spec"
+                rows={3}
+                placeholder="交什么：文档 / 链接 / 截图 / 数据表…"
+                {...register('deliverableSpec')}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="task-acceptance-criteria">验收标准（选填）</Label>
+              <Textarea
+                id="task-acceptance-criteria"
+                rows={3}
+                placeholder="什么算完成 / 合格…"
+                {...register('acceptanceCriteria')}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

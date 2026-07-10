@@ -18,6 +18,7 @@ import { FullPageSpinner } from './components/ui/Spinner';
 import LoginPage from './pages/Login';
 import JoinPage from './pages/Join';
 import BoardPage from './pages/BoardPage';
+import WorkbenchPage from './pages/WorkbenchPage';
 import ProjectsPage from './pages/ProjectsPage';
 import IdeasPage from './pages/IdeasPage';
 import OrgPage from './pages/OrgPage';
@@ -88,6 +89,8 @@ function AuthedRoutes(): JSX.Element {
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
         <Route path="/board/:projectId" element={<BoardPage />} />
+        {/* 个人工作台 (P2 §4): review queue + my work + claimable + weekly points. */}
+        <Route path="/workbench" element={<WorkbenchPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/ideas" element={<IdeasPage />} />
         <Route path="/org" element={<OrgPage />} />

@@ -12,6 +12,7 @@ import {
 } from '../ui';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { buildNavItems } from './nav-items';
+import { useReviewQueue } from '../../api/workbench';
 import { useAuth } from '../../lib/auth-context';
 import { useTheme } from '../../lib/theme';
 import { avatarUrl, cn } from '../../lib/utils';
@@ -36,6 +37,10 @@ export function TopNav(): JSX.Element {
   const [confirmLogout, setConfirmLogout] = useState(false);
 
   const navItems = buildNavItems(boardTarget).filter((item) => !item.adminOnly || isAdmin);
+  // 待我审核 count for the 工作台 badge (P2 §4) — shares the workbench page's
+  // cached query, so this costs one fetch per staleness window at most.
+  const { data: reviewQueue } = useReviewQueue();
+  const reviewCount = reviewQueue?.length ?? 0;
 
   const handleLogout = async (): Promise<void> => {
     await logout();
@@ -83,6 +88,15 @@ export function TopNav(): JSX.Element {
               >
                 <Icon className="h-4 w-4" aria-hidden />
                 {item.label}
+                {/* Pending-review count on 工作台 (P2 §4). */}
+                {item.reviewBadge && reviewCount > 0 && (
+                  <span
+                    className="rounded-full bg-warning/20 px-1.5 text-[10px] font-semibold leading-4 tabular-nums text-warning-foreground"
+                    aria-label={`${reviewCount} 个任务待审核`}
+                  >
+                    {reviewCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}

@@ -53,6 +53,8 @@ export const queryKeys = {
   /** The global label catalog (task-labels feature). */
   labels: () => ['labels'] as const,
   task: (taskId: string) => ['tasks', taskId] as const,
+  /** Structured 审核记录 for one task (P2 §2 GET /tasks/:id/reviews). */
+  taskReviews: (taskId: string) => ['tasks', taskId, 'reviews'] as const,
   comments: (taskId: string) => ['tasks', taskId, 'comments'] as const,
   activities: (taskId: string) => ['tasks', taskId, 'activities'] as const,
   taskIdeas: (taskId: string) => ['tasks', taskId, 'ideas'] as const,
@@ -79,4 +81,8 @@ export const queryKeys = {
   /** Contribution rolled up by 赛道 (P0 §2 GET /stats/tracks). */
   trackStats: (params: Record<string, string | undefined>) =>
     ['stats', 'tracks', params] as const,
+  /** 工作台 (P2 §4): pending_review tasks the caller can act on. */
+  reviewQueue: () => ['workbench', 'review-queue'] as const,
+  /** 工作台 (P2 §4): the caller's recently rejected tasks. */
+  rejectedTasks: () => ['workbench', 'rejected-tasks'] as const,
 };

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  ArrowRightLeft,
   CalendarClock,
   Check,
   Lightbulb,
@@ -12,12 +13,18 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import type { Priority, Task, TaskType } from 'shared';
+import type { Priority, ProjectMemberWithUser, Task, TaskClaimant, TaskType } from 'shared';
 import { updateTaskInputSchema, type UpdateTaskInput } from 'shared';
 import {
   Avatar,
   Badge,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Drawer,
   DrawerBody,
   DrawerContent,
@@ -35,25 +42,31 @@ import {
   Textarea,
 } from '../../components/ui';
 import { useAuth } from '../../lib/auth-context';
-import { avatarUrl } from '../../lib/utils';
+import { avatarUrl, cn } from '../../lib/utils';
+import { isApiClientError } from '../../api/client';
 import {
   useAssignTask,
   usePatchTask,
   useProjectMembers,
   useReleaseTask,
   useTask,
+  useTaskReviews,
+  useTransferTask,
   useDeleteTask,
 } from '../../api/tasks';
 import { useActivities, useComments } from '../../api/comments';
 import { ClaimButton } from '../board/ClaimButton';
 import { ClaimLimitBadge } from '../board/ClaimLimitBadge';
 import { DeliverDialog } from '../board/DeliverDialog';
-import { ReviewActions } from '../board/ReviewActions';
+import { FirstApprovedChip, ReviewActions } from '../board/ReviewActions';
 import { RevokeApprovalButton } from '../board/RevokeApprovalButton';
-import { dueInfo } from '../board/format';
+import { dueInfo, relativeTime } from '../board/format';
 import {
+  FINAL_REVIEW_CHIP_CLASS,
   PRIORITY_BADGE,
   PRIORITY_LABELS,
+  QUALITY_GRADE_META,
+  REVIEW_STAGE_LABELS,
   STATUS_LABELS,
   TASK_TYPE_META,
   TASK_TYPE_OPTIONS,
@@ -150,6 +163,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
   const { data: comments, isLoading: commentsLoading } = useComments(taskId);
   const { data: ideas } = useTaskIdeas(taskId);
   const { data: activities, isLoading: activitiesLoading } = useActivities(taskId);
+  const { data: reviews } = useTaskReviews(taskId);
 
   const patchTask = usePatchTask(projectId);
   const assignTask = useAssignTask(projectId);
@@ -159,6 +173,8 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
   const [tab, setTab] = useState<Tab>(initialTab ?? 'comments');
   const [editing, setEditing] = useState(false);
   const [deliverOpen, setDeliverOpen] = useState(false);
+  // 转让 (P2 §5): which claimant is being transferred (opens the dialog).
+  const [transferFrom, setTransferFrom] = useState<TaskClaimant | null>(null);
 
   const projectRole = resolveProjectRole(members, user?.id);
   const permCtx = { user, projectRole };
@@ -203,7 +219,19 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
     <>
       <DrawerHeader className="flex flex-row items-center justify-between gap-2 pr-4">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <Badge variant={statusVariant}>{STATUS_LABELS[task.status]}</Badge>
+          {/* Two-stage chain (P2 §3): after 初审 the status reads 待复核 (violet). */}
+          {task.status === 'pending_review' && task.firstApprovedAt != null ? (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium leading-none',
+                FINAL_REVIEW_CHIP_CLASS,
+              )}
+            >
+              待复核
+            </span>
+          ) : (
+            <Badge variant={statusVariant}>{STATUS_LABELS[task.status]}</Badge>
+          )}
           <TaskTypeBadge taskType={task.taskType} />
           <Badge variant={PRIORITY_BADGE[task.priority].variant} className="gap-1">
             <span
@@ -213,6 +241,19 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             {PRIORITY_LABELS[task.priority]}
           </Badge>
           {task.points != null && <Badge variant="outline">{task.points} 点</Badge>}
+          {/* 交付质量 grade on completed tasks (P2 §2), next to the points. */}
+          {task.status === 'done' && task.qualityGrade && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium leading-none',
+                QUALITY_GRADE_META[task.qualityGrade].className,
+              )}
+              title={`交付质量 ${QUALITY_GRADE_META[task.qualityGrade].letter} · ${QUALITY_GRADE_META[task.qualityGrade].name}`}
+            >
+              <span className="font-bold">{QUALITY_GRADE_META[task.qualityGrade].letter}</span>
+              {QUALITY_GRADE_META[task.qualityGrade].name}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {editable && !editing && (
@@ -266,6 +307,20 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             ) : (
               <p className="text-sm italic text-muted-foreground">暂无描述</p>
             )}
+            {/* 结构化发布字段 (P2 §1) — shown after the description when present,
+                with the same safe markdown treatment. */}
+            {task.deliverableSpec && (
+              <section className="grid gap-1">
+                <h3 className="text-xs font-medium text-muted-foreground">提交物要求</h3>
+                <div className="break-words">{renderMarkdown(task.deliverableSpec)}</div>
+              </section>
+            )}
+            {task.acceptanceCriteria && (
+              <section className="grid gap-1">
+                <h3 className="text-xs font-medium text-muted-foreground">验收标准</h3>
+                <div className="break-words">{renderMarkdown(task.acceptanceCriteria)}</div>
+              </section>
+            )}
           </div>
         )}
 
@@ -278,7 +333,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             {/* Submitter line — shown to everyone (reviewer or not) while a task awaits
                 review, on its own row, so 待审阅 tasks prominently show 谁交付的. */}
             {task.status === 'pending_review' && (
-              <div className="flex w-full min-w-0 items-center gap-1.5 text-sm">
+              <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5 text-sm">
                 <PackageCheck className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 {task.deliverer ? (
                   <>
@@ -286,10 +341,26 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                     <span className="min-w-0 truncate font-medium text-foreground">
                       {task.deliverer.displayName}
                     </span>
-                    <span className="shrink-0 text-muted-foreground">· 已交付，等待审阅</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      · 已交付，{task.firstApprovedAt != null ? '等待复核' : '等待审阅'}
+                    </span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">已交付，等待审阅</span>
+                  <span className="text-muted-foreground">
+                    已交付，{task.firstApprovedAt != null ? '等待复核' : '等待审阅'}
+                  </span>
+                )}
+                {/* Read-only stage chip (P2 §3) for viewers who cannot 复核 —
+                    the 初审人 is surfaced inline. */}
+                {!showReview && task.firstApprovedAt != null && (
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <FirstApprovedChip task={task} />
+                    {task.firstApprover && (
+                      <span className="min-w-0 truncate text-xs text-muted-foreground">
+                        初审人：{task.firstApprover.displayName}
+                      </span>
+                    )}
+                  </span>
                 )}
               </div>
             )}
@@ -335,6 +406,11 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               ) : (
                 task.claimants.map((c) => {
                   const canRemove = c.userId === user?.id || manager;
+                  const activePhase = task.status === 'open' || task.status === 'in_progress';
+                  // 转让 (P2 §5): manager tier only, and only when there is a member
+                  // pool to pick a target from (pool tasks have none → hidden). Same
+                  // manage authority as removing a claimant.
+                  const canTransfer = manager && activePhase && assignableMembers.length > 0;
                   return (
                     <div key={c.userId} className="flex items-center gap-2">
                       <Avatar
@@ -349,21 +425,36 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                           {c.points} 点
                         </Badge>
                       )}
-                      {canRemove && (task.status === 'open' || task.status === 'in_progress') && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="ml-auto h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
-                          aria-label={`移除 ${c.displayName}`}
-                          loading={releaseTask.isPending}
-                          onClick={() =>
-                            releaseTask.mutate({ taskId: task.id, userId: c.userId })
-                          }
-                        >
-                          <UserMinus className="h-3.5 w-3.5" aria-hidden />
-                        </Button>
-                      )}
+                      <span className="ml-auto flex shrink-0 items-center">
+                        {canTransfer && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground sm:h-7 sm:w-7"
+                            aria-label={`转让 ${c.displayName} 的任务`}
+                            title="转让"
+                            onClick={() => setTransferFrom(c)}
+                          >
+                            <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
+                        )}
+                        {canRemove && activePhase && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
+                            aria-label={`移除 ${c.displayName}`}
+                            loading={releaseTask.isPending}
+                            onClick={() =>
+                              releaseTask.mutate({ taskId: task.id, userId: c.userId })
+                            }
+                          >
+                            <UserMinus className="h-3.5 w-3.5" aria-hidden />
+                          </Button>
+                        )}
+                      </span>
                     </div>
                   );
                 })
@@ -500,6 +591,50 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           )}
         </div>
 
+        {/* 审核记录 (P2 §2): structured review history, newest first. Hidden until
+            the task has at least one recorded review. */}
+        {reviews && reviews.length > 0 && (
+          <section className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-3">
+            <h3 className="text-xs font-medium text-muted-foreground">审核记录</h3>
+            {reviews.map((r) => (
+              <div key={r.id} className="flex items-start gap-2">
+                <Avatar
+                  name={r.reviewer.displayName}
+                  color={r.reviewer.avatarColor}
+                  imageUrl={r.reviewer.hasAvatar ? avatarUrl(r.reviewer.id) : undefined}
+                  size="xs"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                    <span className="font-medium text-foreground">{r.reviewer.displayName}</span>
+                    <Badge variant="outline">{REVIEW_STAGE_LABELS[r.stage]}</Badge>
+                    <Badge variant={r.decision === 'approve' ? 'success' : 'destructive'}>
+                      {r.decision === 'approve' ? '通过' : '驳回'}
+                    </Badge>
+                    {r.qualityGrade && (
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-bold leading-none',
+                          QUALITY_GRADE_META[r.qualityGrade].className,
+                        )}
+                        title={`交付质量 ${QUALITY_GRADE_META[r.qualityGrade].letter} · ${QUALITY_GRADE_META[r.qualityGrade].name}`}
+                      >
+                        {QUALITY_GRADE_META[r.qualityGrade].letter}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {relativeTime(r.createdAt)}
+                    </span>
+                  </div>
+                  {r.comment && (
+                    <p className="mt-0.5 break-words text-sm text-muted-foreground">{r.comment}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
         {/* Attachments — used to deliver file content (§7.2) */}
         <TextDeliverySection task={task} permCtx={permCtx} />
 
@@ -579,6 +714,16 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           onOpenChange={setDeliverOpen}
         />
       )}
+
+      <TransferDialog
+        task={task}
+        projectId={projectId}
+        from={transferFrom}
+        candidates={assignableMembers}
+        onOpenChange={(next) => {
+          if (!next) setTransferFrom(null);
+        }}
+      />
     </>
   );
 }
@@ -644,6 +789,9 @@ interface TaskEditFormProps {
 function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JSX.Element {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
+  // 结构化发布字段 (P2 §1) — an emptied textarea clears the field (null) on save.
+  const [deliverableSpec, setDeliverableSpec] = useState(task.deliverableSpec ?? '');
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState(task.acceptanceCriteria ?? '');
   const [priority, setPriority] = useState<Priority>(task.priority);
   // Task type A/B/C/D, or the 未分类 sentinel (P0 §2).
   const [taskType, setTaskType] = useState<string>(task.taskType ?? NO_TASK_TYPE);
@@ -653,8 +801,12 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
     task.maxClaimants != null ? String(task.maxClaimants) : '',
   );
   const [dueDate, setDueDate] = useState(task.dueDate ?? '');
+  // 改期原因 (P2 §5) — input revealed only while the DDL differs from the saved one.
+  const [dueChangeReason, setDueChangeReason] = useState('');
   const [labelIds, setLabelIds] = useState<string[]>(task.labels.map((l) => l.id));
   const [error, setError] = useState<string | null>(null);
+
+  const dueChanged = dueDate !== (task.dueDate ?? '');
 
   function submit(e: React.FormEvent): void {
     e.preventDefault();
@@ -662,6 +814,9 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
     const patch: UpdateTaskInput = {
       title: title.trim(),
       description: description.trim() ? description.trim() : null,
+      // P2 §1: empty clears server-side (null).
+      deliverableSpec: deliverableSpec.trim() ? deliverableSpec.trim() : null,
+      acceptanceCriteria: acceptanceCriteria.trim() ? acceptanceCriteria.trim() : null,
       priority,
       // 未分类 clears the type (null); otherwise the chosen A/B/C/D.
       taskType: taskType === NO_TASK_TYPE ? null : (taskType as TaskType),
@@ -673,6 +828,11 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
       // REPLACE set: the task's labels become exactly the chosen ids.
       labelIds,
     };
+    // 改期原因 (P2 §5) rides along only when the DDL actually changed AND a reason
+    // was given — the server then records a `due_changed` activity {from,to,reason}.
+    if (dueChanged && dueChangeReason.trim()) {
+      patch.dueChangeReason = dueChangeReason.trim();
+    }
     const parsed = updateTaskInputSchema.safeParse(patch);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? '请检查输入');
@@ -702,6 +862,29 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
+      </div>
+      {/* 结构化发布字段 (P2 §1); 留空即清除. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-deliverable-spec">提交物要求（选填）</Label>
+          <Textarea
+            id="edit-deliverable-spec"
+            rows={3}
+            placeholder="交什么：文档 / 链接 / 截图 / 数据表…"
+            value={deliverableSpec}
+            onChange={(e) => setDeliverableSpec(e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-acceptance-criteria">验收标准（选填）</Label>
+          <Textarea
+            id="edit-acceptance-criteria"
+            rows={3}
+            placeholder="什么算完成 / 合格…"
+            value={acceptanceCriteria}
+            onChange={(e) => setAcceptanceCriteria(e.target.value)}
+          />
+        </div>
       </div>
       <div className="grid gap-1.5">
         <Label>任务类型</Label>
@@ -755,6 +938,20 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
           />
         </div>
       </div>
+      {/* 改期原因 (P2 §5): only surfaced while the DDL differs from the saved value;
+          recorded as a due_changed activity when saved with a reason. */}
+      {dueChanged && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-due-reason">改期原因（选填）</Label>
+          <Input
+            id="edit-due-reason"
+            placeholder="为什么调整截止时间…"
+            value={dueChangeReason}
+            onChange={(e) => setDueChangeReason(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">填写后将记录在任务动态中。</p>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="grid gap-1.5">
           <Label htmlFor="edit-min-claimants">认领人数下限</Label>
@@ -794,5 +991,120 @@ function TaskEditForm({ task, onCancel, onSave, saving }: TaskEditFormProps): JS
         </Button>
       </div>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 转让 dialog (P2 §5 异常流)
+// ---------------------------------------------------------------------------
+
+interface TransferDialogProps {
+  task: Task;
+  projectId: string;
+  /** The claimant being transferred away from; null keeps the dialog closed. */
+  from: TaskClaimant | null;
+  /** Valid targets: project members not currently claiming (same source as 派发). */
+  candidates: ProjectMemberWithUser[];
+  onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Move a claim from one member to another in a single atomic server action
+ * (release + assign, recorded as a `transferred` activity). Conflicts (e.g. the
+ * target claimed meanwhile, 409) surface as the server's message.
+ */
+function TransferDialog({
+  task,
+  projectId,
+  from,
+  candidates,
+  onOpenChange,
+}: TransferDialogProps): JSX.Element {
+  const transfer = useTransferTask(projectId);
+  const [toUserId, setToUserId] = useState('');
+  const [reason, setReason] = useState('');
+
+  function close(): void {
+    setToUserId('');
+    setReason('');
+    transfer.reset();
+    onOpenChange(false);
+  }
+
+  function submit(): void {
+    if (!from || !toUserId) return;
+    transfer.mutate(
+      {
+        taskId: task.id,
+        input: {
+          fromUserId: from.userId,
+          toUserId,
+          ...(reason.trim() ? { reason: reason.trim() } : {}),
+        },
+      },
+      { onSuccess: close },
+    );
+  }
+
+  return (
+    <Dialog
+      open={from != null}
+      onOpenChange={(next) => {
+        if (!next) close();
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>转让任务</DialogTitle>
+          <DialogDescription>
+            将 {from?.displayName ?? ''} 的认领转让给其他成员；转让会记录在任务动态中。
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label>转让给</Label>
+          <Select value={toUserId} onValueChange={setToUserId}>
+            <SelectTrigger>
+              <SelectValue placeholder="选择成员…" />
+            </SelectTrigger>
+            <SelectContent>
+              {candidates.map((m) => (
+                <SelectItem key={m.userId} value={m.userId}>
+                  {m.user.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="transfer-reason">原因（选填）</Label>
+          <Textarea
+            id="transfer-reason"
+            rows={3}
+            placeholder="说明转让原因…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </div>
+        {transfer.isError && (
+          <p className="text-xs text-destructive">
+            {isApiClientError(transfer.error) ? transfer.error.message : '操作失败，请重试'}
+          </p>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={close}>
+            取消
+          </Button>
+          <Button
+            type="button"
+            loading={transfer.isPending}
+            disabled={!toUserId}
+            onClick={submit}
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden />
+            确认转让
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

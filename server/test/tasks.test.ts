@@ -780,14 +780,16 @@ describe('deliver → review lifecycle (§3)', () => {
   });
 
   it('approves a delivered task → done, completed_at set, reviewer recorded', async () => {
-    const { lead, a, b, taskId } = await seedDeliverable({ points: 10 });
+    // 7 points < FINAL_REVIEW_POINTS_THRESHOLD → a single lead approve completes
+    // the task (P2 §3: 8+-point tasks now require an admin 复核 after the 初审).
+    const { lead, a, b, taskId } = await seedDeliverable({ points: 7 });
     await ctx.app.inject({
       method: 'POST',
       url: `/api/tasks/${taskId}/deliver`,
       headers: { cookie: a.cookie, ...CSRF },
       payload: { allocations: [
-        { userId: a.id, points: 6 },
-        { userId: b.id, points: 4 },
+        { userId: a.id, points: 4 },
+        { userId: b.id, points: 3 },
       ] },
     });
 
@@ -807,8 +809,8 @@ describe('deliver → review lifecycle (§3)', () => {
     expect(typeof task.reviewer?.displayName).toBe('string');
     // Shares stay locked at approval.
     const shares = Object.fromEntries(task.claimants.map((c) => [c.userId, c.points]));
-    expect(shares[a.id]).toBe(6);
-    expect(shares[b.id]).toBe(4);
+    expect(shares[a.id]).toBe(4);
+    expect(shares[b.id]).toBe(3);
   });
 
   it('rejects a delivered task → back to in_progress with points cleared', async () => {
@@ -916,16 +918,20 @@ describe('deliver → review lifecycle (§3)', () => {
 
   // --- 撤销通过 (revoke approval) ---------------------------------------------
 
-  /** Drive a fresh deliverable all the way to `done` (delivered + approved). */
+  /**
+   * Drive a fresh deliverable all the way to `done` (delivered + approved).
+   * 7 points < FINAL_REVIEW_POINTS_THRESHOLD so the lead's approve alone
+   * completes it (P2 §3).
+   */
   async function seedDone() {
-    const seeded = await seedDeliverable({ points: 10 });
+    const seeded = await seedDeliverable({ points: 7 });
     await ctx.app.inject({
       method: 'POST',
       url: `/api/tasks/${seeded.taskId}/deliver`,
       headers: { cookie: seeded.a.cookie, ...CSRF },
       payload: { allocations: [
-        { userId: seeded.a.id, points: 6 },
-        { userId: seeded.b.id, points: 4 },
+        { userId: seeded.a.id, points: 4 },
+        { userId: seeded.b.id, points: 3 },
       ] },
     });
     await ctx.app.inject({

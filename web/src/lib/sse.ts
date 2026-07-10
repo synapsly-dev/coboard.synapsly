@@ -72,6 +72,8 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       }
       // Completing/reopening a task changes contribution stats.
       void queryClient.invalidateQueries({ queryKey: ['stats'] });
+      // 工作台 lists (P2 §4: review queue / rejected) mirror task state.
+      void queryClient.invalidateQueries({ queryKey: ['workbench'] });
       break;
     }
     case 'comment': {
