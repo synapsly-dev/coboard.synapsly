@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { GitBranch, List, Network } from 'lucide-react';
+import { BriefcaseBusiness, GitBranch, List, Network } from 'lucide-react';
 import type { MoveOrgNodeInput, OrgNode, OrgNodeKind, OrgScope } from 'shared';
 import {
   Button,
@@ -25,13 +25,15 @@ import { OrgAddNodeButton } from '../features/org/OrgAddNodeButton';
 import { OrgNodeRow } from '../features/org/OrgNodeRow';
 import { OrgNodeDialog } from '../features/org/OrgNodeDialog';
 import { OrgMembersDialog, type OrgCandidate } from '../features/org/OrgMembersDialog';
+import { RecruitView } from '../features/org/RecruitView';
 
 /**
  * 团队架构 (/org) — a flexible, editable org tree showing division of labor and
  * positions. Any member may view; global admins may edit directly. Per-node controls
  * expose add / edit / members from the chart and add / edit / reorder / delete from
  * the list. Structure changes go through button-based move primitives; SSE keeps
- * everyone's view fresh.
+ * everyone's view fresh. The 招募 view (P1 岗位申报) turns `position` nodes into a
+ * recruiting board where members 申报 and approvers 录用/婉拒.
  */
 
 const WHOLE_TEAM: OrgScope = 'all';
@@ -44,7 +46,7 @@ type NodeDialogState =
 export default function OrgPage(): JSX.Element {
   const { user } = useAuth();
   // Default to the org chart (图谱); admins can edit in place.
-  const [view, setView] = useState<'list' | 'chart'>('chart');
+  const [view, setView] = useState<'list' | 'chart' | 'recruit'>('chart');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
   const [membersNode, setMembersNode] = useState<OrgNode | null>(null);
@@ -112,12 +114,13 @@ export default function OrgPage(): JSX.Element {
             <p className="text-xs text-muted-foreground">团队分工与职位的可视化组织树</p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              {/* View toggle (icon-only): 图谱 vs 列表. */}
+              {/* View toggle (icon-only): 图谱 / 列表 / 招募. */}
               <div className="inline-flex items-center rounded-md border border-border bg-background p-0.5">
                 {(
                   [
                     { key: 'chart', label: '图谱', icon: GitBranch },
                     { key: 'list', label: '列表', icon: List },
+                    { key: 'recruit', label: '招募', icon: BriefcaseBusiness },
                   ] as const
                 ).map(({ key, label, icon: Icon }) => (
                   <button
@@ -176,6 +179,9 @@ export default function OrgPage(): JSX.Element {
               }
             />
           </div>
+        ) : view === 'recruit' ? (
+          // 招募 has its own empty state (positions, not nodes, are its subject).
+          <RecruitView scope={WHOLE_TEAM} nodes={nodes ?? []} />
         ) : visibleRows.length === 0 && roots.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6">
             <EmptyState

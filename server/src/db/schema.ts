@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   activityTypes,
+  applicationStatuses,
   ideaStatuses,
   orgMemberRoles,
   orgNodeKinds,
@@ -49,6 +50,7 @@ export const activityTypeEnum = pgEnum('activity_type', activityTypes);
 export const ideaStatusEnum = pgEnum('idea_status', ideaStatuses);
 export const orgNodeKindEnum = pgEnum('org_node_kind', orgNodeKinds);
 export const orgMemberRoleEnum = pgEnum('org_member_role', orgMemberRoles);
+export const applicationStatusEnum = pgEnum('application_status', applicationStatuses);
 
 const primaryId = uuid('id')
   .primaryKey()
@@ -581,6 +583,8 @@ export const orgNodes = pgTable(
     kind: orgNodeKindEnum('kind').notNull().default('group'),
     title: text('title').notNull(),
     description: text('description'),
+    // 岗位名额 (P1); NULL = 不限. Business-meaningful only for kind='position'.
+    headcount: integer('headcount'),
     // Lexicographic ordering key among siblings (mirrors tasks.rank).
     rank: text('rank').notNull(),
     createdAt,
@@ -616,6 +620,44 @@ export const orgNodeMembers = pgTable(
   (table) => [
     primaryKey({ columns: [table.nodeId, table.userId] }),
     index('org_node_members_user_id_idx').on(table.userId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// org_applications — 岗位申报 (P1). A member's application to join a `position`
+// org node. `pending` rows are unique per (node, user) via a partial index; an
+// approver decides (approved/rejected, writing decided_by/decision_note) or the
+// applicant withdraws. Approval also inserts the org_node_members row. Cascades
+// with the node and the user; decided_by survives user deletion as NULL.
+// ---------------------------------------------------------------------------
+
+export const orgApplications = pgTable(
+  'org_applications',
+  {
+    id: primaryId,
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => orgNodes.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // 申报理由 (may be empty).
+    note: text('note').notNull().default(''),
+    status: applicationStatusEnum('status').notNull().default('pending'),
+    decidedBy: uuid('decided_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    decisionNote: text('decision_note'),
+    createdAt,
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('org_applications_node_idx').on(table.nodeId),
+    index('org_applications_user_idx').on(table.userId),
+    // One live application per (node, user) at a time.
+    uniqueIndex('org_applications_pending_uniq')
+      .on(table.nodeId, table.userId)
+      .where(sql`status = 'pending'`),
   ],
 );
 
@@ -675,6 +717,8 @@ export type OrgNodeRow = typeof orgNodes.$inferSelect;
 export type NewOrgNodeRow = typeof orgNodes.$inferInsert;
 export type OrgNodeMemberRow = typeof orgNodeMembers.$inferSelect;
 export type NewOrgNodeMemberRow = typeof orgNodeMembers.$inferInsert;
+export type OrgApplicationRow = typeof orgApplications.$inferSelect;
+export type NewOrgApplicationRow = typeof orgApplications.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -698,6 +742,7 @@ export const schema = {
   taskTexts,
   orgNodes,
   orgNodeMembers,
+  orgApplications,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,
@@ -708,4 +753,5 @@ export const schema = {
   ideaStatusEnum,
   orgNodeKindEnum,
   orgMemberRoleEnum,
+  applicationStatusEnum,
 };

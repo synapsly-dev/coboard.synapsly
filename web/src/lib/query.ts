@@ -64,6 +64,12 @@ export const queryKeys = {
   announcements: () => ['announcements'] as const,
   /** The org tree (团队架构) for a scope ('all' or a project id). */
   orgTree: (scope: string) => ['org', scope] as const,
+  /**
+   * 岗位申报 (P1) for a scope. Deliberately nested under the `['org']` prefix so the
+   * SSE layer's blanket `['org']` invalidation refreshes applications too. No key
+   * collision with {@link orgTree}: a scope is only ever 'all' or a project uuid.
+   */
+  orgApplications: (scope: string) => ['org', 'applications', scope] as const,
   leaderboard: (params: Record<string, string | undefined>) =>
     ['stats', 'leaderboard', params] as const,
   myStats: (params: Record<string, string | undefined>) =>

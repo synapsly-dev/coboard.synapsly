@@ -1,7 +1,12 @@
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { isAdminRole } from 'shared';
 import type {
+  CreateOrgApplicationInput,
   CreateOrgNodeInput,
+  DecideOrgApplicationInput,
   MoveOrgNodeInput,
+  OrgApplication,
+  OrgApplicationsResponse,
   OrgNode,
   OrgNodeMember,
   OrgScope,
@@ -10,13 +15,16 @@ import type {
 } from 'shared';
 import type { Database } from '../db/index.js';
 import {
+  orgApplications,
   orgNodeMembers,
   orgNodes,
+  projectMembers,
   users,
+  type OrgApplicationRow,
   type OrgNodeRow,
   type UserRow,
 } from '../db/schema.js';
-import { notFound, validationError } from '../lib/errors.js';
+import { conflict, forbidden, notFound, validationError } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
 import { rankBetween } from './taskService.js';
@@ -33,6 +41,10 @@ import { rankBetween } from './taskService.js';
  * single project's tree (`scope: <projectId>`). Every node in a tree carries the same
  * `project_id`; a node's `project_id` always equals its parent's. Deleting a node
  * cascades to its whole subtree and to every member row (DB-level self-FK cascade).
+ *
+ * 岗位申报 (P1): this module also owns position applications — apply / withdraw /
+ * approve / reject on `position` nodes — including the approver rule
+ * ({@link canDecideOnNode}) and the headcount (名额) guard.
  */
 
 // ---------------------------------------------------------------------------
@@ -77,6 +89,7 @@ function toOrgNode(
     kind: row.kind,
     title: row.title,
     description: row.description,
+    headcount: row.headcount,
     rank: row.rank,
     leads,
     members,
@@ -308,6 +321,7 @@ export async function createNode(
       kind: input.kind,
       title: input.title,
       description: input.description ?? null,
+      headcount: input.headcount ?? null,
       rank,
     })
     .returning();
@@ -319,7 +333,7 @@ export async function createNode(
   return serializeNode(db, inserted.id);
 }
 
-/** Edit a node's title / kind / description; bumps `updated_at`. */
+/** Edit a node's title / kind / description / headcount; bumps `updated_at`. */
 export async function updateNode(
   db: Database,
   node: OrgNodeRow,
@@ -330,6 +344,7 @@ export async function updateNode(
   if (input.title !== undefined) patch.title = input.title;
   if (input.kind !== undefined) patch.kind = input.kind;
   if (input.description !== undefined) patch.description = input.description;
+  if (input.headcount !== undefined) patch.headcount = input.headcount;
 
   const [updated] = await db
     .update(orgNodes)
@@ -436,4 +451,365 @@ export async function setMembers(
 
   publishOrgChange(realtimeBus, 'org_members_set', scopeOfNode(node), node.id);
   return serializeNode(db, node.id);
+}
+
+// ---------------------------------------------------------------------------
+// 岗位申报 / org applications (P1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Postgres uniqueness violation code; mapped to a 409 so a concurrent duplicate
+ * apply surfaces as the §7 conflict shape rather than a 500 (mirrors projectService).
+ */
+const PG_UNIQUE_VIOLATION = '23505';
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === PG_UNIQUE_VIOLATION
+  );
+}
+
+/** Map an application row + its display context to the wire shape. */
+function toOrgApplication(
+  row: OrgApplicationRow,
+  applicant: UserRow,
+  nodeTitle: string,
+  nodeProjectId: string | null,
+): OrgApplication {
+  return {
+    id: row.id,
+    nodeId: row.nodeId,
+    nodeTitle,
+    projectId: nodeProjectId,
+    applicant: {
+      id: applicant.id,
+      displayName: applicant.displayName,
+      avatarColor: applicant.avatarColor,
+      hasAvatar: applicant.avatarMime != null,
+    },
+    note: row.note,
+    status: row.status,
+    decidedBy: row.decidedBy,
+    decisionNote: row.decisionNote,
+    createdAt: row.createdAt.toISOString(),
+    decidedAt: row.decidedAt ? row.decidedAt.toISOString() : null,
+  };
+}
+
+/** Load an application by id or throw 404. */
+async function loadApplicationOrThrow(
+  db: Database,
+  id: string,
+): Promise<OrgApplicationRow> {
+  const rows = await db
+    .select()
+    .from(orgApplications)
+    .where(eq(orgApplications.id, id))
+    .limit(1);
+  const application = rows[0];
+  if (!application) {
+    throw notFound('申报不存在');
+  }
+  return application;
+}
+
+/** How many people (any role — a lead occupies a slot too) sit on `nodeId`. */
+async function memberCount(db: Database, nodeId: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(orgNodeMembers)
+    .where(eq(orgNodeMembers.nodeId, nodeId));
+  return rows[0]?.count ?? 0;
+}
+
+/**
+ * The ids of every node in `scope` whose applications `user` may decide (P1):
+ * - a global admin (and, for a project tree, that project's lead) → all scope nodes;
+ * - the whole-team tree → every node that carries one of the user's org-lead
+ *   memberships on itself or any ancestor (walk `parentId` in memory, like
+ *   `subtreeIds`);
+ * - anyone else → none.
+ */
+async function decidableNodeIds(
+  db: Database,
+  user: UserRow,
+  scope: OrgScope,
+  scopeNodes: { id: string; parentId: string | null }[],
+): Promise<Set<string>> {
+  const allIds = new Set(scopeNodes.map((n) => n.id));
+  if (isAdminRole(user.role)) {
+    return allIds;
+  }
+
+  const projectId = projectIdOfScope(scope);
+  if (projectId !== null) {
+    const leadRows = await db
+      .select({ userId: projectMembers.userId })
+      .from(projectMembers)
+      .where(
+        and(
+          eq(projectMembers.projectId, projectId),
+          eq(projectMembers.userId, user.id),
+          eq(projectMembers.role, 'lead'),
+        ),
+      )
+      .limit(1);
+    return leadRows.length > 0 ? allIds : new Set();
+  }
+
+  // Whole-team tree: an org lead decides for their node and its whole subtree.
+  const leadRows = await db
+    .select({ nodeId: orgNodeMembers.nodeId })
+    .from(orgNodeMembers)
+    .where(and(eq(orgNodeMembers.userId, user.id), eq(orgNodeMembers.role, 'lead')));
+  const leadNodeIds = new Set(leadRows.map((r) => r.nodeId));
+  if (leadNodeIds.size === 0) {
+    return new Set();
+  }
+
+  const parentOf = new Map(scopeNodes.map((n) => [n.id, n.parentId]));
+  const out = new Set<string>();
+  for (const node of scopeNodes) {
+    let current: string | null = node.id;
+    while (current !== null) {
+      if (leadNodeIds.has(current)) {
+        out.add(node.id);
+        break;
+      }
+      current = parentOf.get(current) ?? null;
+    }
+  }
+  return out;
+}
+
+/**
+ * Whether `user` may decide (approve/reject) applications on `node` (P1):
+ * a global admin; the project's lead for a project-tree node; or, on the
+ * whole-team tree, an org lead on the node or any ancestor.
+ */
+export async function canDecideOnNode(
+  db: Database,
+  user: UserRow,
+  node: OrgNodeRow,
+): Promise<boolean> {
+  const scopeNodes = await db
+    .select({ id: orgNodes.id, parentId: orgNodes.parentId })
+    .from(orgNodes)
+    .where(inScope(node.projectId));
+  const decidable = await decidableNodeIds(db, user, scopeOfNode(node), scopeNodes);
+  return decidable.has(node.id);
+}
+
+/**
+ * The applications view for `user` in `scope` (P1): all of their OWN applications
+ * (any status) plus — when they are an approver somewhere in the scope — every
+ * `pending` application on the nodes they may decide. One query; the OR de-dupes
+ * the own+pending overlap. Newest first.
+ */
+export async function listApplications(
+  db: Database,
+  user: UserRow,
+  scope: OrgScope,
+): Promise<OrgApplicationsResponse> {
+  const projectId = projectIdOfScope(scope);
+  const scopeNodes = await db
+    .select({ id: orgNodes.id, parentId: orgNodes.parentId })
+    .from(orgNodes)
+    .where(inScope(projectId));
+  if (scopeNodes.length === 0) {
+    return { applications: [], canDecideNodeIds: [] };
+  }
+
+  const decidable = await decidableNodeIds(db, user, scope, scopeNodes);
+  const visible =
+    decidable.size > 0
+      ? or(
+          eq(orgApplications.userId, user.id),
+          and(
+            eq(orgApplications.status, 'pending'),
+            inArray(orgApplications.nodeId, [...decidable]),
+          ),
+        )
+      : eq(orgApplications.userId, user.id);
+
+  const rows = await db
+    .select({ application: orgApplications, applicant: users, node: orgNodes })
+    .from(orgApplications)
+    .innerJoin(users, eq(orgApplications.userId, users.id))
+    .innerJoin(orgNodes, eq(orgApplications.nodeId, orgNodes.id))
+    .where(and(inScope(projectId), visible))
+    .orderBy(desc(orgApplications.createdAt));
+
+  return {
+    applications: rows.map(({ application, applicant, node }) =>
+      toOrgApplication(application, applicant, node.title, node.projectId),
+    ),
+    canDecideNodeIds: [...decidable],
+  };
+}
+
+/**
+ * Apply to a `position` node (P1). Rejects non-position nodes (400), an applicant
+ * who already sits on the node or already has a pending application (409), and a
+ * full position (`headcount` reached, any role counts as occupying — 409).
+ */
+export async function applyToNode(
+  db: Database,
+  user: UserRow,
+  nodeId: string,
+  input: CreateOrgApplicationInput,
+  realtimeBus: RealtimeBus = bus,
+): Promise<OrgApplication> {
+  const node = await loadOrgNodeOrThrow(db, nodeId);
+  if (node.kind !== 'position') {
+    throw validationError('只能申报岗位节点');
+  }
+
+  const existingMember = await db
+    .select({ userId: orgNodeMembers.userId })
+    .from(orgNodeMembers)
+    .where(and(eq(orgNodeMembers.nodeId, node.id), eq(orgNodeMembers.userId, user.id)))
+    .limit(1);
+  if (existingMember.length > 0) {
+    throw conflict('你已在该岗位');
+  }
+
+  const pending = await db
+    .select({ id: orgApplications.id })
+    .from(orgApplications)
+    .where(
+      and(
+        eq(orgApplications.nodeId, node.id),
+        eq(orgApplications.userId, user.id),
+        eq(orgApplications.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  if (pending.length > 0) {
+    throw conflict('你已有待处理的申报');
+  }
+
+  if (node.headcount !== null && (await memberCount(db, node.id)) >= node.headcount) {
+    throw conflict('该岗位名额已满');
+  }
+
+  let inserted: OrgApplicationRow | undefined;
+  try {
+    [inserted] = await db
+      .insert(orgApplications)
+      .values({ nodeId: node.id, userId: user.id, note: input.note ?? '' })
+      .returning();
+  } catch (error) {
+    // Concurrent duplicate — the partial unique (node, user) WHERE pending index.
+    if (isUniqueViolation(error)) {
+      throw conflict('你已有待处理的申报');
+    }
+    throw error;
+  }
+  if (!inserted) {
+    throw new Error('创建申报失败：未返回插入行');
+  }
+
+  publishOrgChange(realtimeBus, 'org_application_created', scopeOfNode(node), node.id);
+  return toOrgApplication(inserted, user, node.title, node.projectId);
+}
+
+/** Withdraw the caller's OWN pending application (P1); sets `decided_at`. */
+export async function withdrawApplication(
+  db: Database,
+  user: UserRow,
+  applicationId: string,
+  realtimeBus: RealtimeBus = bus,
+): Promise<OrgApplication> {
+  const application = await loadApplicationOrThrow(db, applicationId);
+  if (application.userId !== user.id) {
+    throw forbidden('只能撤回自己的申报');
+  }
+  if (application.status !== 'pending') {
+    throw conflict('该申报已被处理');
+  }
+  const node = await loadOrgNodeOrThrow(db, application.nodeId);
+
+  const [updated] = await db
+    .update(orgApplications)
+    .set({ status: 'withdrawn', decidedAt: new Date() })
+    .where(eq(orgApplications.id, application.id))
+    .returning();
+  if (!updated) throw notFound('申报不存在');
+
+  publishOrgChange(realtimeBus, 'org_application_withdrawn', scopeOfNode(node), node.id);
+  return toOrgApplication(updated, user, node.title, node.projectId);
+}
+
+/**
+ * Decide a pending application (P1). Requires {@link canDecideOnNode}. Approving
+ * re-checks the headcount, then appends the applicant to the node as a `member`
+ * (rank after the current occupants, same convention as setMembers); rejecting
+ * only records the decision. Either way writes decided_by / decision_note /
+ * decided_at.
+ */
+export async function decideApplication(
+  db: Database,
+  user: UserRow,
+  applicationId: string,
+  decision: 'approved' | 'rejected',
+  input: DecideOrgApplicationInput,
+  realtimeBus: RealtimeBus = bus,
+): Promise<OrgApplication> {
+  const application = await loadApplicationOrThrow(db, applicationId);
+  if (application.status !== 'pending') {
+    throw conflict('该申报已被处理');
+  }
+  const node = await loadOrgNodeOrThrow(db, application.nodeId);
+  if (!(await canDecideOnNode(db, user, node))) {
+    throw forbidden('需要该岗位的负责人或管理员权限');
+  }
+
+  if (decision === 'approved') {
+    const occupied = await memberCount(db, node.id);
+    if (node.headcount !== null && occupied >= node.headcount) {
+      throw conflict('该岗位名额已满');
+    }
+    // Append after every current occupant (total count >= member count, so the
+    // rank sorts after the existing members). A concurrent double-write is benign:
+    // (node, user) is the PK.
+    await db
+      .insert(orgNodeMembers)
+      .values({
+        nodeId: node.id,
+        userId: application.userId,
+        role: 'member',
+        rank: String(occupied).padStart(6, '0'),
+      })
+      .onConflictDoNothing();
+  }
+
+  const [updated] = await db
+    .update(orgApplications)
+    .set({
+      status: decision,
+      decidedBy: user.id,
+      decisionNote: input.note ?? null,
+      decidedAt: new Date(),
+    })
+    .where(eq(orgApplications.id, application.id))
+    .returning();
+  if (!updated) throw notFound('申报不存在');
+
+  const applicantRows = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, application.userId))
+    .limit(1);
+  const applicant = applicantRows[0];
+  if (!applicant) {
+    // Unreachable in practice: deleting the applicant cascades the application.
+    throw notFound('申报人不存在');
+  }
+
+  publishOrgChange(realtimeBus, 'org_application_decided', scopeOfNode(node), node.id);
+  return toOrgApplication(updated, applicant, node.title, node.projectId);
 }

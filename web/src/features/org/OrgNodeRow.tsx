@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
-import { ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
+import { occupancyLabel, ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
 import { OrgAddNodeButton } from './OrgAddNodeButton';
 import { indentInput, moveDownInput, moveUpInput, outdentInput, type OrgTreeNode } from './tree';
 
@@ -96,6 +96,11 @@ export function OrgNodeRow({
             {ORG_KIND_LABELS[node.kind]}
           </span>
           <span className="truncate text-sm font-semibold text-foreground">{node.title}</span>
+          {node.kind === 'position' && (
+            <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted-foreground">
+              {occupancyLabel(node)}
+            </span>
+          )}
           {collapsed && hasChildren && (
             <span className="text-xs text-muted-foreground">（{node.children.length} 个下级）</span>
           )}

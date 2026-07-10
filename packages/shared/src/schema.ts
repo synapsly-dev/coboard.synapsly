@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   activityTypeSchema,
+  applicationStatusSchema,
   ideaStatusSchema,
   orgMemberRoleSchema,
   orgNodeKindSchema,
@@ -430,6 +431,13 @@ export type OrgNodeMember = z.infer<typeof orgNodeMemberSchema>;
  * `projectId` is null for the whole-team tree. `leads`/`members` split the node's
  * people by role, each ordered by their display rank.
  */
+/** 岗位名额 (P1): 1..999, or null = 不限名额. */
+export const headcountSchema = z
+  .number()
+  .int()
+  .min(1, '名额至少为 1')
+  .max(999, '名额最多为 999');
+
 export const orgNodeSchema = z.object({
   id: uuidSchema,
   /** Owning project; null = the whole-team (全团队) tree. */
@@ -439,6 +447,8 @@ export const orgNodeSchema = z.object({
   kind: orgNodeKindSchema,
   title: z.string(),
   description: z.string().nullable(),
+  /** 岗位名额 (P1); null = 不限. Business-meaningful only for kind='position'. */
+  headcount: z.number().int().nullable(),
   /** Lexicographic ordering key among siblings. */
   rank: z.string(),
   leads: z.array(orgNodeMemberSchema),
@@ -478,18 +488,81 @@ export const createOrgNodeInputSchema = z.object({
   kind: orgNodeKindSchema,
   title: orgTitleSchema,
   description: orgDescriptionSchema.nullable().optional(),
+  /** 岗位名额 (P1); omit/null = 不限. */
+  headcount: headcountSchema.nullable().optional(),
 });
 export type CreateOrgNodeInput = z.infer<typeof createOrgNodeInputSchema>;
 
-/** PATCH /org/nodes/:id — edit a node's title / kind / description. */
+/** PATCH /org/nodes/:id — edit a node's title / kind / description / headcount. */
 export const updateOrgNodeInputSchema = z
   .object({
     title: orgTitleSchema.optional(),
     kind: orgNodeKindSchema.optional(),
     description: orgDescriptionSchema.nullable().optional(),
+    /** 岗位名额 (P1); null clears it (不限). */
+    headcount: headcountSchema.nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: '至少修改一个字段' });
 export type UpdateOrgNodeInput = z.infer<typeof updateOrgNodeInputSchema>;
+
+// ---------------------------------------------------------------------------
+// 岗位申报 / org applications (P1) — BOSS直聘-style position applications.
+//
+// A member applies to a `position` node; an approver (global admin, the project's
+// lead for a project tree, or a lead on the node or any ancestor for the
+// whole-team tree) approves — writing the org_node_members row — or rejects.
+// ---------------------------------------------------------------------------
+
+/** One 申报 as returned by the API, with applicant + node display context. */
+export const orgApplicationSchema = z.object({
+  id: uuidSchema,
+  nodeId: uuidSchema,
+  /** The position node's title (display context). */
+  nodeTitle: z.string(),
+  /** The position's owning tree: null = whole-team, else the project id. */
+  projectId: uuidSchema.nullable(),
+  applicant: userSummarySchema,
+  /** 申报理由; empty string when the applicant left it blank. */
+  note: z.string(),
+  status: applicationStatusSchema,
+  /** The deciding lead/admin; null while pending / after a withdraw. */
+  decidedBy: uuidSchema.nullable(),
+  /** 录用/驳回备注; null while pending. */
+  decisionNote: z.string().nullable(),
+  createdAt: isoDateTimeSchema,
+  decidedAt: isoDateTimeSchema.nullable(),
+});
+export type OrgApplication = z.infer<typeof orgApplicationSchema>;
+
+/** POST /org/nodes/:id/applications — apply to a position (any member). */
+export const createOrgApplicationInputSchema = z.object({
+  note: z.string().trim().max(2000).optional(),
+});
+export type CreateOrgApplicationInput = z.infer<typeof createOrgApplicationInputSchema>;
+
+/** POST /org/applications/:id/approve | /reject — decide (approver). */
+export const decideOrgApplicationInputSchema = z.object({
+  note: z.string().trim().max(2000).optional(),
+});
+export type DecideOrgApplicationInput = z.infer<typeof decideOrgApplicationInputSchema>;
+
+/**
+ * GET /org/applications?scope= — the caller's own applications (any status) plus,
+ * when they are an approver somewhere in the scope, every pending application on
+ * the nodes they may decide. `canDecideNodeIds` tells the client which nodes'
+ * pending applications to surface with approve/reject controls.
+ */
+export const orgApplicationsResponseSchema = z.object({
+  applications: z.array(orgApplicationSchema),
+  canDecideNodeIds: z.array(uuidSchema),
+});
+export type OrgApplicationsResponse = z.infer<typeof orgApplicationsResponseSchema>;
+
+/** POST apply/decide — single-application response wrapper. */
+export const orgApplicationResponseSchema = z.object({
+  application: orgApplicationSchema,
+});
+export type OrgApplicationResponse = z.infer<typeof orgApplicationResponseSchema>;
 
 /**
  * POST /org/nodes/:id/move — reparent and/or reorder a node. `parentId` is the new

@@ -21,10 +21,11 @@ import { useCreateOrgNode, useUpdateOrgNode } from '../../api/org';
 import { ORG_KIND_LABELS, ORG_KIND_OPTIONS } from './labels';
 
 /**
- * Create / edit an org node (团队架构). Collects a title, a kind (部门/小组/单元), and
- * an optional description. Create mode appends the node under `parentId` (null = a new
- * root) in `scope`; edit mode patches the given node. The server is the real validator
- * — this form only guards the obvious (non-empty title).
+ * Create / edit an org node (团队架构). Collects a title, a kind (部门/小组/岗位), an
+ * optional description, and — for 岗位 (P1) — an optional 名额 (headcount, 1..999;
+ * blank = 不限). Create mode appends the node under `parentId` (null = a new root) in
+ * `scope`; edit mode patches the given node. The server is the real validator — this
+ * form only guards the obvious (non-empty title, numeric 名额 range).
  */
 
 interface CreateProps {
@@ -54,6 +55,8 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<OrgNodeKind>('group');
   const [description, setDescription] = useState('');
+  /** 名额 as raw input text; '' = 不限 (null on the wire). */
+  const [headcount, setHeadcount] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const createMut = useCreateOrgNode(scope);
@@ -69,6 +72,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
       setTitle(editingNode.title);
       setKind(editingNode.kind);
       setDescription(editingNode.description ?? '');
+      setHeadcount(editingNode.headcount != null ? String(editingNode.headcount) : '');
     } else {
       setTitle('');
       setKind(
@@ -77,6 +81,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
           : 'department',
       );
       setDescription('');
+      setHeadcount('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -87,13 +92,24 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
       setError('名称不能为空');
       return;
     }
+    // 名额: blank = 不限 (null); otherwise an integer 1..999. Non-岗位 kinds always
+    // send null so a kind switch away from 岗位 clears the stale value silently.
+    let parsedHeadcount: number | null = null;
+    if (kind === 'position' && headcount.trim() !== '') {
+      const n = Number(headcount.trim());
+      if (!Number.isInteger(n) || n < 1 || n > 999) {
+        setError('名额需为 1-999 的整数（留空表示不限）');
+        return;
+      }
+      parsedHeadcount = n;
+    }
     setError(null);
     const desc = description.trim() ? description.trim() : null;
     try {
       if (editingNode) {
         await updateMut.mutateAsync({
           id: editingNode.id,
-          input: { title: trimmed, kind, description: desc },
+          input: { title: trimmed, kind, description: desc, headcount: parsedHeadcount },
         });
       } else {
         await createMut.mutateAsync({
@@ -102,6 +118,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
           kind,
           title: trimmed,
           description: desc,
+          headcount: parsedHeadcount,
         });
       }
       onOpenChange(false);
@@ -151,6 +168,23 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
               </SelectContent>
             </Select>
           </div>
+
+          {kind === 'position' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="org-node-headcount">名额</Label>
+              <Input
+                id="org-node-headcount"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={999}
+                value={headcount}
+                onChange={(e) => setHeadcount(e.target.value)}
+                placeholder="不限"
+              />
+              <p className="text-xs text-muted-foreground">留空表示不限名额；满员后将无法申报。</p>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="org-node-desc">说明（可选）</Label>

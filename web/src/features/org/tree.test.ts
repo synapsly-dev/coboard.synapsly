@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { OrgNode } from 'shared';
+import type { OrgNode, OrgNodeMember } from 'shared';
 import {
+  ancestorPath,
   buildTree,
   descendantCount,
   indentInput,
@@ -9,6 +10,7 @@ import {
   outdentInput,
 } from './tree';
 import { canEditOrgScope } from './permissions';
+import { isPositionFull, occupancyLabel, occupancyShort, occupiedCount } from './labels';
 
 /** Minimal OrgNode factory for the pure-helper tests. */
 function node(id: string, parentId: string | null, rank: string, extra?: Partial<OrgNode>): OrgNode {
@@ -19,6 +21,7 @@ function node(id: string, parentId: string | null, rank: string, extra?: Partial
     kind: 'group',
     title: id,
     description: null,
+    headcount: null,
     rank,
     leads: [],
     members: [],
@@ -26,6 +29,11 @@ function node(id: string, parentId: string | null, rank: string, extra?: Partial
     updatedAt: '2026-07-06T00:00:00.000Z',
     ...extra,
   };
+}
+
+/** Minimal OrgNodeMember factory (only identity matters for occupancy). */
+function member(userId: string, role: OrgNodeMember['role'] = 'member'): OrgNodeMember {
+  return { userId, displayName: userId, avatarColor: '#888888', hasAvatar: false, role };
 }
 
 describe('buildTree', () => {
@@ -92,6 +100,52 @@ describe('descendantCount', () => {
     expect(descendantCount(roots, 'r')).toBe(3);
     expect(descendantCount(roots, 'c1')).toBe(1);
     expect(descendantCount(roots, 'c2')).toBe(0);
+  });
+});
+
+describe('ancestorPath', () => {
+  const nodes = [
+    node('dept', null, 'a', { kind: 'department', title: '运营部' }),
+    node('grp', 'dept', 'a', { title: '内容组' }),
+    node('pos', 'grp', 'a', { kind: 'position', title: '主编' }),
+  ];
+
+  it('walks parentId collecting titles, outermost first', () => {
+    expect(ancestorPath(nodes, nodes[2]!)).toEqual(['运营部', '内容组']);
+    expect(ancestorPath(nodes, nodes[1]!)).toEqual(['运营部']);
+  });
+
+  it('is empty for roots and terminates on missing parents / cycles', () => {
+    expect(ancestorPath(nodes, nodes[0]!)).toEqual([]);
+    expect(ancestorPath([node('x', 'ghost', 'a')], node('x', 'ghost', 'a'))).toEqual([]);
+    const loop = [node('a', 'b', 'a'), node('b', 'a', 'a')];
+    expect(ancestorPath(loop, loop[0]!)).toEqual([loop[1]!.title]);
+  });
+});
+
+describe('岗位 occupancy helpers', () => {
+  it('counts leads + members and detects fullness against 名额', () => {
+    const pos = node('p', null, 'a', {
+      kind: 'position',
+      headcount: 2,
+      leads: [member('u1', 'lead')],
+      members: [member('u2')],
+    });
+    expect(occupiedCount(pos)).toBe(2);
+    expect(isPositionFull(pos)).toBe(true);
+    expect(occupancyLabel(pos)).toBe('在岗2/名额2');
+    expect(occupancyShort(pos)).toBe('2/2');
+  });
+
+  it('null 名额 (不限) is never full', () => {
+    const pos = node('p', null, 'a', {
+      kind: 'position',
+      headcount: null,
+      members: [member('u1'), member('u2'), member('u3')],
+    });
+    expect(isPositionFull(pos)).toBe(false);
+    expect(occupancyLabel(pos)).toBe('3 人·不限');
+    expect(occupancyShort(pos)).toBe('3 人');
   });
 });
 

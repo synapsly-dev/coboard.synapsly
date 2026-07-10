@@ -107,9 +107,11 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       break;
     }
     case 'org': {
-      // An editor changed the team org tree (团队架构). Refresh every scope's tree
-      // (the `['org', scope]` prefix), since the payload's scope is enough context
-      // and trees are small.
+      // An editor changed the team org tree (团队架构), or an application (岗位申报,
+      // P1) was created / withdrawn / decided. Refresh every scope's tree AND the
+      // applications lists — both live under the `['org']` prefix (`['org', scope]`
+      // and `['org', 'applications', scope]`) — since the payload's scope is enough
+      // context and both datasets are small.
       void queryClient.invalidateQueries({ queryKey: ['org'] });
       break;
     }

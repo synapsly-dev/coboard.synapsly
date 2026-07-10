@@ -15,6 +15,7 @@ export type {
   ActivityType,
   OrgNodeKind,
   OrgMemberRole,
+  ApplicationStatus,
 } from './enums.js';
 
 export type {
@@ -100,6 +101,12 @@ export type {
   UpdateOrgNodeInput,
   MoveOrgNodeInput,
   SetOrgMembersInput,
+  // 岗位申报 (P1)
+  OrgApplication,
+  CreateOrgApplicationInput,
+  DecideOrgApplicationInput,
+  OrgApplicationsResponse,
+  OrgApplicationResponse,
   // realtime
   RealtimeEntity,
   RealtimeEvent,

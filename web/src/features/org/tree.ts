@@ -116,6 +116,24 @@ export function outdentInput(nodes: OrgNode[], node: OrgNode): MoveOrgNodeInput 
   return { parentId: parent.parentId, beforeId: afterParent ? afterParent.id : null };
 }
 
+/**
+ * Breadcrumb of a node's ancestor titles, outermost first (e.g. ["运营部", "内容组"]).
+ * Walks `parentId` through the flat list; cycles/missing parents terminate the walk
+ * so a malformed tree can't hang the UI. Used to group 岗位 cards in the recruit view.
+ */
+export function ancestorPath(nodes: OrgNode[], node: OrgNode): string[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const titles: string[] = [];
+  const seen = new Set<string>([node.id]);
+  let cur = node.parentId != null ? byId.get(node.parentId) : undefined;
+  while (cur && !seen.has(cur.id)) {
+    titles.unshift(cur.title);
+    seen.add(cur.id);
+    cur = cur.parentId != null ? byId.get(cur.parentId) : undefined;
+  }
+  return titles;
+}
+
 /** Count of a node's descendants (used for the delete confirmation copy). */
 export function descendantCount(roots: OrgTreeNode[], nodeId: string): number {
   const find = (list: OrgTreeNode[]): OrgTreeNode | undefined => {

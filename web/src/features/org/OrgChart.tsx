@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
-import { ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
+import { occupancyLabel, ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
 import { OrgAddNodeButton } from './OrgAddNodeButton';
 import type { OrgTreeNode } from './tree';
 
@@ -288,13 +288,20 @@ function NodeCard({
           </DropdownMenu>
         </div>
       )}
-      <span
-        className={cn(
-          'rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none',
-          ORG_KIND_BADGE[node.kind],
+      <span className="inline-flex flex-wrap items-center justify-center gap-1">
+        <span
+          className={cn(
+            'rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none',
+            ORG_KIND_BADGE[node.kind],
+          )}
+        >
+          {ORG_KIND_LABELS[node.kind]}
+        </span>
+        {node.kind === 'position' && (
+          <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] font-medium leading-none text-muted-foreground">
+            {occupancyLabel(node)}
+          </span>
         )}
-      >
-        {ORG_KIND_LABELS[node.kind]}
       </span>
       <span className="text-sm font-semibold leading-snug text-foreground">{node.title}</span>
 

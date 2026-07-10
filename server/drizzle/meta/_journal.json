@@ -127,6 +127,13 @@
       "when": 1783615062309,
       "tag": "0017_friendly_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1783655745587,
+      "tag": "0018_premium_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }

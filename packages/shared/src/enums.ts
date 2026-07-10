@@ -100,11 +100,26 @@ export type IdeaStatus = (typeof ideaStatuses)[number];
 /**
  * Org-tree node kind (team org / division-of-labor page). Purely a visual/semantic
  * label — the tree nests to any depth regardless of kind: `department` (部门) and
- * `group` (小组) are the two levels.
+ * `group` (小组) are the structural levels; `position` (岗位, P1) is a recruitable
+ * leaf that carries a headcount and accepts 申报 (applications).
  */
-export const orgNodeKinds = ['department', 'group'] as const;
+export const orgNodeKinds = ['department', 'group', 'position'] as const;
 export const orgNodeKindSchema = z.enum(orgNodeKinds);
 export type OrgNodeKind = (typeof orgNodeKinds)[number];
+
+/**
+ * 岗位申报 status (P1 §1). `pending` awaits a decision; an approver moves it to
+ * `approved` (writing the member row) or `rejected`; the applicant may withdraw
+ * their own pending application (`withdrawn`).
+ */
+export const applicationStatuses = [
+  'pending',
+  'approved',
+  'rejected',
+  'withdrawn',
+] as const;
+export const applicationStatusSchema = z.enum(applicationStatuses);
+export type ApplicationStatus = (typeof applicationStatuses)[number];
 
 /**
  * A person's role on an org-tree node: `lead` (负责人) or `member` (成员). A node may

@@ -1,11 +1,15 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import {
+  createOrgApplicationInputSchema,
   createOrgNodeInputSchema,
+  decideOrgApplicationInputSchema,
   idParamSchema,
   moveOrgNodeInputSchema,
   orgTreeQuerySchema,
   setOrgMembersInputSchema,
   updateOrgNodeInputSchema,
+  type OrgApplicationResponse,
+  type OrgApplicationsResponse,
   type OrgNodeResponse,
   type OrgScope,
   type OrgTreeResponse,
@@ -19,14 +23,18 @@ import {
 } from '../lib/guards.js';
 import { parseBody, parseParams, parseQuery } from '../lib/validate.js';
 import {
+  applyToNode,
   createNode,
+  decideApplication,
   deleteNode,
+  listApplications,
   listTree,
   loadOrgNodeOrThrow,
   moveNode,
   scopeOfNode,
   setMembers,
   updateNode,
+  withdrawApplication,
 } from '../services/orgService.js';
 
 /**
@@ -38,11 +46,20 @@ import {
  * - DELETE /org/nodes/:id                    delete node + subtree, cascade (editor)
  * - PUT    /org/nodes/:id/members            replace the node's 负责人/成员 set (editor)
  *
+ * 岗位申报 (P1):
+ * - GET    /org/applications?scope=          own applications + decidable pending ones
+ * - POST   /org/nodes/:id/applications       apply to a position (any member)
+ * - DELETE /org/applications/:id             withdraw own pending application
+ * - POST   /org/applications/:id/approve     approve (approver; writes the member row)
+ * - POST   /org/applications/:id/reject      reject (approver)
+ *
  * Scope gating:
  * - READ  — the whole-team ('all') tree is visible to every logged-in user; a project
  *   tree requires project membership (a global admin sees any).
  * - WRITE — the whole-team tree requires a global admin; a project tree requires that
  *   project's lead (a global admin is lead-equivalent everywhere).
+ * - 申报 — any logged-in user may apply/withdraw; deciding requires the approver rule
+ *   (orgService.canDecideOnNode), enforced in the service.
  * Data access + realtime fan-out live in orgService.
  */
 
@@ -137,6 +154,66 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     const node = await setMembers(db, existing, input, bus);
     return { node };
   });
+
+  // --- GET /org/applications -------------------------------------------------
+  fastify.get(
+    '/org/applications',
+    async (request): Promise<OrgApplicationsResponse> => {
+      const scope: OrgScope =
+        parseQuery(orgTreeQuerySchema, request.query).scope ?? 'all';
+      await assertCanViewScope(db, request, scope);
+      const user = requireAuth(request);
+      return listApplications(db, user, scope);
+    },
+  );
+
+  // --- POST /org/nodes/:id/applications --------------------------------------
+  fastify.post(
+    '/org/nodes/:id/applications',
+    async (request, reply): Promise<OrgApplicationResponse> => {
+      const { id } = parseParams(idParamSchema, request.params);
+      const input = parseBody(createOrgApplicationInputSchema, request.body);
+      const user = requireAuth(request);
+      const application = await applyToNode(db, user, id, input, bus);
+      reply.code(201);
+      return { application };
+    },
+  );
+
+  // --- DELETE /org/applications/:id -------------------------------------------
+  fastify.delete(
+    '/org/applications/:id',
+    async (request): Promise<OrgApplicationResponse> => {
+      const { id } = parseParams(idParamSchema, request.params);
+      const user = requireAuth(request);
+      const application = await withdrawApplication(db, user, id, bus);
+      return { application };
+    },
+  );
+
+  // --- POST /org/applications/:id/approve --------------------------------------
+  fastify.post(
+    '/org/applications/:id/approve',
+    async (request): Promise<OrgApplicationResponse> => {
+      const { id } = parseParams(idParamSchema, request.params);
+      const input = parseBody(decideOrgApplicationInputSchema, request.body);
+      const user = requireAuth(request);
+      const application = await decideApplication(db, user, id, 'approved', input, bus);
+      return { application };
+    },
+  );
+
+  // --- POST /org/applications/:id/reject ----------------------------------------
+  fastify.post(
+    '/org/applications/:id/reject',
+    async (request): Promise<OrgApplicationResponse> => {
+      const { id } = parseParams(idParamSchema, request.params);
+      const input = parseBody(decideOrgApplicationInputSchema, request.body);
+      const user = requireAuth(request);
+      const application = await decideApplication(db, user, id, 'rejected', input, bus);
+      return { application };
+    },
+  );
 };
 
 export default orgRoutes;
