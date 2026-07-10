@@ -27,6 +27,7 @@ const ENTITY_CHANNELS: readonly RealtimeEntity[] = [
   'announcement',
   'org',
   'track',
+  'asset',
 ];
 
 function safeParse(raw: string): RealtimeEvent | null {
@@ -115,6 +116,12 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       // and `['org', 'applications', scope]`) — since the payload's scope is enough
       // context and both datasets are small.
       void queryClient.invalidateQueries({ queryKey: ['org'] });
+      break;
+    }
+    case 'asset': {
+      // Someone created/edited/deleted a 资产 (P3 §1) — refresh every filtered
+      // listing under the `['assets']` prefix.
+      void queryClient.invalidateQueries({ queryKey: ['assets'] });
       break;
     }
     case 'track': {

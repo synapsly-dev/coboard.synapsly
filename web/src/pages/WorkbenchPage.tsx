@@ -17,6 +17,7 @@ import { useAllTasks } from '../api/tasks';
 import { useRejectedTasks, useReviewQueue } from '../api/workbench';
 import { useMyStats } from '../api/stats';
 import { DEFAULT_FILTERS, resolveStatsQuery } from '../features/stats';
+import { selectMyActiveTasks } from '../features/workbench/my-tasks';
 import { dueInfo, relativeTime } from '../features/board/format';
 import { TaskTypeBadge } from '../features/board/TaskTypeBadge';
 import { isClaimFull } from '../features/board/permissions';
@@ -51,17 +52,12 @@ export default function WorkbenchPage(): JSX.Element {
   const awaitingFinal = queue.filter((t) => t.firstApprovedAt != null);
 
   const myId = user?.id;
-  const mine = useMemo(() => {
-    const tasks = allTasks.data ?? [];
-    return tasks
-      .filter(
-        (t) =>
-          (t.status === 'open' || t.status === 'in_progress') &&
-          myId != null &&
-          t.claimants.some((c) => c.userId === myId),
-      )
-      .sort(byDueDateThenTitle);
-  }, [allTasks.data, myId]);
+  // Shared with the nav badge (P3 §3, features/workbench/my-tasks) so the page
+  // list and the reminder count can't drift.
+  const mine = useMemo(
+    () => selectMyActiveTasks(allTasks.data ?? [], myId),
+    [allTasks.data, myId],
+  );
 
   const claimable = useMemo(() => {
     const tasks = allTasks.data ?? [];
@@ -208,16 +204,6 @@ export default function WorkbenchPage(): JSX.Element {
       </div>
     </div>
   );
-}
-
-/** Due date ascending (nulls last), then title, so最紧急的排最前. */
-function byDueDateThenTitle(a: Task, b: Task): number {
-  if (a.dueDate !== b.dueDate) {
-    if (a.dueDate == null) return 1;
-    if (b.dueDate == null) return -1;
-    return a.dueDate < b.dueDate ? -1 : 1;
-  }
-  return a.title.localeCompare(b.title, 'zh-CN');
 }
 
 // ---------------------------------------------------------------------------

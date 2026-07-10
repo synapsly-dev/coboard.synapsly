@@ -7,6 +7,7 @@ import {
   orgNodeKindSchema,
   prioritySchema,
   projectRoleSchema,
+  assetKindSchema,
   qualityGradeSchema,
   reviewDecisions,
   reviewStageSchema,
@@ -663,6 +664,84 @@ export const taskFilesResponseSchema = z.object({
   files: z.array(taskFileSchema),
 });
 export type TaskFilesResponse = z.infer<typeof taskFilesResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// 资产库 / assets (P3 §1, 运营需求 §9) — 内容库/反馈库/资源库/问题清单.
+//
+// The durable output of the weekly retrospective loop. Created standalone on the
+// 资产 page or distilled from a done task (「沉淀为资产」). Any member creates;
+// the author edits their own; lead-tier (admin / 赛道经理) edits/deletes all.
+// ---------------------------------------------------------------------------
+
+export const assetTitleSchema = z.string().trim().min(1, '标题不能为空').max(200);
+
+/** One asset as returned by the API, with track/task display context resolved. */
+export const assetSchema = z.object({
+  id: uuidSchema,
+  kind: assetKindSchema,
+  title: assetTitleSchema,
+  /** Markdown body: 原话/记录/复用结构/联系方式等. Empty string when link-only. */
+  body: z.string(),
+  /** Optional external link (发布链接/文档链接). */
+  url: z.string().nullable(),
+  /** Owning 赛道; null = 通用/未归类. */
+  trackId: uuidSchema.nullable(),
+  /** Owning track's display name; null when trackId is null. */
+  trackName: z.string().nullable(),
+  /** Source task (溯源); null for standalone assets. */
+  taskId: uuidSchema.nullable(),
+  /** Source task's title; null when taskId is null (or the task was deleted). */
+  taskTitle: z.string().nullable(),
+  creator: userSummarySchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type Asset = z.infer<typeof assetSchema>;
+
+/** POST /assets — create (any member). Body or url: at least one required. */
+export const createAssetInputSchema = z
+  .object({
+    kind: assetKindSchema,
+    title: assetTitleSchema,
+    body: z.string().max(20000).optional(),
+    url: z.string().trim().url('链接格式不正确').max(2000).optional(),
+    trackId: uuidSchema.nullable().optional(),
+    taskId: uuidSchema.nullable().optional(),
+  })
+  .refine((v) => (v.body && v.body.trim().length > 0) || v.url, {
+    message: '正文和链接至少填写一项',
+    path: ['body'],
+  });
+export type CreateAssetInput = z.infer<typeof createAssetInputSchema>;
+
+/** PATCH /assets/:id — author edits own; admin/赛道经理 edit all. */
+export const updateAssetInputSchema = z
+  .object({
+    kind: assetKindSchema.optional(),
+    title: assetTitleSchema.optional(),
+    body: z.string().max(20000).optional(),
+    url: z.string().trim().url('链接格式不正确').max(2000).nullable().optional(),
+    trackId: uuidSchema.nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: '至少修改一个字段' });
+export type UpdateAssetInput = z.infer<typeof updateAssetInputSchema>;
+
+/** GET /assets?kind&trackId — newest first. */
+export const assetsQuerySchema = z.object({
+  kind: assetKindSchema.optional(),
+  trackId: uuidSchema.optional(),
+});
+export type AssetsQuery = z.infer<typeof assetsQuerySchema>;
+
+export const assetsResponseSchema = z.object({
+  assets: z.array(assetSchema),
+});
+export type AssetsResponse = z.infer<typeof assetsResponseSchema>;
+
+export const assetResponseSchema = z.object({
+  asset: assetSchema,
+});
+export type AssetResponse = z.infer<typeof assetResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Error shape (§7)
@@ -1358,6 +1437,7 @@ export const realtimeEntitySchema = z.enum([
   'announcement',
   'org',
   'track',
+  'asset',
 ]);
 export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 

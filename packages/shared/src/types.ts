@@ -18,6 +18,7 @@ export type {
   ApplicationStatus,
   QualityGrade,
   ReviewStage,
+  AssetKind,
 } from './enums.js';
 
 export type {
@@ -77,6 +78,13 @@ export type {
   TaskReview,
   TaskReviewsResponse,
   TransferTaskInput,
+  // 资产库 (P3)
+  Asset,
+  CreateAssetInput,
+  UpdateAssetInput,
+  AssetsQuery,
+  AssetsResponse,
+  AssetResponse,
   // comments & activities
   CommentsResponse,
   CreateCommentInput,

@@ -18,6 +18,7 @@ import {
 import {
   activityTypes,
   applicationStatuses,
+  assetKinds,
   ideaStatuses,
   orgMemberRoles,
   orgNodeKinds,
@@ -57,6 +58,7 @@ export const applicationStatusEnum = pgEnum('application_status', applicationSta
 export const qualityGradeEnum = pgEnum('quality_grade', qualityGrades);
 export const reviewStageEnum = pgEnum('review_stage', reviewStages);
 export const reviewDecisionEnum = pgEnum('review_decision', reviewDecisions);
+export const assetKindEnum = pgEnum('asset_kind', assetKinds);
 
 const primaryId = uuid('id')
   .primaryKey()
@@ -668,6 +670,38 @@ export const orgNodeMembers = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// assets — 资产库 (P3, 运营需求 §9): 内容库/反馈库/资源库/问题清单. The durable
+// output of the weekly retrospective loop. Standalone or distilled from a done
+// task (溯源 via task_id, set-null so assets outlive their source task). Track
+// association is set-null too — an asset survives its 赛道's deletion as 通用.
+// ---------------------------------------------------------------------------
+
+export const assets = pgTable(
+  'assets',
+  {
+    id: primaryId,
+    kind: assetKindEnum('kind').notNull(),
+    title: text('title').notNull(),
+    // Markdown body; empty string for link-only assets.
+    body: text('body').notNull().default(''),
+    url: text('url'),
+    trackId: uuid('track_id').references(() => tracks.id, { onDelete: 'set null' }),
+    taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('assets_kind_created_idx').on(table.kind, table.createdAt),
+    index('assets_track_idx').on(table.trackId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // org_applications — 岗位申报 (P1). A member's application to join a `position`
 // org node. `pending` rows are unique per (node, user) via a partial index; an
 // approver decides (approved/rejected, writing decided_by/decision_note) or the
@@ -765,6 +799,8 @@ export type OrgNodeMemberRow = typeof orgNodeMembers.$inferSelect;
 export type NewOrgNodeMemberRow = typeof orgNodeMembers.$inferInsert;
 export type OrgApplicationRow = typeof orgApplications.$inferSelect;
 export type NewOrgApplicationRow = typeof orgApplications.$inferInsert;
+export type AssetRow = typeof assets.$inferSelect;
+export type NewAssetRow = typeof assets.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -790,6 +826,7 @@ export const schema = {
   orgNodes,
   orgNodeMembers,
   orgApplications,
+  assets,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,
@@ -804,4 +841,5 @@ export const schema = {
   qualityGradeEnum,
   reviewStageEnum,
   reviewDecisionEnum,
+  assetKindEnum,
 };

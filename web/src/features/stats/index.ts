@@ -3,6 +3,7 @@
  * keep this the single import surface for the feature.
  */
 export { StatFilters } from './StatFilters';
+export { ExportMenu, csvExportUrl, type ExportCsv } from './ExportMenu';
 export { Leaderboard } from './Leaderboard';
 export { PersonalSummary } from './PersonalSummary';
 export { TrackStatsPanel } from './TrackStatsPanel';

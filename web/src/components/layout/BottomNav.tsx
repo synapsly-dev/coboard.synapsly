@@ -1,5 +1,5 @@
 import { NavLink, useMatch } from 'react-router-dom';
-import { useReviewQueue } from '../../api/workbench';
+import { useWorkbenchBadgeCount } from '../../features/workbench/my-tasks';
 import { useAuth } from '../../lib/auth-context';
 import { cn } from '../../lib/utils';
 import { buildNavItems } from './nav-items';
@@ -17,9 +17,8 @@ export function BottomNav(): JSX.Element {
   const projectId = useMatch('/board/:projectId')?.params.projectId;
   const boardTarget = projectId ?? 'all';
   const navItems = buildNavItems(boardTarget).filter((item) => !item.adminOnly || isAdmin);
-  // 待我审核 count for the 工作台 dot (P2 §4) — same cached query as the top nav.
-  const { data: reviewQueue } = useReviewQueue();
-  const reviewCount = reviewQueue?.length ?? 0;
+  // 工作台 reminder count (P2 §4 + P3 §3) — same cached queries as the top nav.
+  const reviewCount = useWorkbenchBadgeCount();
 
   return (
     <nav
@@ -44,11 +43,11 @@ export function BottomNav(): JSX.Element {
           >
             <span className="relative">
               <Icon className="h-5 w-5 shrink-0" aria-hidden />
-              {/* Minimal amber dot: tasks await my review (P2 §4). */}
+              {/* Minimal amber dot: 待审核 + 逾期/临期 reminders (P2 §4, P3 §3). */}
               {item.reviewBadge && reviewCount > 0 && (
                 <span
                   className="absolute -right-1 -top-0.5 h-2 w-2 rounded-full bg-warning ring-2 ring-card"
-                  aria-label={`${reviewCount} 个任务待审核`}
+                  aria-label={`${reviewCount} 个任务需要处理`}
                 />
               )}
             </span>

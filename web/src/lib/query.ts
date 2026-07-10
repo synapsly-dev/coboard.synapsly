@@ -81,6 +81,13 @@ export const queryKeys = {
   /** Contribution rolled up by 赛道 (P0 §2 GET /stats/tracks). */
   trackStats: (params: Record<string, string | undefined>) =>
     ['stats', 'tracks', params] as const,
+  /**
+   * 资产库 (P3 §1) listings, parameterized by the server-side filters. Nested
+   * under the `['assets']` prefix so mutations and the SSE layer refresh every
+   * filtered view with one blanket invalidation.
+   */
+  assets: (kind?: string, trackId?: string) =>
+    ['assets', kind ?? 'all', trackId ?? 'all'] as const,
   /** 工作台 (P2 §4): pending_review tasks the caller can act on. */
   reviewQueue: () => ['workbench', 'review-queue'] as const,
   /** 工作台 (P2 §4): the caller's recently rejected tasks. */

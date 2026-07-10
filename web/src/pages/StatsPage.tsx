@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth-context';
 import {
   ChartCard,
   DEFAULT_FILTERS,
+  ExportMenu,
   Leaderboard,
   PerPersonChart,
   PersonalSummary,
@@ -68,11 +69,16 @@ export default function StatsPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6">
-        <header>
-          <h1 className="text-xl font-semibold tracking-tight">贡献统计</h1>
-          <p className="text-sm text-muted-foreground">
-            按完成任务数与点数衡量团队贡献，支持按项目与时间范围筛选。
-          </p>
+        <header className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">贡献统计</h1>
+            <p className="text-sm text-muted-foreground">
+              按完成任务数与点数衡量团队贡献，支持按项目与时间范围筛选。
+            </p>
+          </div>
+          {/* CSV 导出 (P3 §2) — carries the current resolved time window; renders
+              null for members (admin/赛道经理 only; server re-enforces). */}
+          <ExportMenu from={resolved.from} to={resolved.to} />
         </header>
 
         {/* Personal summary sits above the filter bar (per design); the filters

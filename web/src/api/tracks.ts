@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   useMutation,
   useQuery,
@@ -15,6 +16,7 @@ import type {
 } from 'shared';
 import { api } from './client';
 import { queryKeys } from '../lib/query';
+import { useAuth } from '../lib/auth-context';
 
 /**
  * Track (赛道, P0 §2) data + mutation hooks. A 赛道 is the top operational grouping
@@ -51,6 +53,20 @@ export function useTracks(): UseQueryResult<Track[]> {
       return res.tracks;
     },
   });
+}
+
+/**
+ * Client-side heuristic: is the current user a 赛道运营经理 on ANY track? Used to
+ * decide whether to SHOW manager-tier affordances (资产 edit/delete menu, 统计
+ * 导出下拉, P3) — the server remains the real gate for the actual operations.
+ */
+export function useIsAnyTrackManager(): boolean {
+  const { user } = useAuth();
+  const { data: tracks } = useTracks();
+  return useMemo(() => {
+    if (!user || !tracks) return false;
+    return tracks.some((t) => t.managers.some((m) => m.userId === user.id));
+  }, [tracks, user]);
 }
 
 // ---------------------------------------------------------------------------

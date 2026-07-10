@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   CalendarClock,
   Check,
+  Library,
   Lightbulb,
   MessageSquare,
   PackageCheck,
@@ -55,6 +56,8 @@ import {
   useDeleteTask,
 } from '../../api/tasks';
 import { useActivities, useComments } from '../../api/comments';
+import { useProject } from '../../api/projects';
+import { AssetFormDialog } from '../assets/AssetFormDialog';
 import { ClaimButton } from '../board/ClaimButton';
 import { ClaimLimitBadge } from '../board/ClaimLimitBadge';
 import { DeliverDialog } from '../board/DeliverDialog';
@@ -164,6 +167,9 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
   const { data: ideas } = useTaskIdeas(taskId);
   const { data: activities, isLoading: activitiesLoading } = useActivities(taskId);
   const { data: reviews } = useTaskReviews(taskId);
+  // 沉淀为资产 (P3 §1): the owning project carries the task's 赛道; a pool task has
+  // no project, so the query stays disabled and the asset defaults to 通用.
+  const { data: taskProject } = useProject(task?.projectId ?? undefined);
 
   const patchTask = usePatchTask(projectId);
   const assignTask = useAssignTask(projectId);
@@ -173,6 +179,8 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
   const [tab, setTab] = useState<Tab>(initialTab ?? 'comments');
   const [editing, setEditing] = useState(false);
   const [deliverOpen, setDeliverOpen] = useState(false);
+  // 沉淀为资产 (P3 §1): opens the pre-filled asset dialog for a done task.
+  const [assetOpen, setAssetOpen] = useState(false);
   // 转让 (P2 §5): which claimant is being transferred (opens the dialog).
   const [transferFrom, setTransferFrom] = useState<TaskClaimant | null>(null);
 
@@ -324,10 +332,11 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           </div>
         )}
 
-        {/* Deliver / review / revoke-approval action bar */}
+        {/* Deliver / review / revoke-approval / 沉淀为资产 action bar */}
         {(showDeliver ||
           showReview ||
           showRevoke ||
+          task.status === 'done' ||
           (task.status === 'pending_review' && !showReview)) && (
           <div className="flex flex-col items-stretch gap-2 rounded-lg border border-border bg-secondary/30 p-3 sm:flex-row sm:flex-wrap sm:items-center">
             {/* Submitter line — shown to everyone (reviewer or not) while a task awaits
@@ -380,6 +389,20 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             )}
             {showRevoke && (
               <RevokeApprovalButton task={task} projectId={projectId} size="md" className="w-full sm:w-auto" />
+            )}
+            {/* 沉淀为资产 (P3 §1): distill a DONE task into the 资产库 — pre-fills
+                title / 溯源 taskId / the project's 赛道. Any member may create. */}
+            {task.status === 'done' && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => setAssetOpen(true)}
+              >
+                <Library className="h-4 w-4" aria-hidden />
+                沉淀为资产
+              </Button>
             )}
           </div>
         )}
@@ -723,6 +746,20 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
         onOpenChange={(next) => {
           if (!next) setTransferFrom(null);
         }}
+      />
+
+      {/* 沉淀为资产 (P3 §1) — same dialog as the 资产 page, pre-filled from the
+          done task. On success it just closes; SSE + invalidation refresh 资产库. */}
+      <AssetFormDialog
+        open={assetOpen}
+        existing={null}
+        prefill={{
+          title: task.title,
+          taskId: task.id,
+          trackId: taskProject?.trackId ?? null,
+          kind: 'content',
+        }}
+        onClose={() => setAssetOpen(false)}
       />
     </>
   );

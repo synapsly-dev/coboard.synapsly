@@ -21,6 +21,7 @@ import BoardPage from './pages/BoardPage';
 import WorkbenchPage from './pages/WorkbenchPage';
 import ProjectsPage from './pages/ProjectsPage';
 import IdeasPage from './pages/IdeasPage';
+import AssetsPage from './pages/AssetsPage';
 import OrgPage from './pages/OrgPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import StatsPage from './pages/StatsPage';
@@ -93,6 +94,8 @@ function AuthedRoutes(): JSX.Element {
         <Route path="/workbench" element={<WorkbenchPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/ideas" element={<IdeasPage />} />
+        {/* 资产库 (P3 §1): 内容库/反馈库/资源库/问题清单. */}
+        <Route path="/assets" element={<AssetsPage />} />
         <Route path="/org" element={<OrgPage />} />
         <Route path="/info" element={<AnnouncementsPage />} />
         <Route path="/stats" element={<StatsPage />} />

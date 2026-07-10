@@ -98,6 +98,15 @@ export type ReviewStage = (typeof reviewStages)[number];
 export const reviewDecisions = ['approve', 'reject'] as const;
 
 /**
+ * 资产库 kind (P3 §1, 运营需求 §9 周复盘沉淀): content=内容库, feedback=反馈库,
+ * resource=资源库, issue=问题清单. Assets are the durable output of the weekly
+ * retrospective loop — reusable content, user feedback, resource leads, issues.
+ */
+export const assetKinds = ['content', 'feedback', 'resource', 'issue'] as const;
+export const assetKindSchema = z.enum(assetKinds);
+export type AssetKind = (typeof assetKinds)[number];
+
+/**
  * Activity / timeline event type (§5 activities.type). Lifecycle v2 (§3) adds
  * `delivered` (a claimant/lead submitted points allocations for review) and
  * `rejected` (a lead/admin sent the task back to in_progress).
