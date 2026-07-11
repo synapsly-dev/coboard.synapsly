@@ -73,8 +73,16 @@ const KIND_GLOW_FOCUS: Record<OrgNodeKind, string> = {
   position: 'shadow-[0_0_44px_-4px_rgba(139,92,246,0.6)]',
 };
 
+/** Member-cluster halo tint per focused-unit kind (inline radial-gradient stop). */
+const HALO_TINT: Record<OrgNodeKind, string> = {
+  department: 'hsl(var(--primary)/0.09)',
+  group: 'rgba(14,165,233,0.09)',
+  position: 'rgba(139,92,246,0.09)',
+};
+
 /** Stacking per kind — DOM order is key-stable, so depth comes from z-index. */
 const KIND_Z: Record<OrbitItemKind, string> = {
+  halo: 'z-0',
   ring: 'z-0',
   ghost: 'z-10',
   moon: 'z-20',
@@ -419,6 +427,19 @@ function OrbitItemBody({
     );
   }
 
+  // Member-cluster halo: a soft kind-tinted radial glow seating the composition.
+  if (item.kind === 'halo') {
+    return (
+      <div
+        className="pointer-events-none h-full w-full rounded-full motion-safe:animate-fade-in"
+        style={{
+          background: `radial-gradient(closest-side, ${HALO_TINT[item.node?.kind ?? 'department']}, transparent 82%)`,
+        }}
+        aria-hidden
+      />
+    );
+  }
+
   // 团队 core (恒星).
   if (item.kind === 'core') {
     return (
@@ -571,46 +592,47 @@ function LeafBody({
   focusNode: OrgTreeNode | undefined;
   onMembers?: (node: OrgNode) => void;
 }): JSX.Element {
-  const avatar = (
-    <span
-      className={cn(
-        'relative inline-flex rounded-full',
-        isLead && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-background',
-      )}
-    >
-      <Avatar
-        name={member.displayName}
-        color={member.avatarColor}
-        imageUrl={member.hasAvatar ? avatarUrl(member.userId) : undefined}
-        size="sm"
-        className="h-11 w-11 text-sm"
-      />
-      {isLead && (
-        <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rotate-12 fill-amber-400 text-amber-500" />
-      )}
+  // Cluster cell (饱满星团): avatar + name INSIDE the cell — packed phyllotaxis
+  // cells leave no room for floating labels, and the self-contained chip is what
+  // makes the cluster read as a solid, harmonious disc.
+  const cell = (
+    <span className="flex h-full w-full flex-col items-center justify-center gap-1">
+      <span
+        className={cn(
+          'relative inline-flex rounded-full',
+          isLead && 'ring-2 ring-amber-400 ring-offset-2 ring-offset-background',
+        )}
+      >
+        <Avatar
+          name={member.displayName}
+          color={member.avatarColor}
+          imageUrl={member.hasAvatar ? avatarUrl(member.userId) : undefined}
+          size="sm"
+          className="h-10 w-10 text-sm"
+        />
+        {isLead && (
+          <Crown className="absolute -right-1.5 -top-2 h-3.5 w-3.5 rotate-12 fill-amber-400 text-amber-500" />
+        )}
+      </span>
+      <span className="w-full truncate px-0.5 text-center text-[10px] font-medium leading-none text-foreground">
+        {member.displayName}
+      </span>
     </span>
   );
 
-  return (
-    <>
-      {onMembers && focusNode ? (
-        <button
-          type="button"
-          aria-label={`查看${focusNode.title}的负责人与成员`}
-          onClick={(event) => {
-            event.currentTarget.blur();
-            onMembers(focusNode);
-          }}
-          className="absolute inset-0 rounded-full outline-none transition-transform duration-base ease-standard hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring motion-safe:animate-fade-in"
-        >
-          {avatar}
-        </button>
-      ) : (
-        <span className="absolute inset-0 motion-safe:animate-fade-in">{avatar}</span>
-      )}
-      <span className="pointer-events-none absolute left-1/2 top-full mt-1 w-24 -translate-x-1/2 truncate text-center text-xs leading-tight text-foreground">
-        {member.displayName}
-      </span>
-    </>
+  return onMembers && focusNode ? (
+    <button
+      type="button"
+      aria-label={`查看${focusNode.title}的负责人与成员`}
+      onClick={(event) => {
+        event.currentTarget.blur();
+        onMembers(focusNode);
+      }}
+      className="absolute inset-0 rounded-full outline-none transition-transform duration-base ease-standard hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring motion-safe:animate-fade-in"
+    >
+      {cell}
+    </button>
+  ) : (
+    <span className="absolute inset-0 motion-safe:animate-fade-in">{cell}</span>
   );
 }

@@ -6,8 +6,7 @@ import {
   FOCUS_R,
   GHOST_ARC_R,
   GHOST_DEPTH_GAP,
-  LEAF_ORBIT_R,
-  LEAF_RING_GAP,
+  LEAF_R,
   MOON_R,
   ORBIT_PADDING,
   OVERVIEW_ORBIT_BASE,
@@ -166,8 +165,11 @@ describe('orbitLayout', () => {
     expect(ofKind(layout, 'ghost').map((g) => g.node?.id).sort()).toEqual(['b', 'c']);
     expect(layout.items.some((i) => i.node?.id === 'deep')).toBe(false);
 
-    // One moon ring + one leaf ring.
-    expect(ofKind(layout, 'ring').map((r) => r.key).sort()).toEqual(['ring:leaves', 'ring:moons']);
+    // One moon ring; the member cluster is seated by a halo, not a ring.
+    expect(ofKind(layout, 'ring').map((r) => r.key)).toEqual(['ring:moons']);
+    const halos = ofKind(layout, 'halo');
+    expect(halos).toHaveLength(1);
+    expect(halos[0]?.node?.id).toBe('a');
   });
 
   it('ghosts keep their overview bearing (spatial memory)', () => {
@@ -192,23 +194,43 @@ describe('orbitLayout', () => {
     expect(d.y).toBeCloseTo(center.y, 6);
   });
 
-  it('splits more than 24 leaves into two rings', () => {
+  it('packs members into a non-overlapping phyllotaxis cluster inside the moon ring', () => {
     const roots = buildTree([
-      node('a', null, 'a', { members: people(26) }),
-      node('a1', 'a', 'a'), // one child so the standard leaf orbit applies
+      node('a', null, 'a', { leads: people(2, 'lead'), members: people(26) }),
+      node('a1', 'a', 'a'),
       node('b', null, 'b'),
     ]);
     const layout = orbitLayout(roots, ['a']);
     const center = itemFor(layout, 'node:a');
+    const dist = (i: OrbitItem): number => Math.hypot(i.x - center.x, i.y - center.y);
 
-    const radii = new Set(
-      ofKind(layout, 'leaf').map((l) => Math.round(Math.hypot(l.x - center.x, l.y - center.y))),
-    );
-    expect(radii).toEqual(new Set([LEAF_ORBIT_R, LEAF_ORBIT_R + LEAF_RING_GAP]));
+    const leaves = ofKind(layout, 'leaf');
+    expect(leaves).toHaveLength(28);
 
-    const rings = ofKind(layout, 'ring').map((r) => r.key);
-    expect(rings).toContain('ring:leaves');
-    expect(rings).toContain('ring:leaves-outer');
+    // Cluster hugs the star: cells clear the star and no two AVATARS collide.
+    for (const leaf of leaves) {
+      expect(dist(leaf)).toBeGreaterThan(FOCUS_R + LEAF_R / 2);
+    }
+    for (let i = 0; i < leaves.length; i += 1) {
+      for (let j = i + 1; j < leaves.length; j += 1) {
+        const a = leaves[i]!;
+        const b = leaves[j]!;
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(48);
+      }
+    }
+
+    // 负责人 innermost (phyllotaxis radius grows with index; leads come first).
+    const leadMax = Math.max(...leaves.filter((l) => l.isLead).map(dist));
+    const memberMin = Math.min(...leaves.filter((l) => !l.isLead).map(dist));
+    expect(leadMax).toBeLessThan(memberMin);
+
+    // Moons orbit OUTSIDE the whole cluster; the halo seats it.
+    const clusterOuter = Math.max(...leaves.map(dist)) + LEAF_R;
+    for (const moon of ofKind(layout, 'moon')) {
+      expect(dist(moon) - MOON_R).toBeGreaterThanOrEqual(clusterOuter);
+    }
+    const halo = ofKind(layout, 'halo')[0]!;
+    expect(halo.r).toBeGreaterThanOrEqual(clusterOuter);
   });
 
   it('ghosts every ancestor level on progressively farther arcs', () => {

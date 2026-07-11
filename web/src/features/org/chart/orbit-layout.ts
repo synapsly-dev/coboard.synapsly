@@ -20,7 +20,7 @@ import type { OrgTreeNode } from '../tree';
  * simply the diff between scenes. Kept pure and DOM-free (orbit-layout.test.ts).
  */
 
-export type OrbitItemKind = 'core' | 'planet' | 'moon' | 'leaf' | 'ghost' | 'ring';
+export type OrbitItemKind = 'core' | 'planet' | 'moon' | 'leaf' | 'ghost' | 'ring' | 'halo';
 
 export interface OrbitItem {
   /** Stable React key: `core`, `ring:*`, `node:<id>`, `leaf:<nodeId>:<userId>`. */
@@ -76,25 +76,33 @@ export const OVERVIEW_ORBIT_PER_PLANET = 6;
  * excluded) and may zoom past 100%, so these sizes read comfortably.
  */
 export const FOCUS_R = 78;
-/** Inner ring for the focus node's unit children (moons). */
-export const MOON_ORBIT_R = 230;
-export const MOON_R = 46;
-/** Outer ring for the focus node's direct members (avatar leaves). */
-export const LEAF_ORBIT_R = 400;
-/** Leaf ring when the focus node has NO unit children (avoid a hollow scene). */
-export const LEAF_ORBIT_NEAR_R = 290;
-export const LEAF_R = 24;
-/** More leaves than this split into two rings (inner + outer). */
-export const LEAF_RING_SPLIT = 24;
-/** Radial gap between the two leaf rings. */
-export const LEAF_RING_GAP = 96;
-/** Alternating radial jitter on a crowded single leaf ring (label overlap). */
-export const LEAF_JITTER = 16;
-/** Apply the jitter only when a single ring holds more than this many leaves. */
-export const LEAF_JITTER_MIN = 10;
+/**
+ * 成员星团 (member cluster): direct members pack in a Vogel/phyllotaxis spiral
+ * (sunflower-seed) annulus hugging the star — a FULL, organic disc instead of a
+ * thin far-away ring (饱满地呈现成员). Moons orbit just OUTSIDE the cluster, so
+ * the scene reads inside-out: star → its people → its sub-units → elsewhere.
+ */
+/** Leaf cell radius: a 68px cell holds the avatar + the name INSIDE it. */
+export const LEAF_R = 34;
+/** Phyllotaxis scale — approximates the nearest-neighbour pitch between cells. */
+export const LEAF_SPREAD = 74;
+/** Breathing room between the star's edge and the first member cells. */
+export const LEAF_INNER_GAP = 22;
+/** Golden angle (radians) — the phyllotaxis divergence. */
+export const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+/** Soft kind-tinted halo padding around the member cluster (visual seating). */
+export const HALO_PAD = 14;
 
-/** Far arc for the focus node's ghosted siblings (clear of the outer leaf ring). */
+/** Moon ring: at least this radius, else pushed outside the member cluster. */
+export const MOON_ORBIT_BASE_R = 230;
+export const MOON_R = 46;
+/** Gap between the member cluster's outer edge and moon centers. */
+export const MOON_DISC_GAP = 42;
+
+/** Far arc for ghosted siblings — at least this, always clear of the scene. */
 export const GHOST_ARC_R = 620;
+/** Minimum clearance between the scene's outer content and the ghost arc. */
+export const GHOST_CLEARANCE = 150;
 export const GHOST_R = 14;
 /** Each older ancestor level's ghosts sit this much farther out. */
 export const GHOST_DEPTH_GAP = 110;
@@ -211,12 +219,53 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
     depth: focusDepth,
   });
 
-  // Unit children as moons on the inner ring.
+  // Direct members as a phyllotaxis (sunflower) cluster hugging the star — the
+  // 饱满 member disc. 负责人 first ⇒ innermost, closest to the star. Cells pack
+  // at ~LEAF_SPREAD pitch; the annulus starts just outside the star's edge.
+  const people: Array<{ member: OrgNodeMember; isLead: boolean }> = [
+    ...focus.leads.map((member) => ({ member, isLead: true })),
+    ...focus.members.map((member) => ({ member, isLead: false })),
+  ];
+  // Outer edge of the member cluster (star edge when there are no members).
+  let discOuter = FOCUS_R;
+  if (people.length > 0) {
+    const innerR = FOCUS_R + LEAF_INNER_GAP + LEAF_R;
+    // Index offset that opens the annulus hole: r(k) = SPREAD·√(k+k0).
+    const k0 = (innerR / LEAF_SPREAD) ** 2;
+    people.forEach(({ member, isLead }, i) => {
+      const radius = LEAF_SPREAD * Math.sqrt(i + k0);
+      const { x, y } = polar(radius, START_ANGLE + i * GOLDEN_ANGLE);
+      discOuter = Math.max(discOuter, radius + LEAF_R);
+      items.push({
+        key: `leaf:${focus.id}:${member.userId}`,
+        kind: 'leaf',
+        x,
+        y,
+        r: LEAF_R,
+        member,
+        isLead,
+        depth: focusDepth + 1,
+      });
+    });
+    // Soft kind-tinted halo behind the cluster seats the whole composition.
+    items.push({
+      key: 'halo:members',
+      kind: 'halo',
+      x: 0,
+      y: 0,
+      r: discOuter + HALO_PAD,
+      node: focus,
+      depth: focusDepth,
+    });
+  }
+
+  // Unit children as moons on a ring just OUTSIDE the member cluster.
   const moons = focus.children;
+  const moonOrbit = Math.max(MOON_ORBIT_BASE_R, discOuter + MOON_DISC_GAP + MOON_R);
   if (moons.length > 0) {
-    items.push({ key: 'ring:moons', kind: 'ring', x: 0, y: 0, r: MOON_ORBIT_R, depth: focusDepth });
+    items.push({ key: 'ring:moons', kind: 'ring', x: 0, y: 0, r: moonOrbit, depth: focusDepth });
     moons.forEach((child, i) => {
-      const { x, y } = polar(MOON_ORBIT_R, slotAngle(i, moons.length));
+      const { x, y } = polar(moonOrbit, slotAngle(i, moons.length));
       items.push({
         key: `node:${child.id}`,
         kind: 'moon',
@@ -229,50 +278,9 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
     });
   }
 
-  // Direct members as avatar leaves on the outer ring(s), 负责人 first.
-  const people: Array<{ member: OrgNodeMember; isLead: boolean }> = [
-    ...focus.leads.map((member) => ({ member, isLead: true })),
-    ...focus.members.map((member) => ({ member, isLead: false })),
-  ];
-  if (people.length > 0) {
-    const baseR = moons.length > 0 ? LEAF_ORBIT_R : LEAF_ORBIT_NEAR_R;
-    const twoRings = people.length > LEAF_RING_SPLIT;
-    const innerCount = twoRings ? Math.ceil(people.length / 2) : people.length;
-
-    items.push({ key: 'ring:leaves', kind: 'ring', x: 0, y: 0, r: baseR, depth: focusDepth });
-    if (twoRings) {
-      items.push({
-        key: 'ring:leaves-outer',
-        kind: 'ring',
-        x: 0,
-        y: 0,
-        r: baseR + LEAF_RING_GAP,
-        depth: focusDepth,
-      });
-    }
-
-    people.forEach(({ member, isLead }, i) => {
-      const onOuter = twoRings && i >= innerCount;
-      const ringIndex = onOuter ? i - innerCount : i;
-      const ringCount = onOuter ? people.length - innerCount : innerCount;
-      // Outer ring shifts half a slot so the two rings interleave visually; a
-      // crowded single ring alternates radius so name labels don't collide.
-      const jitter =
-        !twoRings && people.length > LEAF_JITTER_MIN && i % 2 === 1 ? LEAF_JITTER : 0;
-      const radius = (onOuter ? baseR + LEAF_RING_GAP : baseR) + jitter;
-      const { x, y } = polar(radius, slotAngle(ringIndex, ringCount, onOuter ? 0.5 : 0));
-      items.push({
-        key: `leaf:${focus.id}:${member.userId}`,
-        kind: 'leaf',
-        x,
-        y,
-        r: LEAF_R,
-        member,
-        isLead,
-        depth: focusDepth + 1,
-      });
-    });
-  }
+  // Ghost arcs must clear the (possibly grown) scene content.
+  const sceneOuter = moons.length > 0 ? moonOrbit + MOON_R : discOuter;
+  const ghostBase = Math.max(GHOST_ARC_R, sceneOuter + GHOST_CLEARANCE);
 
   // Every ancestor level's siblings become ghosts. The focus node's own siblings
   // sit on the nearest arc; each older level is pushed GHOST_DEPTH_GAP farther.
@@ -280,7 +288,7 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
   // held in the overview / as a moon), keeping spatial memory intact.
   for (let d = 0; d <= focusDepth; d++) {
     const siblings = d === 0 ? roots : chain[d - 1]!.children;
-    const arcR = GHOST_ARC_R + (focusDepth - d) * GHOST_DEPTH_GAP;
+    const arcR = ghostBase + (focusDepth - d) * GHOST_DEPTH_GAP;
     siblings.forEach((sibling, i) => {
       if (sibling.id === chain[d]!.id) return;
       const { x, y } = polar(arcR, slotAngle(i, siblings.length));
