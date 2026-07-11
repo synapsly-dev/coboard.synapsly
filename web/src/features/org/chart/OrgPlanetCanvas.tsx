@@ -140,6 +140,8 @@ export function OrgPlanetCanvas({
   fitToRef.current = fitTo;
 
   // 运镜: every focus change re-frames the camera onto the new scene (animated).
+  // Focused scenes frame coreBounds ONLY (ghost arcs stay at the viewport edges)
+  // and may zoom past 100% — that's what makes the expanded view read big (可读性).
   // First mount is covered by useCanvas's own pre-paint auto-fit; data refreshes
   // that don't change the path keep the user's viewport, matching tree mode.
   const pathKey = focusPath.join('/');
@@ -149,7 +151,12 @@ export function OrgPlanetCanvas({
       didMountRef.current = true;
       return;
     }
-    fitTo(layoutRef.current.bounds);
+    const current = layoutRef.current;
+    if (focusPathRef.current.length > 0) {
+      fitTo(current.coreBounds, { maxScale: 1.35 });
+    } else {
+      fitTo(current.bounds);
+    }
   }, [pathKey, fitTo]);
 
   const totalPeople = useMemo(
@@ -486,7 +493,8 @@ function OrbitItemBody({
         <span
           className={cn(
             'max-w-full truncate font-semibold leading-tight text-foreground',
-            isFocus ? 'text-sm' : 'text-xs',
+            // Focused scenes are framed tight (coreBounds) so type can be generous.
+            isFocus ? 'text-base' : item.kind === 'moon' ? 'text-sm' : 'text-xs',
           )}
         >
           {node.title}
@@ -494,7 +502,8 @@ function OrbitItemBody({
         {node.kind === 'position' ? (
           <span
             className={cn(
-              'max-w-full truncate rounded-full px-1.5 py-px text-[9px] font-medium leading-tight ring-1 ring-inset',
+              'max-w-full truncate rounded-full px-1.5 py-px font-medium leading-tight ring-1 ring-inset',
+              item.kind === 'moon' ? 'text-[10px]' : 'text-[9px]',
               full
                 ? 'bg-slate-500/10 text-slate-600 ring-slate-500/20 dark:text-slate-300'
                 : 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20 dark:text-emerald-400',
@@ -503,7 +512,12 @@ function OrbitItemBody({
             {occupancyLabel(node)}
           </span>
         ) : (
-          <span className="text-[10px] leading-none tabular-nums text-muted-foreground">
+          <span
+            className={cn(
+              'leading-none tabular-nums text-muted-foreground',
+              isFocus || item.kind === 'moon' ? 'text-[11px]' : 'text-[10px]',
+            )}
+          >
             {people} 人
           </span>
         )}
@@ -569,10 +583,10 @@ function LeafBody({
         color={member.avatarColor}
         imageUrl={member.hasAvatar ? avatarUrl(member.userId) : undefined}
         size="sm"
-        className="h-9 w-9"
+        className="h-11 w-11 text-sm"
       />
       {isLead && (
-        <Crown className="absolute -right-1.5 -top-2 h-3.5 w-3.5 rotate-12 fill-amber-400 text-amber-500" />
+        <Crown className="absolute -right-1.5 -top-2 h-4 w-4 rotate-12 fill-amber-400 text-amber-500" />
       )}
     </span>
   );
@@ -594,7 +608,7 @@ function LeafBody({
       ) : (
         <span className="absolute inset-0 motion-safe:animate-fade-in">{avatar}</span>
       )}
-      <span className="pointer-events-none absolute left-1/2 top-full mt-1 w-20 -translate-x-1/2 truncate text-center text-[11px] leading-tight text-foreground">
+      <span className="pointer-events-none absolute left-1/2 top-full mt-1 w-24 -translate-x-1/2 truncate text-center text-xs leading-tight text-foreground">
         {member.displayName}
       </span>
     </>

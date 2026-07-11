@@ -58,7 +58,39 @@ function itemFor(layout: ReturnType<typeof orbitLayout>, key: string): OrbitItem
 
 describe('orbitLayout', () => {
   it('returns empty layout for an empty forest', () => {
-    expect(orbitLayout([], [])).toEqual({ items: [], bounds: { width: 0, height: 0 } });
+    expect(orbitLayout([], [])).toEqual({
+      items: [],
+      bounds: { width: 0, height: 0 },
+      coreBounds: { x: 0, y: 0, width: 0, height: 0 },
+    });
+  });
+
+  it('coreBounds excludes ghost arcs (focused camera target), covers core items', () => {
+    const roots = buildTree([
+      node('a', null, 'a', { members: people(4) }),
+      node('a1', 'a', 'a'),
+      node('b', null, 'b'),
+      node('c', null, 'c'),
+    ]);
+    const layout = orbitLayout(roots, ['a']);
+
+    // Tighter than the full bounds (ghosts pushed far outside the core rect).
+    expect(layout.coreBounds.width).toBeLessThan(layout.bounds.width);
+    expect(layout.coreBounds.height).toBeLessThan(layout.bounds.height);
+
+    const within = (x: number, y: number, r: number): boolean =>
+      x - r >= layout.coreBounds.x &&
+      y - r >= layout.coreBounds.y &&
+      x + r <= layout.coreBounds.x + layout.coreBounds.width &&
+      y + r <= layout.coreBounds.y + layout.coreBounds.height;
+
+    for (const item of layout.items) {
+      if (item.kind === 'ghost') {
+        expect(within(item.x, item.y, item.r)).toBe(false);
+      } else {
+        expect(within(item.x, item.y, item.r)).toBe(true);
+      }
+    }
   });
 
   it('overview emits only core + one ring + root planets, nothing deeper', () => {

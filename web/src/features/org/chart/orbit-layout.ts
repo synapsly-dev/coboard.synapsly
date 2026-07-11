@@ -49,6 +49,13 @@ export interface OrbitLayout {
   items: OrbitItem[];
   /** Tight world size including ORBIT_PADDING on all sides ({0,0} when empty). */
   bounds: { width: number; height: number };
+  /**
+   * Rect (world coordinates) around the CORE scene only — everything except the
+   * ghost arcs. The focused camera frames THIS (可读性: the star/moons/leaves
+   * fill the viewport; ghosts sit at the edges). Equals `bounds` as a rect when
+   * there are no ghosts (overview / empty).
+   */
+  coreBounds: { x: number; y: number; width: number; height: number };
 }
 
 // --- Geometry constants (world px; tuned for legibility, tweak freely) -------
@@ -63,27 +70,31 @@ export const PLANET_R_PER_PERSON = 1.5;
 export const OVERVIEW_ORBIT_BASE = 220;
 export const OVERVIEW_ORBIT_PER_PLANET = 6;
 
-/** Focused node (local star) radius. */
-export const FOCUS_R = 64;
+/**
+ * Focused node (local star) radius. The focused scene is deliberately GENEROUS
+ * (可读性优先): the camera frames only the core scene (coreBounds, ghosts
+ * excluded) and may zoom past 100%, so these sizes read comfortably.
+ */
+export const FOCUS_R = 78;
 /** Inner ring for the focus node's unit children (moons). */
-export const MOON_ORBIT_R = 190;
-export const MOON_R = 34;
+export const MOON_ORBIT_R = 230;
+export const MOON_R = 46;
 /** Outer ring for the focus node's direct members (avatar leaves). */
-export const LEAF_ORBIT_R = 320;
+export const LEAF_ORBIT_R = 400;
 /** Leaf ring when the focus node has NO unit children (avoid a hollow scene). */
-export const LEAF_ORBIT_NEAR_R = 230;
-export const LEAF_R = 18;
+export const LEAF_ORBIT_NEAR_R = 290;
+export const LEAF_R = 24;
 /** More leaves than this split into two rings (inner + outer). */
 export const LEAF_RING_SPLIT = 24;
 /** Radial gap between the two leaf rings. */
-export const LEAF_RING_GAP = 76;
+export const LEAF_RING_GAP = 96;
 /** Alternating radial jitter on a crowded single leaf ring (label overlap). */
-export const LEAF_JITTER = 14;
+export const LEAF_JITTER = 16;
 /** Apply the jitter only when a single ring holds more than this many leaves. */
 export const LEAF_JITTER_MIN = 10;
 
-/** Far arc for the focus node's ghosted siblings. */
-export const GHOST_ARC_R = 520;
+/** Far arc for the focus node's ghosted siblings (clear of the outer leaf ring). */
+export const GHOST_ARC_R = 620;
 export const GHOST_R = 14;
 /** Each older ancestor level's ghosts sit this much farther out. */
 export const GHOST_DEPTH_GAP = 110;
@@ -142,7 +153,13 @@ function polar(radius: number, angle: number): { x: number; y: number } {
  * whitespace on all sides (same convention as layout.ts).
  */
 export function orbitLayout(roots: OrgTreeNode[], focusPath: string[]): OrbitLayout {
-  if (roots.length === 0) return { items: [], bounds: { width: 0, height: 0 } };
+  if (roots.length === 0) {
+    return {
+      items: [],
+      bounds: { width: 0, height: 0 },
+      coreBounds: { x: 0, y: 0, width: 0, height: 0 },
+    };
+  }
 
   const chain = resolveFocusPath(roots, focusPath);
   const items =
@@ -288,11 +305,29 @@ function finalize(items: OrbitItem[]): OrbitLayout {
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
+  // Core scene extent — everything but the ghost arcs (drives the focused camera).
+  let coreMinX = Infinity;
+  let coreMinY = Infinity;
+  let coreMaxX = -Infinity;
+  let coreMaxY = -Infinity;
   for (const item of items) {
     minX = Math.min(minX, item.x - item.r);
     minY = Math.min(minY, item.y - item.r);
     maxX = Math.max(maxX, item.x + item.r);
     maxY = Math.max(maxY, item.y + item.r);
+    if (item.kind !== 'ghost') {
+      coreMinX = Math.min(coreMinX, item.x - item.r);
+      coreMinY = Math.min(coreMinY, item.y - item.r);
+      coreMaxX = Math.max(coreMaxX, item.x + item.r);
+      coreMaxY = Math.max(coreMaxY, item.y + item.r);
+    }
+  }
+  // Degenerate guard (ghost-only scenes can't occur, but stay safe).
+  if (coreMinX === Infinity) {
+    coreMinX = minX;
+    coreMinY = minY;
+    coreMaxX = maxX;
+    coreMaxY = maxY;
   }
 
   const dx = ORBIT_PADDING - minX;
@@ -307,6 +342,12 @@ function finalize(items: OrbitItem[]): OrbitLayout {
     bounds: {
       width: maxX - minX + ORBIT_PADDING * 2,
       height: maxY - minY + ORBIT_PADDING * 2,
+    },
+    coreBounds: {
+      x: coreMinX + dx - ORBIT_PADDING / 2,
+      y: coreMinY + dy - ORBIT_PADDING / 2,
+      width: coreMaxX - coreMinX + ORBIT_PADDING,
+      height: coreMaxY - coreMinY + ORBIT_PADDING,
     },
   };
 }

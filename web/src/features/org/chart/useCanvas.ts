@@ -17,6 +17,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  */
 
 export interface CanvasBounds {
+  /** Optional rect origin in world coordinates (default 0 — the whole world). */
+  x?: number;
+  y?: number;
   width: number;
   height: number;
 }
@@ -152,10 +155,14 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
         0.05, // never collapse to zero on degenerate viewports
         Math.min((vw - padding * 2) / target.width, (vh - padding * 2) / target.height, maxScale),
       );
+      // Frame the target RECT (its origin may be non-zero, e.g. the planet
+      // canvas's core scene excluding ghost arcs) centered in the viewport.
+      const tx = target.x ?? 0;
+      const ty = target.y ?? 0;
       return {
         scale,
-        x: (vw - target.width * scale) / 2,
-        y: (vh - target.height * scale) / 2,
+        x: (vw - target.width * scale) / 2 - tx * scale,
+        y: (vh - target.height * scale) / 2 - ty * scale,
       };
     },
     [],
