@@ -9,12 +9,14 @@ import {
   type ProjectMembersResponse,
   type ProjectsListResponse,
 } from 'shared';
+import { isAdminRole } from 'shared';
 import {
-  requireAdmin,
+  listManagedTrackIds,
   requireAuth,
   requireProjectLead,
   requireProjectMember,
 } from '../lib/guards.js';
+import { forbidden, validationError } from '../lib/errors.js';
 import { parseBody, parseParams } from '../lib/validate.js';
 import {
   addProjectMember,
@@ -36,8 +38,9 @@ import {
  *
  *   GET    /projects                       — projects I can see (admin: all)
  *   GET    /projects/directory             — any user; all non-archived projects
- *   POST   /projects                       — admin; auto-adds creator as lead
- *   PATCH  /projects/:id                   — lead/admin; rename/describe/archive
+ *   POST   /projects                       — admin, or 赛道经理 within their tracks
+ *   PATCH  /projects/:id                   — lead/admin; trackId moves need admin
+ *                                            or a 赛道经理 covering both endpoints
  *   POST   /projects/:id/join              — any user; self-join as member
  *   POST   /projects/:id/leave             — any user; self-leave
  *   GET    /projects/:id/members           — project members (member-visible)
@@ -66,19 +69,50 @@ const projectsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // Create a project (admin only); the creator becomes its lead.
+  // Create a project. Admin: unrestricted (trackId optional). 赛道运营经理
+  // (2026-07-11 spec): allowed, but the project MUST be created inside one of
+  // their managed tracks. Everyone else: 403. Creator auto-becomes lead.
   fastify.post('/projects', async (request, reply) => {
-    const admin = requireAdmin(request);
+    const user = requireAuth(request);
     const input = parseBody(createProjectInputSchema, request.body);
-    const project = await createProject(db, admin, input);
+
+    if (!isAdminRole(user.role)) {
+      const managed = await listManagedTrackIds(db, user.id);
+      if (managed.length === 0) {
+        throw forbidden('需要管理员或赛道运营经理权限');
+      }
+      if (!input.trackId) {
+        throw validationError('赛道运营经理创建项目必须选择所属赛道');
+      }
+      if (!managed.includes(input.trackId)) {
+        throw forbidden('只能在自己管理的赛道内创建项目');
+      }
+    }
+
+    const project = await createProject(db, user, input);
     return reply.code(201).send({ project });
   });
 
-  // Update a project; lead or global admin only.
+  // Update a project; lead or global admin only. Changing the owning 赛道
+  // (trackId) is tighter (2026-07-11 spec): non-admins must be a 赛道运营经理 of
+  // EVERY non-null endpoint (source and target) of the move — so a plain project
+  // lead can no longer re-home a project, and a manager can only shuffle projects
+  // among (or in/out of) the tracks they manage.
   fastify.patch('/projects/:id', async (request) => {
     const { id } = parseParams(idParamSchema, request.params);
-    await requireProjectLead(db, request, id);
+    const membership = await requireProjectLead(db, request, id);
     const input = parseBody(updateProjectInputSchema, request.body);
+
+    if (input.trackId !== undefined && !isAdminRole(membership.user.role)) {
+      const managed = await listManagedTrackIds(db, membership.user.id);
+      const endpoints = [membership.project.trackId, input.trackId].filter(
+        (t): t is string => t !== null,
+      );
+      if (endpoints.some((t) => !managed.includes(t))) {
+        throw forbidden('只能在自己管理的赛道内调整项目归属');
+      }
+    }
+
     const project = await updateProject(db, id, input);
     return { project };
   });

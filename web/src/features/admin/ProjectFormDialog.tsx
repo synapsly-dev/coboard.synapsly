@@ -6,6 +6,7 @@ import {
   updateProjectInputSchema,
   type CreateProjectInput,
   type Project,
+  type Track,
   type UpdateProjectInput,
 } from 'shared';
 import {
@@ -16,8 +17,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
@@ -27,18 +34,37 @@ import { useCreateProject, useUpdateProject } from '../../api/projects';
 /**
  * Create / edit project dialog (§6.3, §7 POST /projects, PATCH /projects/:id).
  *
- * - Create mode: collects name, key (immutable short identifier), description.
+ * - Create mode: collects name, key (immutable short identifier), description,
+ *   and — when the caller passes `trackOptions` — the owning 赛道 (spec
+ *   2026-07-11 §2: on the 项目 page an admin picks from all tracks or 未归类,
+ *   while a 赛道运营经理 must pick one of their managed tracks). The admin tab
+ *   omits `trackOptions` and keeps assigning the track on the project card.
  * - Edit mode: name + description (the contract's `updateProjectInputSchema` has
  *   no `key`, so the key is shown read-only). Archive/restore is a separate
  *   one-click action on the card, not part of this form.
  */
 
+/** Sentinel select value for the 「未归类」 (no track) option (P0 §2). */
+const NO_TRACK = '__no_track__';
+
 interface CreateProps {
   mode: 'create';
-  /** Custom trigger; defaults to a primary "新建项目" button. */
+  /**
+   * Custom trigger; defaults to a primary "新建项目" button. Must be a single
+   * button-like element — it is wrapped in `<DialogTrigger asChild>`.
+   */
   trigger?: ReactNode;
   /** Called after a project is successfully created (e.g. to prompt adding members). */
   onCreated?: (project: Project) => void;
+  /**
+   * When set, show a 所属赛道 select over these (non-archived) tracks. Omit to
+   * hide the field entirely (the create payload then carries no `trackId`).
+   */
+  trackOptions?: Track[];
+  /** Require picking a track (赛道经理 create — hides the 未归类 option). */
+  trackRequired?: boolean;
+  /** Preselected track id (e.g. a manager's only managed track). */
+  defaultTrackId?: string;
 }
 
 interface EditProps {
@@ -60,37 +86,62 @@ export function ProjectFormDialog(props: ProjectFormDialogProps): JSX.Element {
       />
     );
   }
-  return <CreateProjectDialog trigger={props.trigger} onCreated={props.onCreated} />;
+  return (
+    <CreateProjectDialog
+      trigger={props.trigger}
+      onCreated={props.onCreated}
+      trackOptions={props.trackOptions}
+      trackRequired={props.trackRequired}
+      defaultTrackId={props.defaultTrackId}
+    />
+  );
 }
 
 function CreateProjectDialog({
   trigger,
   onCreated,
-}: {
-  trigger?: ReactNode;
-  onCreated?: (project: Project) => void;
-}): JSX.Element {
+  trackOptions,
+  trackRequired = false,
+  defaultTrackId,
+}: Omit<CreateProps, 'mode'>): JSX.Element {
   const [open, setOpen] = useState(false);
   const createProject = useCreateProject();
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Without a track field the payload carries no trackId; with an optional one
+  // it defaults to 未归类 (null); a required one starts unselected (placeholder).
+  const initialTrackId =
+    defaultTrackId ?? (trackOptions && !trackRequired ? null : undefined);
 
   const {
     register,
     handleSubmit,
     reset,
     setError,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CreateProjectInput>({
-    resolver: zodResolver(createProjectInputSchema),
-    defaultValues: { name: '', key: '', description: '' },
+    // The shared schema keeps trackId optional (admin); a 赛道经理 must pick one.
+    resolver: zodResolver(
+      createProjectInputSchema.superRefine((value, ctx) => {
+        if (trackRequired && !value.trackId) {
+          ctx.addIssue({ code: 'custom', path: ['trackId'], message: '请选择所属赛道' });
+        }
+      }),
+    ),
+    defaultValues: { name: '', key: '', description: '', trackId: initialTrackId },
   });
+
+  const trackId = watch('trackId');
 
   useEffect(() => {
     if (open) {
-      reset({ name: '', key: '', description: '' });
+      reset({ name: '', key: '', description: '', trackId: initialTrackId });
       setFormError(null);
     }
-  }, [open, reset]);
+    // initialTrackId is derived from props; re-running on its change is harmless.
+  }, [open, reset, initialTrackId]);
 
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
@@ -120,11 +171,9 @@ function CreateProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {trigger ?? (
-        <Button size="sm" onClick={() => setOpen(true)}>
-          新建项目
-        </Button>
-      )}
+      <DialogTrigger asChild>
+        {trigger ?? <Button size="sm">新建项目</Button>}
+      </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>新建项目</DialogTitle>
@@ -177,6 +226,42 @@ function CreateProjectDialog({
               <p className="text-xs text-destructive">{errors.description.message}</p>
             )}
           </div>
+
+          {trackOptions && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-project-track" required={trackRequired}>
+                所属赛道
+              </Label>
+              <Select
+                // Radix shows the placeholder for '' while staying controlled.
+                value={trackId ?? (trackRequired ? '' : NO_TRACK)}
+                onValueChange={(v) =>
+                  setValue('trackId', v === NO_TRACK ? null : v, { shouldValidate: true })
+                }
+              >
+                <SelectTrigger id="new-project-track" invalid={Boolean(errors.trackId)}>
+                  <SelectValue placeholder="请选择赛道" />
+                </SelectTrigger>
+                <SelectContent>
+                  {!trackRequired && <SelectItem value={NO_TRACK}>未归类</SelectItem>}
+                  {trackOptions.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.trackId ? (
+                <p className="text-xs text-destructive">{errors.trackId.message}</p>
+              ) : (
+                trackRequired && (
+                  <p className="text-xs text-muted-foreground">
+                    新项目将归入你管理的赛道。
+                  </p>
+                )
+              )}
+            </div>
+          )}
 
           {formError && (
             <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">

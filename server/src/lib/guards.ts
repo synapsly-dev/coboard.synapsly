@@ -99,6 +99,22 @@ export async function isTrackManager(
 }
 
 /**
+ * Every track `userId` manages (赛道运营经理 rows). Powers the track-scoped
+ * project-management rights (2026-07-11 spec): a manager may create projects in —
+ * and move projects between — exactly these tracks.
+ */
+export async function listManagedTrackIds(
+  db: Database,
+  userId: string,
+): Promise<string[]> {
+  const rows = await db
+    .select({ trackId: trackMembers.trackId })
+    .from(trackMembers)
+    .where(and(eq(trackMembers.userId, userId), eq(trackMembers.role, 'manager')));
+  return rows.map((r) => r.trackId);
+}
+
+/**
  * Resolve a user's membership in a project. Global admins are granted lead-level
  * access to every project even without a membership row (§6.3). Throws 403 for
  * non-admins who are not members (non-members must not even see the project).

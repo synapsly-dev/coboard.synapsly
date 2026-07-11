@@ -128,7 +128,7 @@ export function useProjectMembers(
 // Mutations — admin/lead project + member management (§6.3, §7)
 // ---------------------------------------------------------------------------
 
-/** Create a project (admin) — §7 POST /projects. */
+/** Create a project (admin or 赛道运营经理, spec 2026-07-11 §1) — §7 POST /projects. */
 export function useCreateProject(): UseMutationResult<Project, Error, CreateProjectInput> {
   const queryClient = useQueryClient();
   return useMutation<Project, Error, CreateProjectInput>({
@@ -137,7 +137,11 @@ export function useCreateProject(): UseMutationResult<Project, Error, CreateProj
       return res.project;
     },
     onSuccess: () => {
+      // The `projects()` prefix also covers the directory key
+      // (['projects','directory']), so the 项目 page grouping refreshes too.
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
+      // Creating a project under a 赛道 bumps that track's projectCount.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
     },
   });
 }

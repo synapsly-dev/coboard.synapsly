@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Compass, LayoutGrid, LogOut, Route, Target, Users as UsersIcon } from 'lucide-react';
+import {
+  Compass,
+  LayoutGrid,
+  LogOut,
+  Plus,
+  Route,
+  Target,
+  Users as UsersIcon,
+} from 'lucide-react';
 import type { ProjectDirectoryItem, Track, TrackMember } from 'shared';
 import { Avatar, Badge, Button, EmptyState, Spinner } from '../components/ui';
 import { isApiClientError } from '../api/client';
@@ -9,7 +17,9 @@ import {
   useLeaveProject,
   useProjectDirectory,
 } from '../api/projects';
-import { useTracks } from '../api/tracks';
+import { managedActiveTracks, useTracks } from '../api/tracks';
+import { ProjectFormDialog } from '../features/admin';
+import { useAuth } from '../lib/auth-context';
 import { avatarUrl } from '../lib/utils';
 
 /**
@@ -22,6 +32,13 @@ import { avatarUrl } from '../lib/utils';
 export default function ProjectsPage(): JSX.Element {
   const { data: projects, isLoading, isError, refetch } = useProjectDirectory();
   const { data: tracks } = useTracks();
+  const { user, isAdmin } = useAuth();
+
+  // 「新建项目」 entry (spec 2026-07-11 §2): admins pick any non-archived track
+  // (or 未归类); a 赛道运营经理 must file the project under a track they manage,
+  // so the button only shows when they manage at least one active track.
+  const managedTracks = managedActiveTracks(tracks, user?.id);
+  const canCreate = isAdmin || managedTracks.length > 0;
 
   // Group projects by owning track. Non-archived tracks (in server rank order) each
   // get a section; projects with a null / archived / unknown track fall into 未归类.
@@ -72,11 +89,29 @@ export default function ProjectsPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 motion-safe:animate-fade-in sm:px-6">
-        <div>
-          <h1 className="text-base font-semibold">项目</h1>
-          <p className="text-sm text-muted-foreground">
-            共 {list.length} 个项目，按赛道分组。加入感兴趣的项目即可查看其看板。
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-base font-semibold">项目</h1>
+            <p className="text-sm text-muted-foreground">
+              共 {list.length} 个项目，按赛道分组。加入感兴趣的项目即可查看其看板。
+            </p>
+          </div>
+          {canCreate && (
+            <ProjectFormDialog
+              mode="create"
+              trigger={
+                <Button size="sm">
+                  <Plus className="h-4 w-4" aria-hidden />
+                  新建项目
+                </Button>
+              }
+              trackOptions={isAdmin ? orderedTracks : managedTracks}
+              trackRequired={!isAdmin}
+              defaultTrackId={
+                !isAdmin && managedTracks.length === 1 ? managedTracks[0]?.id : undefined
+              }
+            />
+          )}
         </div>
 
         {list.length === 0 ? (

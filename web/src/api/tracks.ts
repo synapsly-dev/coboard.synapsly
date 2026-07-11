@@ -56,6 +56,21 @@ export function useTracks(): UseQueryResult<Track[]> {
 }
 
 /**
+ * The non-archived tracks a user manages (赛道运营经理). Pure helper behind the
+ * manager-scoped affordances (e.g. the 「新建项目」 赛道 picker, spec 2026-07-11 §2)
+ * — the server remains the real gate for the actual operations.
+ */
+export function managedActiveTracks(
+  tracks: readonly Track[] | undefined,
+  userId: string | undefined,
+): Track[] {
+  if (!tracks || !userId) return [];
+  return tracks.filter(
+    (t) => !t.archived && t.managers.some((m) => m.userId === userId),
+  );
+}
+
+/**
  * Client-side heuristic: is the current user a 赛道运营经理 on ANY track? Used to
  * decide whether to SHOW manager-tier affordances (资产 edit/delete menu, 统计
  * 导出下拉, P3) — the server remains the real gate for the actual operations.

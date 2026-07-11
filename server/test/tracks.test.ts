@@ -318,3 +318,207 @@ describe('赛道 / tracks (P0)', () => {
     expect(reviewRes.statusCode).toBe(403);
   });
 });
+
+describe('赛道经理的项目管理权 (2026-07-11 spec)', () => {
+  let ctx: TestContext;
+
+  beforeAll(async () => {
+    ctx = await createTestContext();
+  });
+
+  afterAll(async () => {
+    await ctx.cleanup();
+  });
+
+  afterEach(async () => {
+    await ctx.db.delete(taskClaimants);
+    await ctx.db.delete(tasks);
+    await ctx.db.delete(trackMembers);
+    await ctx.db.delete(projectMembers);
+    await ctx.db.delete(projects);
+    await ctx.db.delete(tracks);
+    await ctx.db.delete(users);
+    seq = 0;
+  });
+
+  /** Admin + a manager managing `managed`, returning both cookies + track ids. */
+  async function setupManager(managedCount = 1): Promise<{
+    adminCookie: string;
+    mgrCookie: string;
+    mgr: UserRow;
+    trackIds: string[];
+  }> {
+    const admin = await makeUser(ctx, 'admin');
+    const mgr = await makeUser(ctx, 'member');
+    const adminCookie = await authCookie(ctx, admin.id);
+    const mgrCookie = await authCookie(ctx, mgr.id);
+    const trackIds: string[] = [];
+    for (let i = 0; i < managedCount; i += 1) {
+      const { track } = await createTrack(ctx, adminCookie, {
+        name: `赛道${i + 1}`,
+        key: `mgr-track-${i + 1}`,
+      });
+      await ctx.app.inject({
+        method: 'PUT',
+        url: `/api/tracks/${track.id}/members`,
+        headers: headers(adminCookie),
+        payload: { managers: [mgr.id], members: [] },
+      });
+      trackIds.push(track.id);
+    }
+    return { adminCookie, mgrCookie, mgr, trackIds };
+  }
+
+  it('lets a 赛道经理 create a project inside their track and auto-become its lead', async () => {
+    const { mgrCookie, mgr, trackIds } = await setupManager();
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(mgrCookie),
+      payload: { name: '内容组', key: 'MPRJ1', trackId: trackIds[0] },
+    });
+    expect(res.statusCode).toBe(201);
+    const { project } = res.json() as { project: { id: string; trackId: string | null } };
+    expect(project.trackId).toBe(trackIds[0]);
+
+    // Creator auto-enrolled as the project's lead.
+    const members = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/members`,
+      headers: headers(mgrCookie),
+    });
+    const body = members.json() as { members: { userId: string; role: string }[] };
+    expect(body.members).toEqual([
+      expect.objectContaining({ userId: mgr.id, role: 'lead' }),
+    ]);
+  });
+
+  it('requires a trackId from a 赛道经理 (400) and rejects a foreign track (403)', async () => {
+    const { adminCookie, mgrCookie } = await setupManager();
+    const noTrack = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(mgrCookie),
+      payload: { name: '组', key: 'MPRJ2' },
+    });
+    expect(noTrack.statusCode).toBe(400);
+
+    const { track: foreign } = await createTrack(ctx, adminCookie, {
+      name: '外部赛道',
+      key: 'foreign-track',
+    });
+    const wrongTrack = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(mgrCookie),
+      payload: { name: '组', key: 'MPRJ3', trackId: foreign.id },
+    });
+    expect(wrongTrack.statusCode).toBe(403);
+  });
+
+  it('still forbids a plain member from creating projects (403)', async () => {
+    const member = await makeUser(ctx, 'member');
+    const cookie = await authCookie(ctx, member.id);
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(cookie),
+      payload: { name: '组', key: 'MPRJ4' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('keeps admin creation unrestricted (no trackId needed)', async () => {
+    const admin = await makeUser(ctx, 'admin');
+    const cookie = await authCookie(ctx, admin.id);
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(cookie),
+      payload: { name: '组', key: 'MPRJ5' },
+    });
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('lets a manager of both tracks move a project between them, but not to a foreign track', async () => {
+    const { adminCookie, mgrCookie, trackIds } = await setupManager(2);
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(mgrCookie),
+      payload: { name: '组', key: 'MPRJ6', trackId: trackIds[0] },
+    });
+    const projectId = (created.json() as { project: { id: string } }).project.id;
+
+    const move = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/projects/${projectId}`,
+      headers: headers(mgrCookie),
+      payload: { trackId: trackIds[1] },
+    });
+    expect(move.statusCode).toBe(200);
+    expect((move.json() as { project: { trackId: string | null } }).project.trackId).toBe(
+      trackIds[1],
+    );
+
+    const { track: foreign } = await createTrack(ctx, adminCookie, {
+      name: '外部赛道',
+      key: 'foreign-move',
+    });
+    const bad = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/projects/${projectId}`,
+      headers: headers(mgrCookie),
+      payload: { trackId: foreign.id },
+    });
+    expect(bad.statusCode).toBe(403);
+  });
+
+  it('forbids a plain project lead (non-manager) from changing trackId but not from renaming', async () => {
+    const { adminCookie, trackIds } = await setupManager();
+    const lead = await makeUser(ctx, 'member');
+    const leadCookie = await authCookie(ctx, lead.id);
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(adminCookie),
+      payload: { name: '组', key: 'MPRJ7', trackId: trackIds[0] },
+    });
+    const projectId = (created.json() as { project: { id: string } }).project.id;
+    await ctx.db.insert(projectMembers).values({ projectId, userId: lead.id, role: 'lead' });
+
+    const rename = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/projects/${projectId}`,
+      headers: headers(leadCookie),
+      payload: { name: '组·改名' },
+    });
+    expect(rename.statusCode).toBe(200);
+
+    const move = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/projects/${projectId}`,
+      headers: headers(leadCookie),
+      payload: { trackId: null },
+    });
+    expect(move.statusCode).toBe(403);
+  });
+
+  it('keeps admin trackId moves unrestricted', async () => {
+    const { adminCookie, trackIds } = await setupManager();
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: headers(adminCookie),
+      payload: { name: '组', key: 'MPRJ8', trackId: trackIds[0] },
+    });
+    const projectId = (created.json() as { project: { id: string } }).project.id;
+    const move = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/projects/${projectId}`,
+      headers: headers(adminCookie),
+      payload: { trackId: null },
+    });
+    expect(move.statusCode).toBe(200);
+  });
+});
