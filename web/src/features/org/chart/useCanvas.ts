@@ -5,7 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  * overflow-hidden pane; the world layer inside it is moved with
  * `translate(x,y) scale(k)`. Gestures:
  *
- * - wheel / trackpad → zoom toward the cursor (preventDefault: no page scroll leak)
+ * - plain wheel / two-finger trackpad swipe → PAN; trackpad pinch (ctrlKey wheel)
+ *   or Ctrl/⌘+wheel → zoom toward the cursor (preventDefault: no page scroll leak)
  * - primary-button drag on empty canvas → pan (grab/grabbing cursor)
  * - two-pointer pinch → zoom toward the midpoint (touch-action:none on the viewport)
  * - double-click on empty canvas → fit (or the caller's override, see
@@ -61,8 +62,6 @@ const MIN_SCALE = 0.25;
 const MAX_SCALE = 2;
 /** Button zoom step (× per click). */
 const BUTTON_STEP = 1.25;
-/** Multiplicative wheel base: scale ×= WHEEL_BASE^(-deltaY). */
-const WHEEL_BASE = 1.0015;
 const FIT_PADDING = 48;
 /** Slightly past the 150ms transition so the flag never lingers. */
 const ANIMATION_RESET_MS = 200;
@@ -215,12 +214,26 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
 
     const onWheel = (event: WheelEvent): void => {
       event.preventDefault();
+      const dy = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+
+      // Design-tool convention (Figma/Excalidraw): plain wheel / two-finger
+      // trackpad swipe PANS the canvas; browsers report trackpad PINCH as a
+      // ctrlKey wheel, and mouse users zoom with Ctrl/⌘+滚轮.
+      if (!event.ctrlKey && !event.metaKey) {
+        const dx = event.deltaMode === 1 ? event.deltaX * 16 : event.deltaX;
+        const current = transformRef.current;
+        apply({ ...current, x: current.x - dx, y: current.y - dy }, false);
+        return;
+      }
+
       const rect = viewport.getBoundingClientRect();
-      const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+      // exp() keeps trackpad pinch (small deltas) silky; clamp per event so a
+      // full mouse-wheel notch (±100) stays a sane step.
+      const factor = Math.min(1.6, Math.max(1 / 1.6, Math.exp(-dy * 0.01)));
       zoomAt(
         event.clientX - rect.left,
         event.clientY - rect.top,
-        Math.pow(WHEEL_BASE, -delta),
+        factor,
         false,
       );
     };

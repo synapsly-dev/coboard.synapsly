@@ -334,7 +334,7 @@ export function OrgPlanetCanvas({
 
       {/* Gesture hint — pointless on touch, so only shown for hover devices. */}
       <p className="pointer-events-none absolute bottom-4 left-4 hidden text-[11px] text-muted-foreground [@media(hover:hover)]:block">
-        {chain.length > 0 ? '双击空白/Esc 返回上级 · 滚轮缩放' : '点击部门聚焦 · 滚轮缩放'}
+        {chain.length > 0 ? '双击空白/Esc 返回上级 · 捏合或 Ctrl+滚轮缩放' : '点击部门聚焦 · 双指滑动平移 · 捏合缩放'}
       </p>
 
       <ZoomControls
