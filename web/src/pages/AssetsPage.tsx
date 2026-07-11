@@ -23,6 +23,7 @@ import { relativeTime } from '../features/board/format';
 import { ASSET_KIND_META, ASSET_KIND_OPTIONS } from '../features/assets/labels';
 import { filterAssets, TRACK_ALL, TRACK_NONE } from '../features/assets/filter';
 import { AssetFormDialog } from '../features/assets/AssetFormDialog';
+import { AssetDetailDialog } from '../features/assets/AssetDetailDialog';
 
 /**
  * 资产库 page (P3 §1, 运营需求 §9) — the durable output of the weekly retrospective
@@ -45,6 +46,8 @@ export default function AssetsPage(): JSX.Element {
   const [search, setSearch] = useState('');
   // null = closed; 'new' = create; an Asset = edit that one.
   const [editing, setEditing] = useState<Asset | 'new' | null>(null);
+  // The asset opened in the read/detail view (full Markdown body).
+  const [viewing, setViewing] = useState<Asset | null>(null);
 
   const { data: tracks } = useTracks();
   const { data: assets, isLoading, isError } = useAssets({
@@ -159,6 +162,7 @@ export default function AssetsPage(): JSX.Element {
                 key={a.id}
                 asset={a}
                 canManage={isAdmin || isTrackManager || a.creator.id === user?.id}
+                onView={() => setViewing(a)}
                 onEdit={() => setEditing(a)}
                 onOpenTask={(taskId) => navigate(`/board/all?task=${taskId}`)}
               />
@@ -166,6 +170,23 @@ export default function AssetsPage(): JSX.Element {
           </ul>
         )}
       </div>
+
+      <AssetDetailDialog
+        asset={viewing}
+        canManage={
+          viewing != null &&
+          (isAdmin || isTrackManager || viewing.creator.id === user?.id)
+        }
+        onOpenChange={(open) => {
+          if (!open) setViewing(null);
+        }}
+        onEdit={(asset) => {
+          // Hand off read → edit: close the detail view, open the form.
+          setViewing(null);
+          setEditing(asset);
+        }}
+        onOpenTask={(taskId) => navigate(`/board/all?task=${taskId}`)}
+      />
 
       <AssetFormDialog
         open={editing !== null}
@@ -206,12 +227,15 @@ const SAFE_URL = /^(https?:\/\/|mailto:)/i;
 function AssetCard({
   asset,
   canManage,
+  onView,
   onEdit,
   onOpenTask,
 }: {
   asset: Asset;
   /** Author / global admin / any 赛道经理 (client heuristic; server re-enforces). */
   canManage: boolean;
+  /** Open the read/detail view (full body) — the card preview is clamped. */
+  onView: () => void;
   onEdit: () => void;
   onOpenTask: (taskId: string) => void;
 }): JSX.Element {
@@ -281,9 +305,23 @@ function AssetCard({
       </div>
 
       <div className="mt-2 flex items-start gap-1.5">
-        <h2 className="min-w-0 break-words text-base font-semibold text-foreground">
-          {asset.title}
-        </h2>
+        {/* Title + preview open the detail view (full Markdown body). */}
+        <button
+          type="button"
+          onClick={onView}
+          className="group/view min-w-0 flex-1 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`查看「${asset.title}」详情`}
+        >
+          <h2 className="break-words text-base font-semibold text-foreground transition-colors group-hover/view:text-primary">
+            {asset.title}
+          </h2>
+          {/* Safe preview: plain text, React-escaped, clamped (same recipe as 灵感卡片). */}
+          {asset.body.trim() !== '' && (
+            <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+              {asset.body}
+            </p>
+          )}
+        </button>
         {showLink && (
           <a
             href={asset.url!}
@@ -297,13 +335,6 @@ function AssetCard({
           </a>
         )}
       </div>
-
-      {/* Safe preview: plain text, React-escaped, clamped (same recipe as 灵感卡片). */}
-      {asset.body.trim() !== '' && (
-        <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
-          {asset.body}
-        </p>
-      )}
 
       <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
         <Avatar
