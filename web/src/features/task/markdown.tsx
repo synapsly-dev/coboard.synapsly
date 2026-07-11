@@ -9,12 +9,15 @@ import { Fragment, type ReactNode } from 'react';
  * elements (never `dangerouslySetInnerHTML`), arbitrary markup in user input is
  * rendered inert — the safest possible posture for v1.
  *
- * Supported subset (intentionally small):
+ * Supported subset (grown for long-form 资产 documents, still fixed & safe):
  *  - paragraphs separated by blank lines, single newlines → <br/>
+ *  - headings # … #### (mapped onto the app's type scale)
+ *  - GFM pipe tables (header + |---| separator; :--- / :---: / ---: alignment)
+ *  - blockquotes (> …), horizontal rules (--- / ***)
  *  - fenced code blocks ```...```
  *  - inline `code`, **bold**, *italic*
  *  - links [text](http(s)://… | mailto:…) — other protocols are dropped
- *  - bullet lists (lines starting with - or *)
+ *  - bullet lists (- / *) and ordered lists (1. / 1、 / 1))
  *  - @mentions — highlighted by a regex (no name lookup needed)
  */
 
@@ -130,9 +133,64 @@ function renderEmphasisAndMentions(text: string, keyPrefix: string, out: ReactNo
   }
 }
 
+/** #… heading line → level (1-4) + text, or null. */
+function parseHeading(line: string): { level: number; text: string } | null {
+  const m = /^\s{0,3}(#{1,4})\s+(.*)$/.exec(line);
+  if (!m) return null;
+  return { level: m[1]!.length, text: m[2]!.trim() };
+}
+
+/** App-scale classes per heading level (documents live inside text-sm bodies). */
+const HEADING_CLASS: Record<number, string> = {
+  1: 'text-lg font-semibold leading-snug',
+  2: 'mt-1 border-b border-border pb-1 text-base font-semibold leading-snug',
+  3: 'text-sm font-semibold leading-snug',
+  4: 'text-sm font-medium leading-snug text-muted-foreground',
+};
+
+/** A GFM table row `| a | b |` → trimmed cells (boundary pipes dropped). */
+function parseTableRow(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  return trimmed.split('|').map((c) => c.trim());
+}
+
+/** Is this a `|---|:---:|` header separator? Returns per-column alignment. */
+function parseTableSeparator(line: string): Array<'left' | 'center' | 'right'> | null {
+  if (!/^\s*\|?[\s:|-]+\|?\s*$/.test(line) || !line.includes('-')) return null;
+  const cells = parseTableRow(line);
+  if (cells.length === 0) return null;
+  const aligns: Array<'left' | 'center' | 'right'> = [];
+  for (const cell of cells) {
+    if (!/^:?-{3,}:?$/.test(cell)) return null;
+    aligns.push(
+      cell.startsWith(':') && cell.endsWith(':')
+        ? 'center'
+        : cell.endsWith(':')
+          ? 'right'
+          : 'left',
+    );
+  }
+  return aligns;
+}
+
+const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' } as const;
+
+/** Lines that terminate a paragraph because a block construct starts. */
+function isBlockStart(line: string): boolean {
+  return (
+    line.trimStart().startsWith('```') ||
+    /^\s*[-*]\s+/.test(line) ||
+    /^\s*\d+[.、)]\s+/.test(line) ||
+    parseHeading(line) !== null ||
+    /^\s*>/.test(line) ||
+    /^\s*(-{3,}|\*{3,})\s*$/.test(line) ||
+    line.includes('|')
+  );
+}
+
 /**
  * Render a full markdown body to safe React nodes. Block-level handling: code
- * fences, bullet lists, and paragraphs.
+ * fences, headings, tables, blockquotes, rules, bullet/ordered lists, paragraphs.
  */
 export function renderMarkdown(source: string): ReactNode {
   const blocks: ReactNode[] = [];
@@ -163,6 +221,112 @@ export function renderMarkdown(source: string): ReactNode {
       continue;
     }
 
+    // Heading # … ####.
+    const heading = parseHeading(line);
+    if (heading) {
+      const Tag = `h${heading.level}` as 'h1' | 'h2' | 'h3' | 'h4';
+      blocks.push(
+        <Tag key={`blk-${blockKey++}`} className={HEADING_CLASS[heading.level]}>
+          {renderInline(heading.text, `blk-${blockKey}-h`)}
+        </Tag>,
+      );
+      i += 1;
+      continue;
+    }
+
+    // Horizontal rule (checked before lists: `---` has no trailing content).
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)) {
+      blocks.push(<hr key={`blk-${blockKey++}`} className="border-border" />);
+      i += 1;
+      continue;
+    }
+
+    // Blockquote: consecutive `>` lines become one quote block.
+    if (/^\s*>/.test(line)) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && /^\s*>/.test(lines[i]!)) {
+        quoteLines.push(lines[i]!.replace(/^\s*>\s?/, ''));
+        i += 1;
+      }
+      blocks.push(
+        <blockquote
+          key={`blk-${blockKey++}`}
+          className="border-l-2 border-primary/40 pl-3 text-muted-foreground"
+        >
+          {quoteLines.map((ql, idx) => (
+            <Fragment key={idx}>
+              {idx > 0 && <br />}
+              {renderInline(ql, `blk-${blockKey}-q${idx}`)}
+            </Fragment>
+          ))}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    // GFM table: a header row containing `|` followed by a `|---|` separator.
+    if (line.includes('|') && i + 1 < lines.length) {
+      const aligns = parseTableSeparator(lines[i + 1]!);
+      if (aligns) {
+        const header = parseTableRow(line);
+        i += 2;
+        const rows: string[][] = [];
+        while (i < lines.length && lines[i]!.includes('|') && lines[i]!.trim() !== '') {
+          rows.push(parseTableRow(lines[i]!));
+          i += 1;
+        }
+        const alignAt = (col: number): string => ALIGN_CLASS[aligns[col] ?? 'left'];
+        blocks.push(
+          <div key={`blk-${blockKey++}`} className="scrollbar-thin overflow-x-auto">
+            <table className="w-full min-w-[24rem] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  {header.map((cell, ci) => (
+                    <th
+                      key={ci}
+                      scope="col"
+                      className={`px-2 py-1.5 align-top font-semibold text-foreground ${alignAt(ci)}`}
+                    >
+                      {renderInline(cell, `blk-${blockKey}-th${ci}`)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, ri) => (
+                  <tr key={ri} className="border-b border-border/60 last:border-0">
+                    {header.map((_, ci) => (
+                      <td key={ci} className={`px-2 py-1.5 align-top ${alignAt(ci)}`}>
+                        {renderInline(row[ci] ?? '', `blk-${blockKey}-r${ri}c${ci}`)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+        continue;
+      }
+    }
+
+    // Ordered list (1. / 1、 / 1)).
+    if (/^\s*\d+[.、)]\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+[.、)]\s+/.test(lines[i]!)) {
+        items.push(lines[i]!.replace(/^\s*\d+[.、)]\s+/, ''));
+        i += 1;
+      }
+      blocks.push(
+        <ol key={`blk-${blockKey++}`} className="ml-5 list-decimal space-y-1">
+          {items.map((item, idx) => (
+            <li key={idx}>{renderInline(item, `blk-${blockKey}-oli${idx}`)}</li>
+          ))}
+        </ol>,
+      );
+      continue;
+    }
+
     // Bullet list.
     if (/^\s*[-*]\s+/.test(line)) {
       const items: string[] = [];
@@ -188,12 +352,13 @@ export function renderMarkdown(source: string): ReactNode {
 
     // Paragraph: gather consecutive non-blank, non-special lines.
     const paraLines: string[] = [];
-    while (
-      i < lines.length &&
-      lines[i]!.trim() !== '' &&
-      !lines[i]!.trimStart().startsWith('```') &&
-      !/^\s*[-*]\s+/.test(lines[i]!)
-    ) {
+    while (i < lines.length && lines[i]!.trim() !== '' && !isBlockStart(lines[i]!)) {
+      paraLines.push(lines[i]!);
+      i += 1;
+    }
+    // Defensive: a lone block-start line reaching here (e.g. `|`-line whose
+    // separator never came) must still consume ONE line or we'd loop forever.
+    if (paraLines.length === 0) {
       paraLines.push(lines[i]!);
       i += 1;
     }
