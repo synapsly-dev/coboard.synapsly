@@ -26,6 +26,18 @@ export const ORG_KIND_BADGE: Record<OrgNodeKind, string> = {
     'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/20 dark:text-violet-400',
 };
 
+/**
+ * Accent-bar classes per kind — the 3px strip along a chart card's top edge
+ * (图谱 node cards). Same hue family as {@link ORG_KIND_BADGE} so badge and bar
+ * read as one system; theme-aware (primary flips with the ink token, sky/violet
+ * brighten a step in dark).
+ */
+export const ORG_KIND_ACCENT: Record<OrgNodeKind, string> = {
+  department: 'bg-primary/80',
+  group: 'bg-sky-500/80 dark:bg-sky-400/80',
+  position: 'bg-violet-500/80 dark:bg-violet-400/80',
+};
+
 /** How many people currently hold a node (负责人 + 成员). */
 export function occupiedCount(node: OrgNode): number {
   return node.leads.length + node.members.length;

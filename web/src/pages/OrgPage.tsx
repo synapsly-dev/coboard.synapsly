@@ -20,7 +20,7 @@ import { usersApi } from '../api/users';
 import { useDeleteOrgNode, useMoveOrgNode, useOrgTree } from '../api/org';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
 import { canEditOrgScope } from '../features/org/permissions';
-import { OrgChart } from '../features/org/OrgChart';
+import { OrgChartCanvas } from '../features/org/chart/OrgChartCanvas';
 import { OrgAddNodeButton } from '../features/org/OrgAddNodeButton';
 import { OrgNodeRow } from '../features/org/OrgNodeRow';
 import { OrgNodeDialog } from '../features/org/OrgNodeDialog';
@@ -202,7 +202,7 @@ export default function OrgPage(): JSX.Element {
             />
           </div>
         ) : view === 'chart' ? (
-          <OrgChart
+          <OrgChartCanvas
             roots={roots}
             editable={editable}
             onAddChild={(node, kind) =>
