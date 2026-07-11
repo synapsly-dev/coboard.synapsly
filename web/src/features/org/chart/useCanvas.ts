@@ -8,7 +8,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  * - wheel / trackpad → zoom toward the cursor (preventDefault: no page scroll leak)
  * - primary-button drag on empty canvas → pan (grab/grabbing cursor)
  * - two-pointer pinch → zoom toward the midpoint (touch-action:none on the viewport)
- * - double-click on empty canvas → fit; keyboard `+`/`=`/`-`/`0` on the focused viewport
+ * - double-click on empty canvas → fit (or the caller's override, see
+ *   {@link UseCanvasOptions}); keyboard `+`/`=`/`-`/`0` on the focused viewport
  *
  * Button steps (zoomIn/zoomOut/fitTo/reset) animate over ~150ms; gestures never do.
  * The first non-empty layout auto-fits once; afterwards the user's viewport is
@@ -29,6 +30,14 @@ export interface CanvasTransform {
 export interface FitOptions {
   padding?: number;
   maxScale?: number;
+}
+
+export interface UseCanvasOptions {
+  /**
+   * Replaces the default double-click-on-empty-canvas action (fit). The planet
+   * canvas (星系模式) uses this for "up one level"; omit for the default fit.
+   */
+  onDoubleClick?: () => void;
 }
 
 export interface UseCanvasResult {
@@ -69,7 +78,7 @@ function isCardTarget(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('[data-org-card]') !== null;
 }
 
-export function useCanvas(bounds: CanvasBounds): UseCanvasResult {
+export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): UseCanvasResult {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState<CanvasTransform>({ x: 0, y: 0, scale: 1 });
   const [dragging, setDragging] = useState(false);
@@ -78,6 +87,9 @@ export function useCanvas(bounds: CanvasBounds): UseCanvasResult {
   const transformRef = useRef(transform);
   const boundsRef = useRef(bounds);
   boundsRef.current = bounds;
+  // Ref so a changing callback identity never re-wires the gesture listeners.
+  const onDoubleClickRef = useRef(options?.onDoubleClick);
+  onDoubleClickRef.current = options?.onDoubleClick;
   const didFitRef = useRef(false);
   const animationTimerRef = useRef<number | null>(null);
 
@@ -261,7 +273,9 @@ export function useCanvas(bounds: CanvasBounds): UseCanvasResult {
     const onDoubleClick = (event: MouseEvent): void => {
       if (isInteractiveTarget(event.target) || isCardTarget(event.target)) return;
       event.preventDefault();
-      fitTo();
+      const override = onDoubleClickRef.current;
+      if (override) override();
+      else fitTo();
     };
 
     const onKeyDown = (event: KeyboardEvent): void => {

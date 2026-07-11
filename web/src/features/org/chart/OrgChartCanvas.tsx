@@ -1,15 +1,5 @@
-import { useMemo, useState } from 'react';
-import {
-  ChevronDown,
-  ChevronRight,
-  Crown,
-  Maximize2,
-  MoreHorizontal,
-  Pencil,
-  Users,
-  ZoomIn,
-  ZoomOut,
-} from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight, Crown, MoreHorizontal, Pencil, Users } from 'lucide-react';
 import type { OrgNode, OrgNodeKind, OrgNodeMember } from 'shared';
 import {
   Avatar,
@@ -18,7 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Tooltip,
 } from '../../../components/ui';
 import { avatarUrl, cn } from '../../../lib/utils';
 import {
@@ -32,6 +21,7 @@ import { OrgAddNodeButton } from '../OrgAddNodeButton';
 import type { OrgTreeNode } from '../tree';
 import { layoutTree, NODE_H, NODE_W, type Edge } from './layout';
 import { useCanvas } from './useCanvas';
+import { ZoomControls } from './ZoomControls';
 
 /**
  * Org chart canvas (团队架构 图谱视图) — a real pan/zoom canvas in the spirit of
@@ -47,6 +37,8 @@ interface OrgChartCanvasProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  /** 星系/树形 mode switch slot, rendered inside the zoom control cluster. */
+  modeToggle?: ReactNode;
 }
 
 /** Corner radius of the orthogonal connectors. */
@@ -60,6 +52,7 @@ export function OrgChartCanvas({
   onAddChild,
   onEdit,
   onMembers,
+  modeToggle,
 }: OrgChartCanvasProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggle = (id: string): void =>
@@ -148,53 +141,15 @@ export function OrgChartCanvas({
         拖拽平移 · 滚轮缩放
       </p>
 
-      {/* Floating zoom controls. */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-0.5 rounded-lg border border-border bg-card/95 p-1 shadow-md backdrop-blur">
-        <Tooltip content="缩小">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 sm:h-8 sm:w-8"
-            aria-label="缩小"
-            onClick={zoomOut}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-        </Tooltip>
-        <Tooltip content="缩放至 100%">
-          <button
-            type="button"
-            className="h-8 min-w-[3rem] rounded-md px-1 text-xs font-medium tabular-nums text-muted-foreground transition-colors duration-base ease-standard hover:bg-accent hover:text-foreground"
-            aria-label="缩放至 100%"
-            onClick={reset}
-          >
-            {Math.round(transform.scale * 100)}%
-          </button>
-        </Tooltip>
-        <Tooltip content="放大">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 sm:h-8 sm:w-8"
-            aria-label="放大"
-            onClick={zoomIn}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </Tooltip>
-        <div className="mx-0.5 h-4 w-px bg-border" aria-hidden />
-        <Tooltip content="适应视图">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 sm:h-8 sm:w-8"
-            aria-label="适应视图"
-            onClick={() => fitTo()}
-          >
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </Tooltip>
-      </div>
+      {/* Floating zoom controls (+ optional 星系/树形 toggle). */}
+      <ZoomControls
+        scale={transform.scale}
+        onZoomIn={zoomIn}
+        onZoomOut={zoomOut}
+        onFit={() => fitTo()}
+        onReset={reset}
+        extra={modeToggle}
+      />
     </div>
   );
 }
