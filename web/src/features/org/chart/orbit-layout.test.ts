@@ -3,9 +3,13 @@ import type { OrgNode, OrgNodeMember } from 'shared';
 import { buildTree } from '../tree';
 import {
   CORE_R,
+  FAN_BASE_GAP,
+  FAN_SECTOR_RATIO,
   FOCUS_R,
   GHOST_ARC_R,
+  GHOST_CLEARANCE,
   GHOST_DEPTH_GAP,
+  LEAF_MIN_DIST,
   LEAF_R,
   MOON_R,
   ORBIT_PADDING,
@@ -59,6 +63,7 @@ describe('orbitLayout', () => {
   it('returns empty layout for an empty forest', () => {
     expect(orbitLayout([], [])).toEqual({
       items: [],
+      links: [],
       bounds: { width: 0, height: 0 },
       coreBounds: { x: 0, y: 0, width: 0, height: 0 },
     });
@@ -293,5 +298,149 @@ describe('orbitLayout', () => {
       }
       expect(minEdge).toBeCloseTo(ORBIT_PADDING, 6);
     }
+  });
+});
+
+describe('orbitLayout v2 全员星图 (subtree members, fans, links)', () => {
+  /** Angular distance |a-b| wrapped into [0, π]. */
+  function angularDist(a: number, b: number): number {
+    let d = Math.abs(a - b) % (Math.PI * 2);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    return d;
+  }
+
+  function angleFrom(center: OrbitItem, item: OrbitItem): number {
+    return Math.atan2(item.y - center.y, item.x - center.x);
+  }
+
+  function distFrom(center: OrbitItem, item: OrbitItem): number {
+    return Math.hypot(item.x - center.x, item.y - center.y);
+  }
+
+  /**
+   * Shared-post fixture: u1 holds posts in dept a directly AND in group g1;
+   * u4 sits in two groups (g1 + g2); u5 only in g2; u6 nested two levels down
+   * (g1 > g1x); lead0/u2 direct-only.
+   */
+  function sharedForest(): ReturnType<typeof buildTree> {
+    return buildTree([
+      node('a', null, 'a', {
+        leads: [person('lead0', 'lead')],
+        members: [person('u1'), person('u2')],
+      }),
+      node('g1', 'a', 'a', { members: [person('u1'), person('u4')] }),
+      node('g2', 'a', 'b', { members: [person('u4'), person('u5')] }),
+      node('g1x', 'g1', 'a', { members: [person('u6')] }),
+      node('b', null, 'b'),
+    ]);
+  }
+
+  it('emits every subtree member exactly once (dedup by userId)', () => {
+    const layout = orbitLayout(sharedForest(), ['a']);
+    const leaves = ofKind(layout, 'leaf');
+    expect(leaves.map((l) => l.member?.userId).sort()).toEqual([
+      'lead0',
+      'u1',
+      'u2',
+      'u4',
+      'u5',
+      'u6',
+    ]);
+    // Focus-scoped keys, no duplicates.
+    expect(leaves.every((l) => l.key === `leaf:a:${l.member?.userId}`)).toBe(true);
+    expect(new Set(leaves.map((l) => l.key)).size).toBe(leaves.length);
+  });
+
+  it('links every anchor of shared members; direct-only members stay line-free', () => {
+    const layout = orbitLayout(sharedForest(), ['a']);
+    const linksTo = (userId: string): string[] =>
+      layout.links
+        .filter((l) => l.toKey === `leaf:a:${userId}`)
+        .map((l) => l.fromKey)
+        .sort();
+
+    expect(linksTo('u1')).toEqual(['node:a', 'node:g1']); // 部门直属 + 小组 → 两条线
+    expect(linksTo('u4')).toEqual(['node:g1', 'node:g2']); // 两个小组 → 两条线
+    expect(linksTo('u5')).toEqual(['node:g2']); // 单个小组 → 一条线
+    expect(linksTo('u6')).toEqual(['node:g1']); // 深层嵌套仍锚到顶层卫星
+    expect(linksTo('u2')).toEqual([]); // 直属成员靠贴近表达归属，无线
+    expect(linksTo('lead0')).toEqual([]);
+
+    // Stable, unique link keys: link:<fromKey>-><toKey>.
+    expect(layout.links.every((l) => l.key === `link:${l.fromKey}->${l.toKey}`)).toBe(true);
+    expect(new Set(layout.links.map((l) => l.key)).size).toBe(layout.links.length);
+  });
+
+  it('places single-anchor fan cells inside their moon sector, at ≥ FAN_BASE', () => {
+    const squad = (id: string, count: number): OrgNodeMember[] =>
+      Array.from({ length: count }, (_, i) => person(`${id}-${i}`));
+    const roots = buildTree([
+      node('a', null, 'a', { members: people(3) }),
+      node('g1', 'a', 'a', { members: squad('m1', 7) }),
+      node('g2', 'a', 'b', { members: squad('m2', 4) }),
+      node('g3', 'a', 'c', { members: squad('m3', 9) }),
+    ]);
+    const layout = orbitLayout(roots, ['a']);
+    const center = itemFor(layout, 'node:a');
+    const sector = ((Math.PI * 2) / 3) * FAN_SECTOR_RATIO;
+
+    // No shared people here, so every link is a moon→fan-cell anchor.
+    expect(layout.links).toHaveLength(20);
+    for (const link of layout.links) {
+      const leaf = itemFor(layout, link.toKey);
+      const moon = itemFor(layout, link.fromKey);
+      const fanBase = distFrom(center, moon) + MOON_R + FAN_BASE_GAP;
+      expect(distFrom(center, leaf)).toBeGreaterThanOrEqual(fanBase - 1e-6);
+      expect(angularDist(angleFrom(center, leaf), angleFrom(center, moon))).toBeLessThan(
+        sector / 2 + 1e-6,
+      );
+    }
+  });
+
+  it('keeps a busy scene collision-free (pairwise leaf distance ≥ 48)', () => {
+    const squad = (id: string, count: number): OrgNodeMember[] =>
+      Array.from({ length: count }, (_, i) => person(`${id}-${i}`));
+    const roots = buildTree([
+      node('a', null, 'a', { members: people(5) }),
+      node('g1', 'a', 'a', { members: [...squad('m1', 8), person('shared')] }),
+      node('g2', 'a', 'b', { members: [...squad('m2', 8), person('shared')] }),
+    ]);
+    const layout = orbitLayout(roots, ['a']);
+    const leaves = ofKind(layout, 'leaf');
+    expect(leaves).toHaveLength(5 + 8 + 8 + 1);
+
+    for (let i = 0; i < leaves.length; i += 1) {
+      for (let j = i + 1; j < leaves.length; j += 1) {
+        const a = leaves[i]!;
+        const b = leaves[j]!;
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(LEAF_MIN_DIST);
+      }
+    }
+    // The shared member is ONE node with a line to EACH moon.
+    expect(layout.links.filter((l) => l.toKey === 'leaf:a:shared')).toHaveLength(2);
+  });
+
+  it('pushes ghost arcs clear of the outermost fan row', () => {
+    const roots = buildTree([
+      node('a', null, 'a'),
+      node('g1', 'a', 'a', { members: people(60) }), // 3 fan rows → scene outgrows GHOST_ARC_R
+      node('b', null, 'b'),
+      node('c', null, 'c'),
+    ]);
+    const layout = orbitLayout(roots, ['a']);
+    const center = itemFor(layout, 'node:a');
+    const leaves = ofKind(layout, 'leaf');
+    const ghosts = ofKind(layout, 'ghost');
+    expect(leaves).toHaveLength(60);
+    expect(ghosts).toHaveLength(2);
+
+    const leafOuter = Math.max(...leaves.map((l) => distFrom(center, l) + LEAF_R));
+    for (const ghost of ghosts) {
+      expect(distFrom(center, ghost)).toBeGreaterThanOrEqual(
+        leafOuter + GHOST_CLEARANCE - 1e-6,
+      );
+    }
+    // The fan really grew the scene: ghosts sit beyond the static default arc.
+    expect(Math.min(...ghosts.map((g) => distFrom(center, g)))).toBeGreaterThan(GHOST_ARC_R);
   });
 });

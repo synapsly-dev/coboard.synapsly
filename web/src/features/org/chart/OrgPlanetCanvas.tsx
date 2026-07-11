@@ -29,8 +29,10 @@ import { ZoomControls } from './ZoomControls';
  * Org planet canvas (团队架构 星系模式) — an orbital focus+context view. State is
  * a single `focusPath` (id chain); orbit-layout.ts derives every scene from it:
  * overview (departments as planets around the 团队 core), focus (the node as a
- * local star, unit children as moons, direct members as avatar leaves, everything
- * else pushed out as ghost planets), and recursive drill-down.
+ * local star, unit children as moons, EVERY subtree member as an avatar leaf —
+ * direct-only people cluster around the star, each moon's people fan out behind
+ * it with anchor lines, 兼任 members appear once with a line per post — and
+ * everything else pushed out as ghost planets), and recursive drill-down.
  *
  * The 挤开 effect: item keys are stable, every item is an absolutely-positioned
  * element moved with `translate`, and transform/size/opacity transition over
@@ -53,6 +55,11 @@ interface OrgPlanetCanvasProps {
 /** Shared 400ms glide for position/size/opacity (motion-safe gated). */
 const GLIDE =
   'motion-safe:transition-[transform,width,height,opacity] motion-safe:duration-[400ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)]';
+
+/** Link glide — lines are laid out via left/top/width + rotate, so those
+ * properties transition with the same curve as the nodes they join. */
+const LINK_GLIDE =
+  'motion-safe:transition-[left,top,width,transform,opacity] motion-safe:duration-[400ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)]';
 
 /** Circle fill + border per kind (hue at ~10% like the tree-mode accents). */
 const KIND_CIRCLE: Record<OrgNodeKind, string> = {
@@ -118,6 +125,18 @@ export function OrgPlanetCanvas({
   // transitions mid-glide, so items are always sorted by key and layered via z.
   const items = useMemo(
     () => [...layout.items].sort((a, b) => (a.key < b.key ? -1 : 1)),
+    [layout],
+  );
+  // Anchor links (小组/兼任 连线) resolve BOTH endpoints from the item list on
+  // every render, so a line's left/top/width/rotate re-derive from the exact
+  // same coordinates the nodes glide to — the lines move in lockstep. Sorted by
+  // key for the same DOM-order stability as items.
+  const itemByKey = useMemo(
+    () => new Map(layout.items.map((item) => [item.key, item] as const)),
+    [layout],
+  );
+  const links = useMemo(
+    () => [...layout.links].sort((a, b) => (a.key < b.key ? -1 : 1)),
     [layout],
   );
   const focus = chain.length > 0 && !stale ? chain[chain.length - 1] : undefined;
@@ -224,6 +243,33 @@ export function OrgPlanetCanvas({
           backgroundSize: '24px 24px',
         }}
       >
+        {/* 连线 pass: 1.5px divs from the FROM item's center, rotated to the
+            TO item — stacked between the rings (z-0) and ghosts (z-10). */}
+        {links.map((link) => {
+          const from = itemByKey.get(link.fromKey);
+          const to = itemByKey.get(link.toKey);
+          if (!from || !to) return null;
+          const dx = to.x - from.x;
+          const dy = to.y - from.y;
+          return (
+            <div
+              key={link.key}
+              aria-hidden
+              className={cn(
+                'pointer-events-none absolute z-[5] h-[1.5px] origin-left rounded-full bg-border/70',
+                'motion-safe:animate-fade-in',
+                LINK_GLIDE,
+              )}
+              style={{
+                left: from.x,
+                top: from.y - 0.75,
+                width: Math.hypot(dx, dy),
+                transform: `rotate(${Math.atan2(dy, dx)}rad)`,
+              }}
+            />
+          );
+        })}
+
         {items.map((item) => (
           <OrbitItemView
             key={item.key}
@@ -456,6 +502,7 @@ function OrbitItemBody({
       <LeafBody
         member={item.member}
         isLead={item.isLead === true}
+        anchors={item.anchors}
         focusNode={focusNode}
         onMembers={onMembers}
       />
@@ -580,18 +627,27 @@ function OrbitItemBody({
   );
 }
 
-/** Avatar leaf: click opens the members dialog of the owning (focused) unit. */
+/**
+ * Avatar leaf: click opens the members dialog of the ANCHOR unit — the moon a
+ * fan cell hangs from (anchors[0]), falling back to the focused unit for plain
+ * direct-cluster cells. 兼任 (multi-anchor) members get a subtle shared-status
+ * ring plus a tooltip listing every unit they belong to.
+ */
 function LeafBody({
   member,
   isLead,
+  anchors,
   focusNode,
   onMembers,
 }: {
   member: OrgNodeMember;
   isLead: boolean;
+  anchors?: OrgTreeNode[];
   focusNode: OrgTreeNode | undefined;
   onMembers?: (node: OrgNode) => void;
 }): JSX.Element {
+  const shared = anchors !== undefined && anchors.length > 1;
+  const target = anchors?.[0] ?? focusNode;
   // Cluster cell (饱满星团): avatar + name INSIDE the cell — packed phyllotaxis
   // cells leave no room for floating labels, and the self-contained chip is what
   // makes the cluster read as a solid, harmonious disc.
@@ -620,19 +676,37 @@ function LeafBody({
     </span>
   );
 
-  return onMembers && focusNode ? (
-    <button
-      type="button"
-      aria-label={`查看${focusNode.title}的负责人与成员`}
-      onClick={(event) => {
-        event.currentTarget.blur();
-        onMembers(focusNode);
-      }}
-      className="absolute inset-0 rounded-full outline-none transition-transform duration-base ease-standard hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring motion-safe:animate-fade-in"
-    >
-      {cell}
-    </button>
+  const body =
+    onMembers && target ? (
+      <button
+        type="button"
+        aria-label={`查看${target.title}的负责人与成员`}
+        onClick={(event) => {
+          event.currentTarget.blur();
+          onMembers(target);
+        }}
+        className={cn(
+          'absolute inset-0 rounded-full outline-none transition-transform duration-base ease-standard hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring motion-safe:animate-fade-in',
+          shared && 'ring-2 ring-border',
+        )}
+      >
+        {cell}
+      </button>
+    ) : (
+      <span
+        className={cn(
+          'absolute inset-0 motion-safe:animate-fade-in',
+          shared && 'rounded-full ring-2 ring-border',
+        )}
+      >
+        {cell}
+      </span>
+    );
+
+  // 兼任 tooltip: the units this person holds posts in, e.g. 「内容组 · 增长组」.
+  return shared && anchors ? (
+    <Tooltip content={anchors.map((anchor) => anchor.title).join(' · ')}>{body}</Tooltip>
   ) : (
-    <span className="absolute inset-0 motion-safe:animate-fade-in">{cell}</span>
+    body
   );
 }

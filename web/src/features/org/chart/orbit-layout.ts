@@ -18,6 +18,12 @@ import type { OrgTreeNode } from '../tree';
  * Because item keys are stable (`node:<id>` / `leaf:<nodeId>:<userId>`), the
  * renderer can CSS-transition items between two layouts — the "挤开" effect is
  * simply the diff between scenes. Kept pure and DOM-free (orbit-layout.test.ts).
+ *
+ * v2 (全员星图): a focused scene shows EVERY member of the focus subtree exactly
+ * once (dedup by userId) — direct-only members as the phyllotaxis cluster, each
+ * moon's subtree members as a sector fan of arc rows behind that moon, and
+ * multi-post (兼任) members as ONE shared leaf wired to every anchor unit via
+ * `links` (rendered as thin lines that glide with the nodes).
  */
 
 export type OrbitItemKind = 'core' | 'planet' | 'moon' | 'leaf' | 'ghost' | 'ring' | 'halo';
@@ -38,6 +44,13 @@ export interface OrbitItem {
   /** Leaf only: the member is a 负责人 (renders the amber ring + crown). */
   isLead?: boolean;
   /**
+   * Leaf only (v2): the unit(s) this member hangs from — `[moon]` for a
+   * sector-fan cell, every anchor unit for a 兼任 (multi-post) member (the
+   * focus node first when they also hold a direct post). Absent on plain
+   * direct-cluster cells, which are owned by the focus node itself.
+   */
+  anchors?: OrgTreeNode[];
+  /**
    * Tree depth of `node` for planet/moon/ghost (roots = 0). Leaves sit at the
    * focus node's depth + 1; core and rings use the scene depth. Ghost clicks
    * rebuild the focus path from this: `path.slice(0, depth).concat(node.id)`.
@@ -45,8 +58,24 @@ export interface OrbitItem {
   depth: number;
 }
 
+/**
+ * Anchor line between a unit and a member leaf (v2). Coordinates are NOT baked
+ * in — the renderer resolves both keys against the item list every render, so
+ * lines glide with the 400ms layout animation exactly like the nodes they join.
+ */
+export interface OrbitLink {
+  /** Stable React key: `link:<fromKey>-><toKey>`. */
+  key: string;
+  /** `node:<moonId>`, or `node:<focusId>` for star anchors of 兼任 members. */
+  fromKey: string;
+  /** The member leaf: `leaf:<focusId>:<userId>`. */
+  toKey: string;
+}
+
 export interface OrbitLayout {
   items: OrbitItem[];
+  /** Unit→member anchor lines (focused scenes only; empty elsewhere). */
+  links: OrbitLink[];
   /** Tight world size including ORBIT_PADDING on all sides ({0,0} when empty). */
   bounds: { width: number; height: number };
   /**
@@ -98,6 +127,22 @@ export const MOON_ORBIT_BASE_R = 230;
 export const MOON_R = 46;
 /** Gap between the member cluster's outer edge and moon centers. */
 export const MOON_DISC_GAP = 42;
+
+/**
+ * 卫星扇区 (moon sector fan, v2): each moon's subtree members arc up in
+ * concentric rows OUTSIDE the moon ring, centered on the moon's bearing.
+ * FAN_BASE (first row radius) = moonOrbit + MOON_R + FAN_BASE_GAP.
+ */
+export const FAN_BASE_GAP = 64;
+/** Radial pitch between consecutive fan rows. */
+export const FAN_ROW_GAP = 76;
+/** Arc pitch between neighbouring cells within a fan row. */
+export const LEAF_PITCH = 72;
+/** Fraction of a moon's angular slot its fan may fill (the rest is margin, so
+ * neighbouring moons' fans can never overlap). */
+export const FAN_SECTOR_RATIO = 0.82;
+/** Minimum center distance between any two leaf cells (collision threshold). */
+export const LEAF_MIN_DIST = 48;
 
 /** Far arc for ghosted siblings — at least this, always clear of the scene. */
 export const GHOST_ARC_R = 620;
@@ -164,18 +209,19 @@ export function orbitLayout(roots: OrgTreeNode[], focusPath: string[]): OrbitLay
   if (roots.length === 0) {
     return {
       items: [],
+      links: [],
       bounds: { width: 0, height: 0 },
       coreBounds: { x: 0, y: 0, width: 0, height: 0 },
     };
   }
 
   const chain = resolveFocusPath(roots, focusPath);
-  const items =
+  const scene =
     focusPath.length > 0 && chain.length === focusPath.length
       ? focusScene(roots, chain)
-      : overviewScene(roots);
+      : { items: overviewScene(roots), links: [] };
 
-  return finalize(items);
+  return finalize(scene.items, scene.links);
 }
 
 /** Overview `[]`: core + one orbit ring + roots as planets. Nothing deeper. */
@@ -202,9 +248,13 @@ function overviewScene(roots: OrgTreeNode[]): OrbitItem[] {
   return items;
 }
 
-/** Focused `[…, focus]`: centered star + moons + leaves + ghost arcs per level. */
-function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
+/** Focused `[…, focus]`: centered star + moons + leaves + links + ghost arcs. */
+function focusScene(
+  roots: OrgTreeNode[],
+  chain: OrgTreeNode[],
+): { items: OrbitItem[]; links: OrbitLink[] } {
   const items: OrbitItem[] = [];
+  const links: OrbitLink[] = [];
   const focus = chain[chain.length - 1]!;
   const focusDepth = chain.length - 1;
 
@@ -219,25 +269,57 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
     depth: focusDepth,
   });
 
-  // Direct members as a phyllotaxis (sunflower) cluster hugging the star — the
-  // 饱满 member disc. 负责人 first ⇒ innermost, closest to the star. Cells pack
-  // at ~LEAF_SPREAD pitch; the annulus starts just outside the star's edge.
-  const people: Array<{ member: OrgNodeMember; isLead: boolean }> = [
-    ...focus.leads.map((member) => ({ member, isLead: true })),
-    ...focus.members.map((member) => ({ member, isLead: false })),
-  ];
+  // 全员点名 (census): every member of the focus SUBTREE exactly once, deduped
+  // by userId. Anchors — 'star' for a direct 负责人/成员 post on the focus node;
+  // moon m when they appear anywhere in m's subtree (one anchor per moon no
+  // matter how many posts inside it). isLead = 负责人 in ANY unit they hold.
+  const census = new Map<
+    string,
+    { member: OrgNodeMember; isLead: boolean; star: boolean; moons: OrgTreeNode[] }
+  >();
+  const note = (member: OrgNodeMember, isLead: boolean, moon?: OrgTreeNode): void => {
+    let entry = census.get(member.userId);
+    if (!entry) {
+      entry = { member, isLead: false, star: false, moons: [] };
+      census.set(member.userId, entry);
+    }
+    if (isLead) entry.isLead = true;
+    if (moon === undefined) entry.star = true;
+    else if (!entry.moons.includes(moon)) entry.moons.push(moon);
+  };
+  focus.leads.forEach((member) => note(member, true));
+  focus.members.forEach((member) => note(member, false));
+  for (const moon of focus.children) {
+    const walk = (node: OrgTreeNode): void => {
+      node.leads.forEach((member) => note(member, true, moon));
+      node.members.forEach((member) => note(member, false, moon));
+      node.children.forEach(walk);
+    };
+    walk(moon);
+  }
+  const entries = [...census.values()];
+  const leafKey = (userId: string): string => `leaf:${focus.id}:${userId}`;
+  // Every placed leaf center — the collision reference for 兼任 nudging.
+  const placed: Array<{ x: number; y: number }> = [];
+
+  // Direct-only members as a phyllotaxis (sunflower) cluster hugging the star —
+  // the 饱满 member disc. No link line: proximity implies ownership. 负责人
+  // first ⇒ innermost, closest to the star (census preserves that order). Cells
+  // pack at ~LEAF_SPREAD pitch; the annulus starts just outside the star's edge.
+  const cluster = entries.filter((entry) => entry.star && entry.moons.length === 0);
   // Outer edge of the member cluster (star edge when there are no members).
   let discOuter = FOCUS_R;
-  if (people.length > 0) {
+  if (cluster.length > 0) {
     const innerR = FOCUS_R + LEAF_INNER_GAP + LEAF_R;
     // Index offset that opens the annulus hole: r(k) = SPREAD·√(k+k0).
     const k0 = (innerR / LEAF_SPREAD) ** 2;
-    people.forEach(({ member, isLead }, i) => {
+    cluster.forEach(({ member, isLead }, i) => {
       const radius = LEAF_SPREAD * Math.sqrt(i + k0);
       const { x, y } = polar(radius, START_ANGLE + i * GOLDEN_ANGLE);
       discOuter = Math.max(discOuter, radius + LEAF_R);
+      placed.push({ x, y });
       items.push({
-        key: `leaf:${focus.id}:${member.userId}`,
+        key: leafKey(member.userId),
         kind: 'leaf',
         x,
         y,
@@ -247,7 +329,7 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
         depth: focusDepth + 1,
       });
     });
-    // Soft kind-tinted halo behind the cluster seats the whole composition.
+    // Soft kind-tinted halo behind the DIRECT cluster seats the composition.
     items.push({
       key: 'halo:members',
       kind: 'halo',
@@ -278,8 +360,91 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
     });
   }
 
-  // Ghost arcs must clear the (possibly grown) scene content.
-  const sceneOuter = moons.length > 0 ? moonOrbit + MOON_R : discOuter;
+  // Subtree members OUTSIDE the moon ring (v2): sector fans + 兼任 leaves.
+  // Tracks the outermost leaf edge so ghosts/coreBounds clear the fans.
+  let leafOuter = discOuter;
+  if (moons.length > 0) {
+    const fanBase = moonOrbit + MOON_R + FAN_BASE_GAP;
+    const sector = ((Math.PI * 2) / moons.length) * FAN_SECTOR_RATIO;
+    const moonAngle = new Map(
+      moons.map((moon, i): [string, number] => [moon.id, slotAngle(i, moons.length)]),
+    );
+
+    const pushLeaf = (
+      entry: { member: OrgNodeMember; isLead: boolean },
+      x: number,
+      y: number,
+      anchors: OrgTreeNode[],
+    ): void => {
+      const key = leafKey(entry.member.userId);
+      placed.push({ x, y });
+      leafOuter = Math.max(leafOuter, Math.hypot(x, y) + LEAF_R);
+      items.push({
+        key,
+        kind: 'leaf',
+        x,
+        y,
+        r: LEAF_R,
+        member: entry.member,
+        isLead: entry.isLead,
+        anchors,
+        depth: focusDepth + 1,
+      });
+      for (const anchor of anchors) {
+        const fromKey = `node:${anchor.id}`;
+        links.push({ key: `link:${fromKey}->${key}`, fromKey, toKey: key });
+      }
+    };
+
+    // Single-moon members fan out in concentric arc rows behind their moon,
+    // centered on its bearing; rows fill inner→outer at LEAF_PITCH along the
+    // arc. Cells never leave their sector, so neighbouring fans stay apart.
+    for (const moon of moons) {
+      const fan = entries.filter(
+        (entry) => !entry.star && entry.moons.length === 1 && entry.moons[0] === moon,
+      );
+      const bearing = moonAngle.get(moon.id)!;
+      let index = 0;
+      for (let row = 0; index < fan.length; row += 1) {
+        const radius = fanBase + row * FAN_ROW_GAP;
+        const capacity = Math.max(1, Math.floor((sector * radius) / LEAF_PITCH));
+        const rowEntries = fan.slice(index, index + capacity);
+        const pitch = LEAF_PITCH / radius;
+        rowEntries.forEach((entry, i) => {
+          const angle = bearing + (i - (rowEntries.length - 1) / 2) * pitch;
+          const { x, y } = polar(radius, angle);
+          pushLeaf(entry, x, y, [moon]);
+        });
+        index += rowEntries.length;
+      }
+    }
+
+    // 兼任 (multi-post) members: ONE leaf in the middle band, linked to EVERY
+    // anchor. Direction = normalized vector sum of the anchor positions (the
+    // star sits at the origin and contributes zero; a near-zero sum — e.g. two
+    // opposite moons — falls back to the first moon's bearing), then nudged
+    // along the arc until clear of every already-placed cell.
+    for (const entry of entries) {
+      const anchorCount = (entry.star ? 1 : 0) + entry.moons.length;
+      if (anchorCount < 2) continue;
+      let sumX = 0;
+      let sumY = 0;
+      for (const moon of entry.moons) {
+        const p = polar(moonOrbit, moonAngle.get(moon.id)!);
+        sumX += p.x;
+        sumY += p.y;
+      }
+      const bearing =
+        Math.hypot(sumX, sumY) < 1e-6
+          ? moonAngle.get(entry.moons[0]!.id)!
+          : Math.atan2(sumY, sumX);
+      const spot = nudgeClear(bearing, fanBase + FAN_ROW_GAP, placed);
+      pushLeaf(entry, spot.x, spot.y, entry.star ? [focus, ...entry.moons] : [...entry.moons]);
+    }
+  }
+
+  // Ghost arcs must clear the (possibly grown) scene content, fans included.
+  const sceneOuter = Math.max(leafOuter, moons.length > 0 ? moonOrbit + MOON_R : 0);
   const ghostBase = Math.max(GHOST_ARC_R, sceneOuter + GHOST_CLEARANCE);
 
   // Every ancestor level's siblings become ghosts. The focus node's own siblings
@@ -304,11 +469,39 @@ function focusScene(roots: OrgTreeNode[], chain: OrgTreeNode[]): OrbitItem[] {
     });
   }
 
-  return items;
+  return { items, links };
+}
+
+/**
+ * First spot ≥ LEAF_MIN_DIST from every placed cell: sweep the arc at `radius`
+ * away from `bearing` in LEAF_PITCH steps to both sides, then move one band
+ * out and retry (兼任 leaves only — fan rows are collision-free by construction).
+ */
+function nudgeClear(
+  bearing: number,
+  startRadius: number,
+  placed: Array<{ x: number; y: number }>,
+): { x: number; y: number } {
+  let radius = startRadius;
+  for (let band = 0; band < 8; band += 1) {
+    const step = LEAF_PITCH / radius;
+    const half = Math.ceil(Math.PI / step);
+    for (let k = 0; k <= half; k += 1) {
+      for (const sign of k === 0 ? [0] : [-1, 1]) {
+        const spot = polar(radius, bearing + sign * k * step);
+        if (placed.every((p) => Math.hypot(p.x - spot.x, p.y - spot.y) >= LEAF_MIN_DIST)) {
+          return spot;
+        }
+      }
+    }
+    radius += FAN_ROW_GAP;
+  }
+  // Pathological fallback (every band saturated): straight out along the bearing.
+  return polar(radius, bearing);
 }
 
 /** Offset all items so coordinates are positive with padding; compute bounds. */
-function finalize(items: OrbitItem[]): OrbitLayout {
+function finalize(items: OrbitItem[], links: OrbitLink[]): OrbitLayout {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -347,6 +540,7 @@ function finalize(items: OrbitItem[]): OrbitLayout {
 
   return {
     items,
+    links,
     bounds: {
       width: maxX - minX + ORBIT_PADDING * 2,
       height: maxY - minY + ORBIT_PADDING * 2,
