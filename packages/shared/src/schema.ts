@@ -243,6 +243,29 @@ export const taskSchema = z.object({
 });
 export type Task = z.infer<typeof taskSchema>;
 
+/**
+ * A file attached to an idea (§7.1) or a comment — same in-DB recipe as task
+ * files (bytea, ≤5MB, enforced server-side). Metadata only: the raw bytes NEVER
+ * cross the wire in this shape; they stream separately via
+ * GET /{ideas|comments}/:id/files/:fileId.
+ */
+export const attachmentSchema = z.object({
+  id: uuidSchema,
+  filename: z.string(),
+  mime: z.string(),
+  /** Stored byte size of the file (≤ 5MB). */
+  sizeBytes: z.number().int().nonnegative(),
+  uploaderId: uuidSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type Attachment = z.infer<typeof attachmentSchema>;
+
+/** POST /{ideas|comments}/:id/files — upload response (the created file). */
+export const attachmentsResponseSchema = z.object({
+  files: z.array(attachmentSchema),
+});
+export type AttachmentsResponse = z.infer<typeof attachmentsResponseSchema>;
+
 export const commentSchema = z.object({
   id: uuidSchema,
   taskId: uuidSchema,
@@ -257,6 +280,8 @@ export type Comment = z.infer<typeof commentSchema>;
 /** Comment joined with its author (returned by GET /tasks/:id/comments). */
 export const commentWithAuthorSchema = commentSchema.extend({
   author: userSchema,
+  /** The comment's file attachments (metadata only), oldest first. */
+  files: z.array(attachmentSchema),
 });
 export type CommentWithAuthor = z.infer<typeof commentWithAuthorSchema>;
 
@@ -304,6 +329,8 @@ export const ideaSchema = z.object({
   rewardPoints: z.number().int().nullable(),
   /** The lead/admin who adopted the idea; null otherwise. */
   adoptedBy: uuidSchema.nullable(),
+  /** The idea's file attachments (metadata only), oldest first. */
+  files: z.array(attachmentSchema),
   createdAt: isoDateTimeSchema,
 });
 export type Idea = z.infer<typeof ideaSchema>;

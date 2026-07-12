@@ -11,6 +11,7 @@ import {
   Textarea,
   type BadgeVariant,
 } from '../../components/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { avatarUrl } from '../../lib/utils';
 import { isApiClientError } from '../../api/client';
 import {
@@ -20,9 +21,14 @@ import {
   useRejectIdea,
   useTaskIdeas,
 } from '../../api/ideas';
+import { useAuth } from '../../lib/auth-context';
+import { queryKeys } from '../../lib/query';
 import { relativeTime } from '../board/format';
 import type { TaskPermissionContext } from '../board/permissions';
 import { isManager } from '../board/permissions';
+import { AttachmentChips } from '../attachments/AttachmentChips';
+import { AttachmentPicker } from '../attachments/AttachmentPicker';
+import { useAttachmentSubmit } from '../attachments/useAttachmentSubmit';
 import { renderMarkdown } from './markdown';
 
 /**
@@ -164,6 +170,7 @@ function IdeaItem({
         </div>
 
         <div className="mt-1 break-words">{renderMarkdown(idea.body)}</div>
+        <IdeaAttachments idea={idea} canManage={canManage} />
 
         {canManage && idea.status === 'pending' && (
           <div className="mt-2">
@@ -226,24 +233,72 @@ function IdeaItem({
   );
 }
 
+/**
+ * An idea's attachment chips (§7.1). Mirrors the server rules: the AUTHOR may
+ * add/remove files while the idea is still pending (also the recovery path for
+ * a failed composer upload); a manager may delete anytime.
+ */
+function IdeaAttachments({ idea, canManage }: { idea: Idea; canManage: boolean }): JSX.Element {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return (
+    <AttachmentChips
+      owner="ideas"
+      ownerId={idea.id}
+      files={idea.files}
+      canUpload={idea.author.id === user?.id && idea.status === 'pending'}
+      canDeleteFile={(f) =>
+        canManage || (f.uploaderId === user?.id && idea.status === 'pending')
+      }
+      onChanged={() => {
+        if (idea.taskId) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.taskIdeas(idea.taskId) });
+        }
+        void queryClient.invalidateQueries({ queryKey: ['ideas'] });
+      }}
+    />
+  );
+}
+
 function IdeaComposer({ taskId }: { taskId: string }): JSX.Element {
   const [body, setBody] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const createIdea = useCreateIdea(taskId);
+  const queryClient = useQueryClient();
+  // Shared create→upload flow with the double-submit guard (see useAttachmentSubmit).
+  const { submitting, submit } = useAttachmentSubmit('ideas');
 
-  function handleSubmit(e: React.FormEvent): void {
-    e.preventDefault();
+  async function send(): Promise<void> {
     setError(null);
     const parsed = createIdeaInputSchema.safeParse({ body: body.trim() });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? '想法不能为空');
       return;
     }
-    createIdea.mutate(parsed.data, {
-      onSuccess: () => setBody(''),
-      onError: (err) =>
-        setError(isApiClientError(err) ? err.message : '发布失败，请稍后重试'),
+
+    const result = await submit({
+      create: () => createIdea.mutateAsync(parsed.data),
+      files: pendingFiles,
+      invalidate: () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.taskIdeas(taskId) });
+        void queryClient.invalidateQueries({ queryKey: ['ideas'] });
+      },
+      createdLabel: '想法已发布',
     });
+    if (result.status === 'busy') return;
+    if (result.status === 'error') {
+      setError(result.message);
+      return;
+    }
+    if (result.status === 'partial') setError(result.message);
+    setBody('');
+    setPendingFiles([]);
+  }
+
+  function handleSubmit(e: React.FormEvent): void {
+    e.preventDefault();
+    void send();
   }
 
   return (
@@ -262,6 +317,7 @@ function IdeaComposer({ taskId }: { taskId: string }): JSX.Element {
         }}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
+      <AttachmentPicker files={pendingFiles} onChange={setPendingFiles} disabled={submitting} />
       <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
           <Lightbulb className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -271,10 +327,10 @@ function IdeaComposer({ taskId }: { taskId: string }): JSX.Element {
           type="submit"
           size="sm"
           className="w-full shrink-0 sm:w-auto"
-          loading={createIdea.isPending}
+          loading={submitting}
           disabled={!body.trim()}
         >
-          {!createIdea.isPending && <Send className="h-3.5 w-3.5" aria-hidden />}
+          {!submitting && <Send className="h-3.5 w-3.5" aria-hidden />}
           发布想法
         </Button>
       </div>

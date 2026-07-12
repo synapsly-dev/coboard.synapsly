@@ -14,7 +14,7 @@ import {
 } from '../../api/task-files';
 import type { TaskPermissionContext } from '../board/permissions';
 import { isManager } from '../board/permissions';
-import { FilePreviewDialog } from './FilePreviewDialog';
+import { FilePreviewDialog } from '../attachments/FilePreviewDialog';
 
 /**
  * Attachment section (§7.2) inside the task detail drawer — "用于交付一些文件内容".
@@ -130,8 +130,9 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
       )}
 
       <FilePreviewDialog
-        taskId={taskId}
         file={previewFile}
+        previewSrc={previewFile ? taskFilePreviewUrl(taskId, previewFile.id) : ''}
+        downloadUrl={previewFile ? taskFileUrl(taskId, previewFile.id) : ''}
         open={previewFile !== null}
         onOpenChange={(open) => {
           if (!open) setPreviewFile(null);

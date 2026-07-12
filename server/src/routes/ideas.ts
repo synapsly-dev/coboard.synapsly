@@ -13,7 +13,7 @@ import {
 } from 'shared';
 import { projectMembers, type IdeaRow, type UserRow } from '../db/schema.js';
 import { forbidden } from '../lib/errors.js';
-import { requireAuth, requireTaskVisibility } from '../lib/guards.js';
+import { requireAuth, requireIdeaVisibility, requireTaskVisibility } from '../lib/guards.js';
 import { parseBody, parseParams, parseQuery } from '../lib/validate.js';
 import { loadTaskOrThrow } from '../services/commentService.js';
 import {
@@ -66,9 +66,9 @@ async function resolveIdeaScope(db: Database, user: UserRow): Promise<IdeaScope>
 
 /**
  * Resolve who the caller is relative to an idea being adopted/rejected, enforcing
- * the review permission and returning the owning project id for the realtime fan-out:
- * - TASK idea: the task's project lead / global admin (pool task: creator / admin),
- *   via {@link requireTaskVisibility}'s `isLead` flag. Throws 403 otherwise.
+ * the review permission via the shared {@link requireIdeaVisibility} guard:
+ * - TASK idea: the task's lead-equivalent (project lead / global admin; pool task:
+ *   creator / admin). Throws 403 otherwise.
  * - STANDALONE idea (no task / project): global admin only. Throws 403 otherwise.
  */
 async function authorizeIdeaReview(
@@ -76,56 +76,29 @@ async function authorizeIdeaReview(
   request: FastifyRequest,
   idea: IdeaRow,
 ): Promise<{ user: UserRow; projectId: string | null }> {
-  if (idea.taskId === null) {
-    const user = requireAuth(request);
-    if (!isAdminRole(user.role)) {
-      throw forbidden('需要管理员权限');
-    }
-    return { user, projectId: null };
+  const access = await requireIdeaVisibility(db, request, idea);
+  if (!access.isLead) {
+    throw forbidden(idea.taskId === null ? '需要管理员权限' : '需要项目负责人权限');
   }
-
-  const task = await loadTaskOrThrow(db, idea.taskId);
-  // Project lead / global admin (project task), or the task creator / admin (pool
-  // task, §8) — the lead-equivalent is carried in `isLead`.
-  const { user, isLead } = await requireTaskVisibility(db, request, task);
-  if (!isLead) {
-    throw forbidden('需要项目负责人权限');
-  }
-  return { user, projectId: task.projectId };
+  return { user: access.user, projectId: access.projectId };
 }
 
 /**
  * Resolve who the caller is relative to an idea being DELETED, enforcing the
- * (broader-than-review) delete permission and returning the owning project id for
- * the realtime fan-out. Deletion is allowed for:
- * - the idea's AUTHOR (own idea, task or standalone),
- * - a GLOBAL ADMIN (any idea), or
- * - for a TASK idea, the task's PROJECT LEAD (lead-equivalent for pool tasks).
- *
- * Throws 403 otherwise. A STANDALONE idea has no project → admin or author only.
+ * (broader-than-review) delete permission: the idea's AUTHOR, or the idea's
+ * lead-equivalent per {@link requireIdeaVisibility} (task lead / global admin;
+ * standalone → admin only).
  */
 async function authorizeIdeaDelete(
   db: Database,
   request: FastifyRequest,
   idea: IdeaRow,
 ): Promise<{ user: UserRow; projectId: string | null }> {
-  if (idea.taskId === null) {
-    const user = requireAuth(request);
-    if (!isAdminRole(user.role) && idea.authorId !== user.id) {
-      throw forbidden('只能删除自己发布的想法');
-    }
-    return { user, projectId: null };
-  }
-
-  const task = await loadTaskOrThrow(db, idea.taskId);
-  // Visibility is enforced here; `isLead` carries the lead-equivalent manage flag
-  // (project lead / global admin, or the pool-task creator / admin, §8).
-  const { user, isLead } = await requireTaskVisibility(db, request, task);
-  const isAuthor = idea.authorId === user.id;
-  if (!isAuthor && !isLead) {
+  const access = await requireIdeaVisibility(db, request, idea);
+  if (idea.authorId !== access.user.id && !access.isLead) {
     throw forbidden('只能删除自己发布的想法');
   }
-  return { user, projectId: task.projectId };
+  return { user: access.user, projectId: access.projectId };
 }
 
 const ideasRoutes: FastifyPluginAsync = async (fastify) => {

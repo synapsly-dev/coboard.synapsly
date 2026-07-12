@@ -1,8 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { idParamSchema, isInlinePreviewable, type TaskFilesResponse } from 'shared';
-import { AppError, ErrorCode, conflict, forbidden, notFound, validationError } from '../lib/errors.js';
+import { idParamSchema, type TaskFilesResponse } from 'shared';
+import { conflict, forbidden, notFound } from '../lib/errors.js';
 import { requireTaskVisibility } from '../lib/guards.js';
+import { readUploadedFile, sendFileBytes } from '../lib/uploads.js';
 import { parseParams } from '../lib/validate.js';
 import { loadTaskOrThrow } from '../services/commentService.js';
 import {
@@ -21,32 +22,16 @@ import {
  * - DELETE /tasks/:id/files/:fileId    delete (uploader / project lead / global admin)
  *
  * Every endpoint requires the caller to be a member of the task's project (§6.3);
- * non-members must not even learn the task exists. The 5MB single-file cap is
- * enforced server-side via @fastify/multipart's per-stream `fileSize` limit (busboy
- * truncates the stream at the cap and we reject the truncated upload). Data access
- * lives in taskFileService.
+ * non-members must not even learn the task exists. The multipart read (5MB cap) and
+ * the hardened download response live in lib/uploads (shared with idea/comment
+ * attachments); data access lives in taskFileService.
  */
-
-/** Single-file upload cap (§7.2): 5 MB. */
-const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 /** Route param schema for /tasks/:id/files/:fileId. */
 const fileParamsSchema = z.object({
   id: z.string().uuid(),
   fileId: z.string().uuid(),
 });
-
-/**
- * Build a Content-Disposition value that survives non-ASCII (e.g. Chinese)
- * filenames. Provides an ASCII fallback plus the RFC 5987 `filename*` form so
- * browsers preserve the original name. `type` is `attachment` (download) by
- * default, or `inline` for an in-app preview of a whitelisted mime.
- */
-function contentDisposition(filename: string, type: 'attachment' | 'inline' = 'attachment'): string {
-  const asciiFallback = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-  const encoded = encodeURIComponent(filename);
-  return `${type}; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
-}
 
 const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
   const { db, bus } = fastify;
@@ -75,35 +60,7 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
       throw conflict('任务已完成，不能修改交付内容');
     }
 
-    if (!request.isMultipart()) {
-      throw validationError('请使用 multipart/form-data 上传文件');
-    }
-
-    // Stream the single file field; busboy hard-caps the read at MAX_FILE_BYTES.
-    const part = await request.file({ limits: { fileSize: MAX_FILE_BYTES } });
-    if (!part) {
-      throw validationError('未找到上传的文件');
-    }
-
-    // busboy hard-caps the stream at MAX_FILE_BYTES; with throwFileSizeLimit (the
-    // default) `toBuffer()` THROWS once the cap is hit. Translate that into a 413
-    // with a friendly message. The truncated-flag check is a belt-and-suspenders
-    // guard for the non-throwing path (§7.2 5MB cap).
-    let data: Buffer;
-    try {
-      data = await part.toBuffer();
-    } catch (err) {
-      if ((err as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
-        throw new AppError(413, ErrorCode.VALIDATION, '文件过大，单个文件不能超过 5MB');
-      }
-      throw err;
-    }
-    if (part.file.truncated || data.length > MAX_FILE_BYTES) {
-      throw new AppError(413, ErrorCode.VALIDATION, '文件过大，单个文件不能超过 5MB');
-    }
-    if (data.length === 0) {
-      throw validationError('文件为空');
-    }
+    const upload = await readUploadedFile(request);
 
     const file = await createTaskFile(
       db,
@@ -111,9 +68,9 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
         taskId: task.id,
         projectId: task.projectId,
         uploaderId: user.id,
-        filename: part.filename || '未命名文件',
-        mime: part.mimetype || 'application/octet-stream',
-        data,
+        filename: upload.filename,
+        mime: upload.mime,
+        data: upload.data,
       },
       bus,
     );
@@ -139,18 +96,7 @@ const taskFilesRoutes: FastifyPluginAsync = async (fastify) => {
       throw notFound('文件不存在');
     }
 
-    // Serve inline only when the client asks (?inline=1) AND the mime is on the
-    // preview whitelist (images + PDF). Anything else is always a download, so an
-    // uploaded HTML/SVG/etc. can never be rendered as a document in our origin.
-    // `nosniff` stops the browser sniffing a different (executable) type.
-    const wantsInline = (request.query as { inline?: string } | undefined)?.inline === '1';
-    const inline = wantsInline && isInlinePreviewable(file.mime);
-
-    reply.header('Content-Type', file.mime);
-    reply.header('X-Content-Type-Options', 'nosniff');
-    reply.header('Content-Disposition', contentDisposition(file.filename, inline ? 'inline' : 'attachment'));
-    reply.header('Cache-Control', 'private, max-age=0, must-revalidate');
-    return reply.send(file.bytes);
+    return sendFileBytes(request, reply, file);
   });
 
   // --- DELETE /tasks/:id/files/:fileId (uploader / lead / admin) -----------

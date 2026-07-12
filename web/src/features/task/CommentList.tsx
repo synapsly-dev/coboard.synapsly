@@ -5,11 +5,14 @@ import { updateCommentInputSchema } from 'shared';
 import { Avatar, Button, Spinner, Textarea } from '../../components/ui';
 import { avatarUrl } from '../../lib/utils';
 import { useAuth } from '../../lib/auth-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { isApiClientError } from '../../api/client';
 import { useDeleteComment, useUpdateComment } from '../../api/comments';
+import { queryKeys } from '../../lib/query';
 import { relativeTime } from '../board/format';
 import { isManager } from '../board/permissions';
 import type { TaskPermissionContext } from '../board/permissions';
+import { AttachmentChips } from '../attachments/AttachmentChips';
 import { extractMentions } from './mentions';
 import { renderMarkdown } from './markdown';
 
@@ -74,6 +77,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
   const [draft, setDraft] = useState(comment.body);
   const [error, setError] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
   const updateComment = useUpdateComment(taskId);
   const deleteComment = useDeleteComment(taskId);
 
@@ -189,7 +193,21 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
             </div>
           </div>
         ) : (
-          <div className="mt-1 break-words">{renderMarkdown(comment.body)}</div>
+          <>
+            <div className="mt-1 break-words">{renderMarkdown(comment.body)}</div>
+            <AttachmentChips
+              owner="comments"
+              ownerId={comment.id}
+              files={comment.files}
+              // Mirrors the server rules: the author may add files (also the
+              // recovery path for a failed composer upload); uploader/manager delete.
+              canUpload={isAuthor}
+              canDeleteFile={(f) => f.uploaderId === user?.id || isManager(permCtx, task)}
+              onChanged={() =>
+                void queryClient.invalidateQueries({ queryKey: queryKeys.comments(taskId) })
+              }
+            />
+          </>
         )}
       </div>
     </li>

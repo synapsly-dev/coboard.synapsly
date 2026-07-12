@@ -562,6 +562,53 @@ export const taskFiles = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// idea_files / comment_files — file attachments on ideas (§7.1) and comments.
+// Same storage recipe as task_files (bytea in-DB, ≤5MB, rides along with DB
+// backups); each cascades with its owning row, so deleting an idea/comment (or
+// the task above it) removes the bytes too.
+// ---------------------------------------------------------------------------
+
+export const ideaFiles = pgTable(
+  'idea_files',
+  {
+    id: primaryId,
+    ideaId: uuid('idea_id')
+      .notNull()
+      .references(() => ideas.id, { onDelete: 'cascade' }),
+    uploaderId: uuid('uploader_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    filename: text('filename').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    // Raw file bytes; never selected into list/metadata queries.
+    data: bytea('data').notNull(),
+    createdAt,
+  },
+  (table) => [index('idea_files_idea_id_idx').on(table.ideaId)],
+);
+
+export const commentFiles = pgTable(
+  'comment_files',
+  {
+    id: primaryId,
+    commentId: uuid('comment_id')
+      .notNull()
+      .references(() => comments.id, { onDelete: 'cascade' }),
+    uploaderId: uuid('uploader_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    filename: text('filename').notNull(),
+    mime: text('mime').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    // Raw file bytes; never selected into list/metadata queries.
+    data: bytea('data').notNull(),
+    createdAt,
+  },
+  (table) => [index('comment_files_comment_id_idx').on(table.commentId)],
+);
+
+// ---------------------------------------------------------------------------
 // announcements — admin-published notices shown on the 信息 page. Authored by a
 // global admin; readable by every logged-in user. `body` is Markdown. `author_id`
 // uses restrict so a user with notices can't be hard-deleted without reassigning.
@@ -787,6 +834,10 @@ export type IdeaRow = typeof ideas.$inferSelect;
 export type NewIdeaRow = typeof ideas.$inferInsert;
 export type TaskFileRow = typeof taskFiles.$inferSelect;
 export type NewTaskFileRow = typeof taskFiles.$inferInsert;
+export type IdeaFileRow = typeof ideaFiles.$inferSelect;
+export type NewIdeaFileRow = typeof ideaFiles.$inferInsert;
+export type CommentFileRow = typeof commentFiles.$inferSelect;
+export type NewCommentFileRow = typeof commentFiles.$inferInsert;
 export type SettingRow = typeof settings.$inferSelect;
 export type NewSettingRow = typeof settings.$inferInsert;
 export type AnnouncementRow = typeof announcements.$inferSelect;

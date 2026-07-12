@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import type { Idea, IdeaStatus, IdeaWithContext, UserSummary } from 'shared';
+import type { Attachment, Idea, IdeaStatus, IdeaWithContext, UserSummary } from 'shared';
 import type { Database } from '../db/index.js';
 import {
   ideas,
@@ -11,6 +11,7 @@ import {
 } from '../db/schema.js';
 import { notFound } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
+import { listIdeaFilesByIdea } from './attachmentService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
 
 /**
@@ -38,8 +39,8 @@ function toUserSummary(row: UserRow): UserSummary {
   };
 }
 
-/** Map an idea row + its author to the §7.1 `Idea` wire shape. */
-function toIdea(row: IdeaRow, author: UserRow): Idea {
+/** Map an idea row + its author (+ attachments) to the §7.1 `Idea` wire shape. */
+function toIdea(row: IdeaRow, author: UserRow, files: Attachment[] = []): Idea {
   return {
     id: row.id,
     taskId: row.taskId,
@@ -48,6 +49,7 @@ function toIdea(row: IdeaRow, author: UserRow): Idea {
     status: row.status,
     rewardPoints: row.rewardPoints,
     adoptedBy: row.adoptedBy,
+    files,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -70,7 +72,7 @@ export async function loadIdeaOrThrow(db: Database, ideaId: string): Promise<Ide
 // Queries
 // ---------------------------------------------------------------------------
 
-/** List a task's ideas (newest first) joined with their authors (§7.1). */
+/** List a task's ideas (newest first) joined with their authors + attachments (§7.1). */
 export async function listTaskIdeas(db: Database, taskId: string): Promise<Idea[]> {
   const rows = await db
     .select({ idea: ideas, author: users })
@@ -78,7 +80,8 @@ export async function listTaskIdeas(db: Database, taskId: string): Promise<Idea[
     .innerJoin(users, eq(ideas.authorId, users.id))
     .where(eq(ideas.taskId, taskId))
     .orderBy(desc(ideas.createdAt));
-  return rows.map((r) => toIdea(r.idea, r.author));
+  const filesByIdea = await listIdeaFilesByIdea(db, rows.map((r) => r.idea.id));
+  return rows.map((r) => toIdea(r.idea, r.author, filesByIdea.get(r.idea.id) ?? []));
 }
 
 /**
@@ -108,14 +111,19 @@ export async function listVisibleIdeas(
   const conditions = [];
 
   // Scope the TASK ideas to the caller's visible projects; STANDALONE ideas
-  // (task_id IS NULL) are always visible. A global admin ('all') sees every idea.
+  // (task_id IS NULL) and ideas on no-project POOL tasks (§8: visible to every
+  // logged-in user, tasks.project_id IS NULL) are always visible. A global admin
+  // ('all') sees every idea.
   if (scope.kind === 'projects') {
     const standalone = isNull(ideas.taskId);
+    const poolTaskIdeas = isNull(tasks.projectId);
     const visibleTaskIdeas =
       scope.projectIds.length === 0
         ? undefined
         : inArray(tasks.projectId, scope.projectIds);
-    const predicate = visibleTaskIdeas ? or(standalone, visibleTaskIdeas) : standalone;
+    const predicate = visibleTaskIdeas
+      ? or(standalone, poolTaskIdeas, visibleTaskIdeas)
+      : or(standalone, poolTaskIdeas);
     if (predicate) conditions.push(predicate);
   }
   if (status) {
@@ -137,8 +145,9 @@ export async function listVisibleIdeas(
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(ideas.createdAt));
 
+  const filesByIdea = await listIdeaFilesByIdea(db, rows.map((r) => r.idea.id));
   return rows.map((r) => ({
-    ...toIdea(r.idea, r.author),
+    ...toIdea(r.idea, r.author, filesByIdea.get(r.idea.id) ?? []),
     taskTitle: r.taskTitle,
     projectId: r.projectId,
     projectName: r.projectName,
@@ -268,7 +277,8 @@ export async function adoptIdea(
 
   const author = await loadUserOrThrow(db, updated.authorId);
   publishIdeaChange(realtimeBus, 'idea_adopted', updated, projectId);
-  return toIdea(updated, author);
+  const files = (await listIdeaFilesByIdea(db, [updated.id])).get(updated.id) ?? [];
+  return toIdea(updated, author, files);
 }
 
 /**
@@ -297,7 +307,8 @@ export async function rejectIdea(
 
   const author = await loadUserOrThrow(db, updated.authorId);
   publishIdeaChange(realtimeBus, 'idea_rejected', updated, projectId);
-  return toIdea(updated, author);
+  const rejectedFiles = (await listIdeaFilesByIdea(db, [updated.id])).get(updated.id) ?? [];
+  return toIdea(updated, author, rejectedFiles);
 }
 
 /**

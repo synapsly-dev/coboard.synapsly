@@ -5,7 +5,9 @@ import type { Database } from '../db/index.js';
 import {
   projectMembers,
   projects,
+  tasks,
   trackMembers,
+  type IdeaRow,
   type ProjectRow,
   type TaskRow,
   type UserRow,
@@ -233,6 +235,46 @@ export async function requireTaskVisibility(
   const isLead =
     membership.projectRole === 'lead' || isAdminRole(membership.user.role);
   return { user: membership.user, membership, isLead };
+}
+
+/**
+ * Resolved access context for an IDEA (§7.1), produced by
+ * {@link requireIdeaVisibility}.
+ */
+export interface IdeaAccessContext {
+  user: UserRow;
+  /** Lead-equivalent over this idea: task lead-equivalent, or admin (standalone). */
+  isLead: boolean;
+  /** Owning task/project ids for realtime fan-out; null for standalone ideas. */
+  taskId: string | null;
+  projectId: string | null;
+}
+
+/**
+ * Resolve who the caller is relative to an idea, enforcing ITS visibility scope
+ * (§7.1) — the single source both the idea routes and the idea-attachment routes
+ * build on, so the two can never drift:
+ * - TASK idea: the owning task must be visible ({@link requireTaskVisibility});
+ *   `isLead` carries the task's lead-equivalent flag.
+ * - STANDALONE 灵感区 idea: visible to every authenticated user; `isLead` is
+ *   true for a global admin (the lead-equivalent there).
+ */
+export async function requireIdeaVisibility(
+  db: Database,
+  request: FastifyRequest,
+  idea: Pick<IdeaRow, 'taskId'>,
+): Promise<IdeaAccessContext> {
+  if (idea.taskId === null) {
+    const user = requireAuth(request);
+    return { user, isLead: isAdminRole(user.role), taskId: null, projectId: null };
+  }
+  const rows = await db.select().from(tasks).where(eq(tasks.id, idea.taskId)).limit(1);
+  const task = rows[0];
+  if (!task) {
+    throw notFound('任务不存在');
+  }
+  const { user, isLead } = await requireTaskVisibility(db, request, task);
+  return { user, isLead, taskId: task.id, projectId: task.projectId };
 }
 
 /**

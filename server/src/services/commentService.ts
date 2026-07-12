@@ -1,6 +1,7 @@
 import { asc, eq } from 'drizzle-orm';
 import type {
   ActivityWithActor,
+  Attachment,
   CommentWithAuthor,
   User,
 } from 'shared';
@@ -17,6 +18,7 @@ import {
 } from '../db/schema.js';
 import { notFound } from '../lib/errors.js';
 import { publishChange, recordActivity } from './activityService.js';
+import { listCommentFilesByComment } from './attachmentService.js';
 import type { RealtimeBus } from '../realtime/bus.js';
 import { bus } from '../realtime/bus.js';
 
@@ -94,8 +96,12 @@ function toUser(row: UserRow): User {
   };
 }
 
-/** Map a comment row + its author to the §7 `CommentWithAuthor` wire shape. */
-function toCommentWithAuthor(row: CommentRow, author: UserRow): CommentWithAuthor {
+/** Map a comment row + its author (+ attachments) to the §7 `CommentWithAuthor` wire shape. */
+function toCommentWithAuthor(
+  row: CommentRow,
+  author: UserRow,
+  files: Attachment[] = [],
+): CommentWithAuthor {
   return {
     id: row.id,
     taskId: row.taskId,
@@ -105,6 +111,7 @@ function toCommentWithAuthor(row: CommentRow, author: UserRow): CommentWithAutho
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt ? row.editedAt.toISOString() : null,
     author: toUser(author),
+    files,
   };
 }
 
@@ -168,7 +175,10 @@ export async function listComments(
     .innerJoin(users, eq(comments.authorId, users.id))
     .where(eq(comments.taskId, taskId))
     .orderBy(asc(comments.createdAt));
-  return rows.map((r) => toCommentWithAuthor(r.comment, r.author));
+  const filesByComment = await listCommentFilesByComment(db, rows.map((r) => r.comment.id));
+  return rows.map((r) =>
+    toCommentWithAuthor(r.comment, r.author, filesByComment.get(r.comment.id) ?? []),
+  );
 }
 
 /** List a task's activity timeline (oldest first) joined with actors (§7). */
@@ -305,7 +315,8 @@ export async function updateComment(
     realtimeBus,
   );
 
-  return toCommentWithAuthor(updated, author);
+  const files = (await listCommentFilesByComment(db, [updated.id])).get(updated.id) ?? [];
+  return toCommentWithAuthor(updated, author, files);
 }
 
 /**

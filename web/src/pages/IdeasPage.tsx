@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Check, Lightbulb, Plus, Send, Trash2, X } from 'lucide-react';
+import { Check, Lightbulb, Paperclip, Plus, Send, Trash2, X } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { IdeaStatus, IdeaWithContext } from 'shared';
 import { adoptIdeaInputSchema, createStandaloneIdeaInputSchema, ideaStatuses } from 'shared';
 import {
@@ -34,6 +35,9 @@ import {
 } from '../api/ideas';
 import { useAuth } from '../lib/auth-context';
 import { relativeTime } from '../features/board/format';
+import { AttachmentChips } from '../features/attachments/AttachmentChips';
+import { AttachmentPicker } from '../features/attachments/AttachmentPicker';
+import { useAttachmentSubmit } from '../features/attachments/useAttachmentSubmit';
 import { IDEA_STATUS_LABELS, IDEA_STATUS_VARIANT } from '../features/task/IdeaSection';
 import { TaskDetailDrawer } from '../features/task/TaskDetailDrawer';
 
@@ -150,30 +154,52 @@ export default function IdeasPage(): JSX.Element {
 function PublishIdeaDialog(): JSX.Element {
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const createIdea = useCreateStandaloneIdea();
+  const queryClient = useQueryClient();
+  // Shared create→upload flow with the double-submit guard (see useAttachmentSubmit).
+  const { submitting, submit } = useAttachmentSubmit('ideas');
 
   function reset(): void {
     setBody('');
+    setPendingFiles([]);
     setError(null);
   }
 
-  function handleSubmit(e: React.FormEvent): void {
-    e.preventDefault();
+  async function send(): Promise<void> {
     setError(null);
     const parsed = createStandaloneIdeaInputSchema.safeParse({ body: body.trim() });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? '想法不能为空');
       return;
     }
-    createIdea.mutate(parsed.data, {
-      onSuccess: () => {
-        reset();
-        setOpen(false);
-      },
-      onError: (err) =>
-        setError(isApiClientError(err) ? err.message : '发布失败，请稍后重试'),
+
+    const result = await submit({
+      create: () => createIdea.mutateAsync(parsed.data),
+      files: pendingFiles,
+      invalidate: () => void queryClient.invalidateQueries({ queryKey: ['ideas'] }),
+      createdLabel: '灵感已发布',
     });
+    if (result.status === 'busy') return;
+    if (result.status === 'error') {
+      setError(result.message);
+      return;
+    }
+    if (result.status === 'partial') {
+      // Leave the dialog open so the warning is seen; the idea itself is out.
+      setError(result.message);
+      setBody('');
+      setPendingFiles([]);
+      return;
+    }
+    reset();
+    setOpen(false);
+  }
+
+  function handleSubmit(e: React.FormEvent): void {
+    e.preventDefault();
+    void send();
   }
 
   return (
@@ -215,6 +241,8 @@ function PublishIdeaDialog(): JSX.Element {
           />
           {error && <p className="text-xs text-destructive">{error}</p>}
 
+          <AttachmentPicker files={pendingFiles} onChange={setPendingFiles} disabled={submitting} />
+
           <DialogFooter>
             <Button
               type="button"
@@ -226,8 +254,8 @@ function PublishIdeaDialog(): JSX.Element {
             >
               取消
             </Button>
-            <Button type="submit" loading={createIdea.isPending} disabled={!body.trim()}>
-              {!createIdea.isPending && <Send className="h-3.5 w-3.5" aria-hidden />}
+            <Button type="submit" loading={submitting} disabled={!body.trim()}>
+              {!submitting && <Send className="h-3.5 w-3.5" aria-hidden />}
               发布
             </Button>
           </DialogFooter>
@@ -253,6 +281,8 @@ function IdeaCard({
 }): JSX.Element {
   const isStandalone = idea.taskId == null;
   const deleteIdea = useDeleteIdea();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   /** Overlaid 删除 button (top-right); kept out of the clickable task-card button. */
   const deleteButton = canDelete ? (
@@ -281,7 +311,8 @@ function IdeaCard({
           <Badge variant="primary">独立想法</Badge>
         ) : (
           <Badge variant="outline" className="font-mono">
-            {idea.projectName}
+            {/* Pool-task ideas (§8) have no owning project. */}
+            {idea.projectName ?? '无项目'}
           </Badge>
         )}
         <Badge variant={IDEA_STATUS_VARIANT[idea.status]}>
@@ -299,6 +330,17 @@ function IdeaCard({
       <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
         {idea.body}
       </p>
+
+      {/* CLICKABLE task-idea cards keep a passive 📎 count (the whole card is one
+          <button>, so interactive chips can't nest); the drawer's 想法 tab has the
+          full chips. Non-clickable cards (standalone / pool-task ideas) render the
+          interactive chips below instead. */}
+      {onOpen && idea.files.length > 0 && (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <Paperclip className="h-3 w-3" aria-hidden />
+          {idea.files.length} 个附件
+        </span>
+      )}
 
       <div className="mt-auto flex items-center gap-2 pt-1">
         <Avatar
@@ -335,6 +377,18 @@ function IdeaCard({
     <div className="relative flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm">
       {deleteButton}
       {head}
+      <AttachmentChips
+        owner="ideas"
+        ownerId={idea.id}
+        files={idea.files}
+        // Mirrors the server rules: the author may add/remove while pending (also
+        // the recovery path for a failed publish upload); an admin deletes anytime.
+        canUpload={idea.author.id === user?.id && idea.status === 'pending'}
+        canDeleteFile={(f) =>
+          canManage || (f.uploaderId === user?.id && idea.status === 'pending')
+        }
+        onChanged={() => void queryClient.invalidateQueries({ queryKey: ['ideas'] })}
+      />
       {isStandalone && canManage && idea.status === 'pending' && (
         <StandaloneIdeaActions idea={idea} />
       )}
