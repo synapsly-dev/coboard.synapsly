@@ -153,6 +153,72 @@ describe('TaskCard', () => {
     expect(screen.getByText('示例项目')).toBeTruthy();
   });
 
+  // 板块时间: offset-less ISO datetimes parse as local wall-clock, so the
+  // formatted expectations hold in any runner timezone.
+  it('shows 发布时间 on 待认领 and 进行中 cards', () => {
+    const { rerender } = render(
+      <TaskCard
+        task={makeTask({ status: 'open', createdAt: '2026-06-15T09:30:00' })}
+        projectId="project-1"
+        permCtx={permCtx}
+      />,
+    );
+    expect(screen.getByText('发布 06-15 09:30')).toBeTruthy();
+
+    rerender(
+      <TaskCard
+        task={makeTask({
+          status: 'in_progress',
+          createdAt: '2026-06-15T09:30:00',
+          claimants: [makeClaimant({ userId: 'user-2', displayName: '李四' })],
+        })}
+        projectId="project-1"
+        permCtx={permCtx}
+      />,
+    );
+    expect(screen.getByText('发布 06-15 09:30')).toBeTruthy();
+  });
+
+  it('shows 提交时间 on 待审阅 cards', () => {
+    const task = makeTask({
+      status: 'pending_review',
+      deliveredAt: '2026-06-18T14:05:00',
+      claimants: [makeClaimant({ userId: 'user-2', displayName: '李四' })],
+    });
+    render(<TaskCard task={task} projectId="project-1" permCtx={permCtx} />);
+    expect(screen.getByText('提交 06-18 14:05')).toBeTruthy();
+  });
+
+  it('shows 完成时间 on 已完成 cards and greens an on-time DDL', () => {
+    const task = makeTask({
+      status: 'done',
+      completedAt: '2026-06-18T14:00:00',
+      dueDate: '2026-06-20',
+    });
+    render(<TaskCard task={task} projectId="project-1" permCtx={permCtx} />);
+    expect(screen.getByText('完成 06-18 14:00')).toBeTruthy();
+    expect(screen.getByText('06-20').className).toContain('text-success');
+  });
+
+  it('reds the DDL when the task completed after it', () => {
+    const task = makeTask({
+      status: 'done',
+      completedAt: '2026-06-25T14:00:00',
+      dueDate: '2026-06-20',
+    });
+    render(<TaskCard task={task} projectId="project-1" permCtx={permCtx} />);
+    expect(screen.getByText('06-20').className).toContain('text-destructive');
+  });
+
+  it('keeps the 已逾期 red on a done task whose completedAt is defensively missing', () => {
+    // No verdict possible, but a blown DDL must not silently turn neutral.
+    const task = makeTask({ status: 'done', completedAt: null, dueDate: '2020-01-01' });
+    render(<TaskCard task={task} projectId="project-1" permCtx={permCtx} />);
+    const chip = screen.getByText('01-01');
+    expect(chip.className).toContain('text-destructive');
+    expect(chip.getAttribute('title')).toBe('已逾期');
+  });
+
   it('labels a no-project (pool) task 无项目 when showing the badge (§8)', () => {
     render(
       <TaskCard

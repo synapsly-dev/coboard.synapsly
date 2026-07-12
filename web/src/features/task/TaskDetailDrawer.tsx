@@ -63,7 +63,7 @@ import { ClaimLimitBadge } from '../board/ClaimLimitBadge';
 import { DeliverDialog } from '../board/DeliverDialog';
 import { FirstApprovedChip, ReviewActions } from '../board/ReviewActions';
 import { RevokeApprovalButton } from '../board/RevokeApprovalButton';
-import { dueInfo, relativeTime } from '../board/format';
+import { dueVerdict, relativeTime, type DueVerdict } from '../board/format';
 import {
   FINAL_REVIEW_CHIP_CLASS,
   PRIORITY_BADGE,
@@ -609,7 +609,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
           {task.dueDate && (
             <div className="flex items-center gap-3">
               <span className="w-16 shrink-0 text-xs font-medium text-muted-foreground">截止</span>
-              <DueLabel dueDate={task.dueDate} />
+              <DueLabel task={task} />
             </div>
           )}
         </div>
@@ -793,21 +793,27 @@ function TabButton({
   );
 }
 
-function DueLabel({ dueDate }: { dueDate: string }): JSX.Element {
-  const due = dueInfo(dueDate);
+/** Verdict → text color + suffix note; mirrors the board card's DDL chip. */
+const DUE_LABEL_TONE: Record<
+  NonNullable<DueVerdict>,
+  { className: string; note?: string }
+> = {
+  on_time: { className: 'font-medium text-success', note: '（按期完成）' },
+  late: { className: 'font-medium text-destructive', note: '（逾期完成）' },
+  overdue: { className: 'font-medium text-destructive', note: '（已逾期）' },
+  soon: { className: 'text-warning-foreground' },
+};
+
+function DueLabel({ task }: { task: Task }): JSX.Element {
+  // Shared dueVerdict keeps this consistent with the board card: 已完成 tasks
+  // read 按期/逾期完成 (fixed verdict), unfinished ones keep the live urgency.
+  const verdict = dueVerdict(task);
+  const tone = verdict ? DUE_LABEL_TONE[verdict] : null;
   return (
-    <span
-      className={`inline-flex items-center gap-1 text-sm ${
-        due.overdue
-          ? 'font-medium text-destructive'
-          : due.soon
-            ? 'text-warning-foreground'
-            : 'text-foreground'
-      }`}
-    >
+    <span className={`inline-flex items-center gap-1 text-sm ${tone?.className ?? 'text-foreground'}`}>
       <CalendarClock className="h-3.5 w-3.5" aria-hidden />
-      {dueDate}
-      {due.overdue && <span className="text-xs">（已逾期）</span>}
+      {task.dueDate}
+      {tone?.note && <span className="text-xs">{tone.note}</span>}
     </span>
   );
 }

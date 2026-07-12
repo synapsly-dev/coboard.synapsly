@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { CalendarClock, FolderKanban, PackageCheck } from 'lucide-react';
+import {
+  CalendarClock,
+  CheckCircle2,
+  FolderKanban,
+  Megaphone,
+  PackageCheck,
+  Send,
+} from 'lucide-react';
 import type { Task } from 'shared';
 import { Badge, Button } from '../../components/ui';
 import { cn } from '../../lib/utils';
@@ -10,7 +17,7 @@ import { ClaimantAvatars } from './ClaimantAvatars';
 import { DeliverDialog } from './DeliverDialog';
 import { FirstApprovedChip, ReviewActions } from './ReviewActions';
 import { RevokeApprovalButton } from './RevokeApprovalButton';
-import { dueInfo } from './format';
+import { dueInfo, dueVerdict, statusTimeInfo, type DueVerdict } from './format';
 import { PRIORITY_BADGE, PRIORITY_LABELS, QUALITY_GRADE_META } from './labels';
 import { TaskTypeBadge } from './TaskTypeBadge';
 import {
@@ -43,6 +50,14 @@ export interface TaskCardProps {
   className?: string;
 }
 
+/** DDL chip tone + tooltip per {@link DueVerdict} (see dueVerdict in format.ts). */
+const DUE_TONE: Record<NonNullable<DueVerdict>, { className: string; title?: string }> = {
+  on_time: { className: 'font-medium text-success', title: '按期完成' },
+  late: { className: 'font-medium text-destructive', title: '逾期完成' },
+  overdue: { className: 'font-medium text-destructive', title: '已逾期' },
+  soon: { className: 'text-warning-foreground' },
+};
+
 export function TaskCard({
   task,
   projectId,
@@ -53,6 +68,13 @@ export function TaskCard({
 }: TaskCardProps): JSX.Element {
   const priority = PRIORITY_BADGE[task.priority];
   const due = dueInfo(task.dueDate);
+  // Stage-appropriate timestamp (板块时间): 发布 (open/in_progress) / 提交
+  // (pending_review) / 完成 (done); see statusTimeInfo.
+  const statusTime = statusTimeInfo(task);
+  const StatusTimeIcon =
+    task.status === 'pending_review' ? Send : task.status === 'done' ? CheckCircle2 : Megaphone;
+  // DDL chip tone: done → fixed verdict (按期 green / 逾期 red); else live urgency.
+  const verdict = dueVerdict(task);
   const [deliverOpen, setDeliverOpen] = useState(false);
 
   // Keep cards compact: show at most a few label chips, then a "+N" overflow pill.
@@ -157,18 +179,23 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Footer: due date + claim-limit status + claimants */}
+      {/* Footer: stage timestamp + due date + claim-limit status + claimants */}
       <div className="mt-1 flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <ClaimLimitBadge task={task} />
+          {statusTime && (
+            <span
+              className="inline-flex items-center gap-1"
+              title={`${statusTime.prefix}时间 ${statusTime.text}`}
+            >
+              <StatusTimeIcon className="h-3.5 w-3.5" aria-hidden />
+              {statusTime.prefix} {statusTime.text}
+            </span>
+          )}
           {due.label && (
             <span
-              className={cn(
-                'inline-flex items-center gap-1',
-                due.overdue && 'font-medium text-destructive',
-                due.soon && !due.overdue && 'text-warning-foreground',
-              )}
-              title={due.overdue ? '已逾期' : undefined}
+              className={cn('inline-flex items-center gap-1', verdict && DUE_TONE[verdict].className)}
+              title={verdict ? DUE_TONE[verdict].title : undefined}
             >
               <CalendarClock className="h-3.5 w-3.5" aria-hidden />
               {due.label}

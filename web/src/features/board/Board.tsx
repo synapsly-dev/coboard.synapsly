@@ -175,7 +175,10 @@ export function Board({
           <div className="flex min-h-0 flex-1 gap-3 overflow-hidden px-4 pb-4 sm:px-6">
             {COLUMN_ORDER.map((status) => (
               <Column
-                key={status}
+                // projectId in the key remounts columns on project switch, so
+                // column-local search/sort state never leaks across projects
+                // (Board itself stays mounted when only the route param changes).
+                key={`${projectId}:${status}`}
                 status={status}
                 tasks={columns[status]}
                 projectId={projectId}

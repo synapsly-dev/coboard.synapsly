@@ -22,6 +22,28 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   done: '已完成',
 };
 
+/** One column's stage-timestamp spec (板块时间) — see {@link STATUS_TIME}. */
+export interface StatusTimeSpec {
+  /** Sort-menu label, e.g. "发布时间". */
+  label: string;
+  /** Card chip verb, e.g. "发布". */
+  prefix: string;
+  /** Which Task field carries this stage's timestamp. */
+  field: 'createdAt' | 'deliveredAt' | 'completedAt';
+}
+
+/**
+ * The SINGLE source of the status→timestamp mapping — the card chip (format.ts),
+ * the time-sort comparators (sort.ts) and the column sort menu (Column.tsx) all
+ * read it, so they can never disagree.
+ */
+export const STATUS_TIME: Record<TaskStatus, StatusTimeSpec> = {
+  open: { label: '发布时间', prefix: '发布', field: 'createdAt' },
+  in_progress: { label: '发布时间', prefix: '发布', field: 'createdAt' },
+  pending_review: { label: '提交时间', prefix: '提交', field: 'deliveredAt' },
+  done: { label: '完成时间', prefix: '完成', field: 'completedAt' },
+};
+
 export const PRIORITY_LABELS: Record<Priority, string> = {
   low: '低',
   medium: '中',

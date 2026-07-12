@@ -21,6 +21,16 @@ if (!window.matchMedia) {
     }) as unknown as MediaQueryList;
 }
 
+// Pointer-capture + scrollIntoView (Radix menus/selects call these; jsdom lacks them).
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // ResizeObserver (Radix Select/Popover + Recharts rely on it).
 if (!('ResizeObserver' in window)) {
   class ResizeObserverStub {
