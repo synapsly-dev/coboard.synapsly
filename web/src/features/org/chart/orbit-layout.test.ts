@@ -17,8 +17,10 @@ import {
   OVERVIEW_ORBIT_PER_PLANET,
   PLANET_R_MAX,
   PLANET_R_MIN,
+  forestPeople,
   orbitLayout,
   planetRadius,
+  subtreePeople,
   type OrbitItem,
 } from './orbit-layout';
 
@@ -58,6 +60,27 @@ function itemFor(layout: ReturnType<typeof orbitLayout>, key: string): OrbitItem
   if (!hit) throw new Error(`item ${key} missing`);
   return hit;
 }
+
+describe('subtreePeople / forestPeople (人数统计 兼任去重)', () => {
+  it('counts a user holding several posts in one subtree once', () => {
+    // u1 is dept lead AND a member of both child groups; u2/u3 appear once.
+    const roots = buildTree([
+      node('dept', null, 'a', { leads: [person('u1', 'lead')] }),
+      node('g1', 'dept', 'a', { members: [person('u1'), person('u2')] }),
+      node('g2', 'dept', 'b', { members: [person('u1'), person('u3')] }),
+    ]);
+    expect(subtreePeople(roots[0]!)).toBe(3); // u1, u2, u3 — not 5 post rows
+  });
+
+  it('forestPeople dedups across root subtrees (a per-root sum would double)', () => {
+    const roots = buildTree([
+      node('a', null, 'a', { members: [person('u1'), person('u2')] }),
+      node('b', null, 'b', { members: [person('u1')] }),
+    ]);
+    expect(subtreePeople(roots[0]!) + subtreePeople(roots[1]!)).toBe(3);
+    expect(forestPeople(roots)).toBe(2); // u1 serves in both departments
+  });
+});
 
 describe('orbitLayout', () => {
   it('returns empty layout for an empty forest', () => {

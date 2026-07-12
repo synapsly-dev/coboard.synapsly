@@ -16,6 +16,7 @@ import { OrgAddNodeButton } from '../OrgAddNodeButton';
 import type { OrgTreeNode } from '../tree';
 import {
   FOCUS_R,
+  forestPeople,
   orbitLayout,
   resolveFocusPath,
   subtreePeople,
@@ -186,10 +187,9 @@ export function OrgPlanetCanvas({
     }
   }, [pathKey, fitTo]);
 
-  const totalPeople = useMemo(
-    () => roots.reduce((sum, root) => sum + subtreePeople(root), 0),
-    [roots],
-  );
+  // Distinct people across the forest (兼任去重) — NOT a per-root sum, which
+  // would double-count users holding posts under several departments.
+  const totalPeople = useMemo(() => forestPeople(roots), [roots]);
 
   // Empty roots: OrgPage owns the empty state.
   if (roots.length === 0) return <></>;

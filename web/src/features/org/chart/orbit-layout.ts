@@ -160,11 +160,33 @@ const START_ANGLE = -Math.PI / 2;
 
 // --- Helpers ------------------------------------------------------------------
 
-/** Total people (负责人 + 成员) in a node's whole subtree — sizes the planets. */
+/** Collect every distinct userId (负责人 + 成员) in a node's whole subtree. */
+function collectSubtreeUserIds(node: OrgTreeNode, into: Set<string>): void {
+  for (const p of node.leads) into.add(p.userId);
+  for (const p of node.members) into.add(p.userId);
+  for (const child of node.children) collectSubtreeUserIds(child, into);
+}
+
+/**
+ * Distinct people (负责人 + 成员) in a node's whole subtree — sizes the planets
+ * and feeds the headcount chips. 兼任 (one user holding several posts within the
+ * subtree) counts ONCE, matching the deduped member star field.
+ */
 export function subtreePeople(node: OrgTreeNode): number {
-  let total = node.leads.length + node.members.length;
-  for (const child of node.children) total += subtreePeople(child);
-  return total;
+  const ids = new Set<string>();
+  collectSubtreeUserIds(node, ids);
+  return ids.size;
+}
+
+/**
+ * Distinct people across the whole forest — the 团队 core's headcount. Dedups
+ * across root subtrees too, so a user holding posts under two departments still
+ * counts once (summing per-root {@link subtreePeople} would double them).
+ */
+export function forestPeople(roots: OrgTreeNode[]): number {
+  const ids = new Set<string>();
+  for (const root of roots) collectSubtreeUserIds(root, ids);
+  return ids.size;
 }
 
 /**
