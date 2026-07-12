@@ -1,55 +1,31 @@
 import { useState } from 'react';
-import { Check, Lightbulb, Send, Trash2, X } from 'lucide-react';
-import type { Idea, IdeaStatus, Task } from 'shared';
-import { adoptIdeaInputSchema, createIdeaInputSchema } from 'shared';
-import {
-  Avatar,
-  Badge,
-  Button,
-  Input,
-  Spinner,
-  Textarea,
-  type BadgeVariant,
-} from '../../components/ui';
+import { Lightbulb, Send, Trash2 } from 'lucide-react';
+import type { Idea, Task } from 'shared';
+import { createIdeaInputSchema } from 'shared';
+import { Avatar, Badge, Button, Spinner, Textarea } from '../../components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { avatarUrl } from '../../lib/utils';
-import { isApiClientError } from '../../api/client';
-import {
-  useAdoptIdea,
-  useCreateIdea,
-  useDeleteIdea,
-  useRejectIdea,
-  useTaskIdeas,
-} from '../../api/ideas';
-import { useAuth } from '../../lib/auth-context';
+import { useCreateIdea, useDeleteIdea, useTaskIdeas } from '../../api/ideas';
 import { queryKeys } from '../../lib/query';
 import { relativeTime } from '../board/format';
 import type { TaskPermissionContext } from '../board/permissions';
 import { isManager } from '../board/permissions';
-import { AttachmentChips } from '../attachments/AttachmentChips';
 import { AttachmentPicker } from '../attachments/AttachmentPicker';
 import { useAttachmentSubmit } from '../attachments/useAttachmentSubmit';
+import { confirmDeleteIdea } from '../ideas/delete';
+import { IdeaAttachments } from '../ideas/IdeaAttachments';
+import { IdeaReviewActions } from '../ideas/IdeaDetailDialog';
+import { IDEA_STATUS_LABELS, IDEA_STATUS_VARIANT } from '../ideas/labels';
 import { renderMarkdown } from './markdown';
 
 /**
  * Idea / inspiration section (§7.1) inside the task detail drawer. A composer to
  * post an idea on the task plus the list of ideas (newest first). Each idea shows
  * its author, safely-rendered markdown body, and a status badge; leads/admins see
- * 采纳（输入奖励点数）/ 驳回 actions, and adopted ideas show their reward points.
+ * 采纳（输入奖励点数）/ 驳回 actions (the shared IdeaReviewActions), and adopted
+ * ideas show their reward points. Idea-domain labels/attachments/delete flow live
+ * in features/ideas and are shared with the 灵感区.
  */
-
-/** Chinese labels + badge variant per idea status (§12 i18n). */
-export const IDEA_STATUS_LABELS: Record<IdeaStatus, string> = {
-  pending: '待处理',
-  adopted: '已采纳',
-  rejected: '已驳回',
-};
-
-export const IDEA_STATUS_VARIANT: Record<IdeaStatus, BadgeVariant> = {
-  pending: 'neutral',
-  adopted: 'success',
-  rejected: 'destructive',
-};
 
 export interface IdeaSectionProps {
   task: Task;
@@ -100,34 +76,7 @@ function IdeaItem({
   canManage: boolean;
   canDelete: boolean;
 }): JSX.Element {
-  const [adopting, setAdopting] = useState(false);
-  const [reward, setReward] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const adoptIdea = useAdoptIdea();
-  const rejectIdea = useRejectIdea();
   const deleteIdea = useDeleteIdea();
-
-  function submitAdopt(): void {
-    setError(null);
-    const value = reward.trim() ? Number(reward) : NaN;
-    const parsed = adoptIdeaInputSchema.safeParse({ rewardPoints: value });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? '请输入有效的奖励点数');
-      return;
-    }
-    adoptIdea.mutate(
-      { ideaId: idea.id, input: parsed.data, taskId: idea.taskId ?? undefined },
-      {
-        onSuccess: () => {
-          setAdopting(false);
-          setReward('');
-        },
-        onError: (err) =>
-          setError(isApiClientError(err) ? err.message : '采纳失败，请稍后重试'),
-      },
-    );
-  }
 
   return (
     <li className="flex gap-3">
@@ -158,11 +107,7 @@ function IdeaItem({
               className="ml-auto h-9 w-9 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
               aria-label="删除想法"
               loading={deleteIdea.isPending}
-              onClick={() => {
-                if (window.confirm('确定删除这个想法？')) {
-                  deleteIdea.mutate({ ideaId: idea.id, taskId: idea.taskId ?? undefined });
-                }
-              }}
+              onClick={() => confirmDeleteIdea(deleteIdea, idea)}
             >
               {!deleteIdea.isPending && <Trash2 className="h-3.5 w-3.5" aria-hidden />}
             </Button>
@@ -174,89 +119,11 @@ function IdeaItem({
 
         {canManage && idea.status === 'pending' && (
           <div className="mt-2">
-            {adopting ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  className="w-full sm:w-28"
-                  placeholder="奖励点数"
-                  aria-label="奖励点数"
-                  value={reward}
-                  onChange={(e) => setReward(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  loading={adoptIdea.isPending}
-                  onClick={submitAdopt}
-                >
-                  <Check className="h-3.5 w-3.5" aria-hidden />
-                  确认采纳
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setAdopting(false);
-                    setError(null);
-                  }}
-                >
-                  取消
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button type="button" size="sm" onClick={() => setAdopting(true)}>
-                  <Check className="h-3.5 w-3.5" aria-hidden />
-                  采纳
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  loading={rejectIdea.isPending}
-                  onClick={() => rejectIdea.mutate({ ideaId: idea.id, taskId: idea.taskId ?? undefined })}
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                  驳回
-                </Button>
-              </div>
-            )}
-            {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+            <IdeaReviewActions idea={idea} />
           </div>
         )}
       </div>
     </li>
-  );
-}
-
-/**
- * An idea's attachment chips (§7.1). Mirrors the server rules: the AUTHOR may
- * add/remove files while the idea is still pending (also the recovery path for
- * a failed composer upload); a manager may delete anytime.
- */
-function IdeaAttachments({ idea, canManage }: { idea: Idea; canManage: boolean }): JSX.Element {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  return (
-    <AttachmentChips
-      owner="ideas"
-      ownerId={idea.id}
-      files={idea.files}
-      canUpload={idea.author.id === user?.id && idea.status === 'pending'}
-      canDeleteFile={(f) =>
-        canManage || (f.uploaderId === user?.id && idea.status === 'pending')
-      }
-      onChanged={() => {
-        if (idea.taskId) {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.taskIdeas(idea.taskId) });
-        }
-        void queryClient.invalidateQueries({ queryKey: ['ideas'] });
-      }}
-    />
   );
 }
 

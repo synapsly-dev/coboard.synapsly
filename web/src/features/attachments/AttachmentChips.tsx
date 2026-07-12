@@ -37,6 +37,13 @@ export interface AttachmentChipsProps {
   canUpload?: boolean;
   /** Called after a successful upload/delete (invalidate the owning query). */
   onChanged?: () => void;
+  /**
+   * Per-file callbacks for callers whose local copy of `files` may outlive the
+   * refetched list (e.g. the 想法详情 dialog's snapshot fallback) — the plain
+   * `onChanged` invalidation can't reach state that is no longer in the cache.
+   */
+  onFileUploaded?: (file: Attachment) => void;
+  onFileDeleted?: (fileId: string) => void;
 }
 
 export function AttachmentChips({
@@ -46,6 +53,8 @@ export function AttachmentChips({
   canDeleteFile,
   canUpload = false,
   onChanged,
+  onFileUploaded,
+  onFileDeleted,
 }: AttachmentChipsProps): JSX.Element | null {
   const [preview, setPreview] = useState<Attachment | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -65,6 +74,7 @@ export function AttachmentChips({
     setDeletingId(file.id);
     try {
       await deleteAttachment(owner, ownerId, file.id);
+      onFileDeleted?.(file.id);
       onChanged?.();
     } catch (err) {
       setError(isApiClientError(err) ? err.message : '删除失败，请稍后重试');
@@ -89,7 +99,8 @@ export function AttachmentChips({
     setUploading(true);
     try {
       for (const file of picked) {
-        await uploadAttachment(owner, ownerId, file);
+        const created = await uploadAttachment(owner, ownerId, file);
+        onFileUploaded?.(created);
       }
       onChanged?.();
     } catch (err) {

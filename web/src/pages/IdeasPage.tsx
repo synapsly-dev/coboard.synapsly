@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Check, Lightbulb, Paperclip, Plus, Send, Trash2, X } from 'lucide-react';
+import { Lightbulb, Paperclip, Plus, Send, Trash2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { IdeaStatus, IdeaWithContext } from 'shared';
-import { adoptIdeaInputSchema, createStandaloneIdeaInputSchema, ideaStatuses } from 'shared';
+import { createStandaloneIdeaInputSchema, ideaStatuses } from 'shared';
 import {
   Avatar,
   Badge,
@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
   EmptyState,
-  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -25,20 +24,15 @@ import {
   Textarea,
 } from '../components/ui';
 import { avatarUrl } from '../lib/utils';
-import { isApiClientError } from '../api/client';
-import {
-  useAdoptIdea,
-  useAllIdeas,
-  useCreateStandaloneIdea,
-  useDeleteIdea,
-  useRejectIdea,
-} from '../api/ideas';
+import { useAllIdeas, useCreateStandaloneIdea, useDeleteIdea } from '../api/ideas';
 import { useAuth } from '../lib/auth-context';
 import { relativeTime } from '../features/board/format';
-import { AttachmentChips } from '../features/attachments/AttachmentChips';
 import { AttachmentPicker } from '../features/attachments/AttachmentPicker';
 import { useAttachmentSubmit } from '../features/attachments/useAttachmentSubmit';
-import { IDEA_STATUS_LABELS, IDEA_STATUS_VARIANT } from '../features/task/IdeaSection';
+import { confirmDeleteIdea } from '../features/ideas/delete';
+import { IdeaAttachments } from '../features/ideas/IdeaAttachments';
+import { IdeaDetailDialog, IdeaReviewActions } from '../features/ideas/IdeaDetailDialog';
+import { IDEA_STATUS_LABELS, IDEA_STATUS_VARIANT } from '../features/ideas/labels';
 import { TaskDetailDrawer } from '../features/task/TaskDetailDrawer';
 
 /**
@@ -61,11 +55,18 @@ export default function IdeasPage(): JSX.Element {
   const [status, setStatus] = useState<IdeaStatus | typeof ALL_STATUSES>(ALL_STATUSES);
   // Clicking a TASK idea opens its task detail drawer in-place (no navigation away).
   const [selected, setSelected] = useState<{ taskId: string; projectId: string } | null>(null);
+  // Snapshot of the idea being read (想法详情). Rendering prefers the LIVE list
+  // row (refetched changes show up immediately), but falls back to the snapshot
+  // when a status filter / SSE refetch drops the idea from the filtered list —
+  // the dialog must neither vanish mid-action nor spontaneously reopen later.
+  // For that filtered case, onReviewed merges the mutation result back in.
+  const [detail, setDetail] = useState<IdeaWithContext | null>(null);
   const { data: ideas, isLoading, isError, refetch } = useAllIdeas({
     status: status === ALL_STATUSES ? undefined : status,
   });
 
   const list = ideas ?? [];
+  const detailIdea = detail ? (list.find((i) => i.id === detail.id) ?? detail) : null;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -132,6 +133,7 @@ export default function IdeasPage(): JSX.Element {
                     ? () => setSelected({ taskId: idea.taskId!, projectId: idea.projectId! })
                     : undefined
                 }
+                onOpenDetail={() => setDetail(idea)}
               />
             ))}
           </div>
@@ -145,6 +147,17 @@ export default function IdeasPage(): JSX.Element {
         onOpenChange={(o) => {
           if (!o) setSelected(null);
         }}
+      />
+      <IdeaDetailDialog
+        idea={detailIdea}
+        canManage={isAdmin}
+        onOpenChange={(o) => {
+          if (!o) setDetail(null);
+        }}
+        onReviewed={(updated) => setDetail((prev) => (prev ? { ...prev, ...updated } : prev))}
+        onFilesChanged={(update) =>
+          setDetail((prev) => (prev ? { ...prev, files: update(prev.files) } : prev))
+        }
       />
     </div>
   );
@@ -270,19 +283,20 @@ function IdeaCard({
   canManage,
   canDelete,
   onOpen,
+  onOpenDetail,
 }: {
   idea: IdeaWithContext;
   /** Whether the current user (global admin) may adopt/reject a standalone idea. */
   canManage: boolean;
   /** Whether the current user (global admin / author) may delete this idea. */
   canDelete: boolean;
-  /** Opens the owning task drawer; undefined for a STANDALONE idea (no task). */
+  /** Opens the owning task drawer; undefined for a STANDALONE / pool-task idea. */
   onOpen?: () => void;
+  /** Opens the idea read dialog (想法详情) — used when there is no task drawer. */
+  onOpenDetail: () => void;
 }): JSX.Element {
   const isStandalone = idea.taskId == null;
   const deleteIdea = useDeleteIdea();
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
 
   /** Overlaid 删除 button (top-right); kept out of the clickable task-card button. */
   const deleteButton = canDelete ? (
@@ -295,9 +309,7 @@ function IdeaCard({
       loading={deleteIdea.isPending}
       onClick={(e) => {
         e.stopPropagation();
-        if (window.confirm('确定删除这个想法？')) {
-          deleteIdea.mutate({ ideaId: idea.id, taskId: idea.taskId ?? undefined });
-        }
+        confirmDeleteIdea(deleteIdea, idea);
       }}
     >
       {!deleteIdea.isPending && <Trash2 className="h-3.5 w-3.5" aria-hidden />}
@@ -372,110 +384,37 @@ function IdeaCard({
     );
   }
 
-  // STANDALONE idea (no task drawer): a non-clickable card, with inline admin actions.
+  // STANDALONE / pool-task idea (no task drawer): the whole card opens the read
+  // dialog (想法详情). It hosts interactive children (chips, admin actions), so it
+  // is a role="button" div rather than a real <button> — the children stop
+  // propagation, mirroring the board TaskCard pattern.
   return (
-    <div className="relative flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm">
+    <div
+      // No aria-label: the accessible name must come from the card's content
+      // (preview, status, author) so screen readers can tell the cards apart.
+      className="relative flex cursor-pointer flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      role="button"
+      tabIndex={0}
+      onClick={onOpenDetail}
+      onKeyDown={(e) => {
+        // Only the card itself — Enter/Space inside child controls must not open.
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onOpenDetail();
+        }
+      }}
+    >
       {deleteButton}
       {head}
-      <AttachmentChips
-        owner="ideas"
-        ownerId={idea.id}
-        files={idea.files}
-        // Mirrors the server rules: the author may add/remove while pending (also
-        // the recovery path for a failed publish upload); an admin deletes anytime.
-        canUpload={idea.author.id === user?.id && idea.status === 'pending'}
-        canDeleteFile={(f) =>
-          canManage || (f.uploaderId === user?.id && idea.status === 'pending')
-        }
-        onChanged={() => void queryClient.invalidateQueries({ queryKey: ['ideas'] })}
-      />
+      <IdeaAttachments idea={idea} canManage={canManage} />
       {isStandalone && canManage && idea.status === 'pending' && (
-        <StandaloneIdeaActions idea={idea} />
+        <div onClick={(e) => e.stopPropagation()}>
+          <IdeaReviewActions idea={idea} />
+        </div>
       )}
     </div>
   );
 }
 
-/** Inline 采纳（填奖励点数）/ 驳回 for a STANDALONE idea, shown to global admins. */
-function StandaloneIdeaActions({ idea }: { idea: IdeaWithContext }): JSX.Element {
-  const [adopting, setAdopting] = useState(false);
-  const [reward, setReward] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const adoptIdea = useAdoptIdea();
-  const rejectIdea = useRejectIdea();
-
-  function submitAdopt(): void {
-    setError(null);
-    const value = reward.trim() ? Number(reward) : NaN;
-    const parsed = adoptIdeaInputSchema.safeParse({ rewardPoints: value });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? '请输入有效的奖励点数');
-      return;
-    }
-    // Standalone idea: no owning task to invalidate (taskId omitted).
-    adoptIdea.mutate(
-      { ideaId: idea.id, input: parsed.data },
-      {
-        onSuccess: () => {
-          setAdopting(false);
-          setReward('');
-        },
-        onError: (err) =>
-          setError(isApiClientError(err) ? err.message : '采纳失败，请稍后重试'),
-      },
-    );
-  }
-
-  return (
-    <div>
-      {adopting ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            type="number"
-            min={0}
-            inputMode="numeric"
-            className="w-full sm:w-28"
-            placeholder="奖励点数"
-            aria-label="奖励点数"
-            value={reward}
-            onChange={(e) => setReward(e.target.value)}
-          />
-          <Button type="button" size="sm" loading={adoptIdea.isPending} onClick={submitAdopt}>
-            <Check className="h-3.5 w-3.5" aria-hidden />
-            确认采纳
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setAdopting(false);
-              setError(null);
-            }}
-          >
-            取消
-          </Button>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Button type="button" size="sm" onClick={() => setAdopting(true)}>
-            <Check className="h-3.5 w-3.5" aria-hidden />
-            采纳
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            loading={rejectIdea.isPending}
-            onClick={() => rejectIdea.mutate({ ideaId: idea.id })}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden />
-            驳回
-          </Button>
-        </div>
-      )}
-      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
+// 采纳/驳回 actions moved to features/ideas/IdeaDetailDialog (IdeaReviewActions) —
+// shared between the 灵感区 cards and the read dialog.
