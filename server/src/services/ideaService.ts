@@ -49,6 +49,7 @@ function toIdea(row: IdeaRow, author: UserRow, files: Attachment[] = []): Idea {
     status: row.status,
     rewardPoints: row.rewardPoints,
     adoptedBy: row.adoptedBy,
+    rejectReason: row.rejectReason,
     files,
     createdAt: row.createdAt.toISOString(),
   };
@@ -269,6 +270,8 @@ export async function adoptIdea(
       status: 'adopted',
       rewardPoints,
       adoptedBy: adopterId,
+      // Clear any 驳回理由 from a prior reject when the idea is (re-)adopted.
+      rejectReason: null,
       updatedAt: new Date(),
     })
     .where(eq(ideas.id, idea.id))
@@ -283,14 +286,16 @@ export async function adoptIdea(
 
 /**
  * Reject an idea (§7.1, lead/admin only). Clears any reward points and marks the
- * idea `rejected`, bumping `updated_at`. Publishes the same events as adopt so the
- * 灵感区 list and stats refresh.
+ * idea `rejected`, bumping `updated_at`. An optional 驳回理由 (`reason`) is recorded
+ * so the author sees why (empty/absent stores null). Publishes the same events as
+ * adopt so the 灵感区 list and stats refresh.
  */
 export async function rejectIdea(
   db: Database,
   idea: IdeaRow,
   projectId: string | null,
   reviewerId: string,
+  reason: string | null = null,
   realtimeBus: RealtimeBus = bus,
 ): Promise<Idea> {
   const [updated] = await db
@@ -299,6 +304,7 @@ export async function rejectIdea(
       status: 'rejected',
       rewardPoints: null,
       adoptedBy: reviewerId,
+      rejectReason: reason,
       updatedAt: new Date(),
     })
     .where(eq(ideas.id, idea.id))

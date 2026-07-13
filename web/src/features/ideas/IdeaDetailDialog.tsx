@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Textarea,
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import { useAdoptIdea, useDeleteIdea, useRejectIdea } from '../../api/ideas';
@@ -140,6 +141,14 @@ export function IdeaDetailDialog({
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 scrollbar-thin">
               <div className="break-words text-sm">{renderMarkdown(idea.body)}</div>
               <IdeaAttachments idea={idea} canManage={canManage} onFilesChanged={onFilesChanged} />
+              {idea.status === 'rejected' && idea.rejectReason && (
+                <div className="mt-4 rounded-md border border-border bg-secondary/30 p-3">
+                  <p className="text-xs font-medium text-muted-foreground">驳回理由</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+                    {idea.rejectReason}
+                  </p>
+                </div>
+              )}
             </div>
 
             {canManage && idea.status === 'pending' && (
@@ -168,13 +177,20 @@ export function IdeaReviewActions({
   idea: Pick<Idea, 'id' | 'taskId'>;
   onReviewed?: (updated: Idea) => void;
 }): JSX.Element {
-  const [adopting, setAdopting] = useState(false);
+  // Exactly one inline panel is open at a time: 采纳 (reward) or 驳回 (reason).
+  const [mode, setMode] = useState<'idle' | 'adopting' | 'rejecting'>('idle');
   const [reward, setReward] = useState('');
+  const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const adoptIdea = useAdoptIdea();
   const rejectIdea = useRejectIdea();
   const taskId = idea.taskId ?? undefined;
+
+  function reset(): void {
+    setMode('idle');
+    setError(null);
+  }
 
   function submitAdopt(): void {
     setError(null);
@@ -190,8 +206,8 @@ export function IdeaReviewActions({
       { ideaId: idea.id, input: parsed.data, taskId },
       {
         onSuccess: (updated) => {
-          setAdopting(false);
           setReward('');
+          reset();
           onReviewed?.(updated);
         },
         onError: (err) =>
@@ -200,9 +216,26 @@ export function IdeaReviewActions({
     );
   }
 
+  function submitReject(): void {
+    setError(null);
+    // 驳回理由 is optional — an empty textarea rejects without one.
+    rejectIdea.mutate(
+      { ideaId: idea.id, reason: reason.trim() || undefined, taskId },
+      {
+        onSuccess: (updated) => {
+          setReason('');
+          reset();
+          onReviewed?.(updated);
+        },
+        onError: (err) =>
+          setError(isApiClientError(err) ? err.message : '驳回失败，请稍后重试'),
+      },
+    );
+  }
+
   return (
     <div>
-      {adopting ? (
+      {mode === 'adopting' ? (
         <div className="flex flex-wrap items-center gap-2">
           <Input
             type="number"
@@ -218,21 +251,46 @@ export function IdeaReviewActions({
             <Check className="h-3.5 w-3.5" aria-hidden />
             确认采纳
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setAdopting(false);
-              setError(null);
-            }}
-          >
+          <Button type="button" size="sm" variant="ghost" onClick={reset}>
             取消
           </Button>
         </div>
+      ) : mode === 'rejecting' ? (
+        <div className="flex flex-col gap-2">
+          <Textarea
+            rows={2}
+            className="w-full"
+            placeholder="驳回理由（选填，作者可见）…"
+            aria-label="驳回理由"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              loading={rejectIdea.isPending}
+              onClick={submitReject}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden />
+              确认驳回
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={reset}>
+              取消
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="flex items-center gap-2">
-          <Button type="button" size="sm" onClick={() => setAdopting(true)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setMode('adopting');
+            }}
+          >
             <Check className="h-3.5 w-3.5" aria-hidden />
             采纳
           </Button>
@@ -240,17 +298,10 @@ export function IdeaReviewActions({
             type="button"
             size="sm"
             variant="outline"
-            loading={rejectIdea.isPending}
-            onClick={() =>
-              rejectIdea.mutate(
-                { ideaId: idea.id, taskId },
-                {
-                  onSuccess: (updated) => onReviewed?.(updated),
-                  onError: (err) =>
-                    setError(isApiClientError(err) ? err.message : '驳回失败，请稍后重试'),
-                },
-              )
-            }
+            onClick={() => {
+              setError(null);
+              setMode('rejecting');
+            }}
           >
             <X className="h-3.5 w-3.5" aria-hidden />
             驳回

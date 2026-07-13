@@ -287,11 +287,43 @@ describe('ideas / inspiration', () => {
       method: 'POST',
       url: `/api/ideas/${ideaId}/reject`,
       headers: headers(leadCookie),
+      payload: { reason: '与当前方向不符，暂不采纳' },
     });
     expect(rejectRes.statusCode).toBe(200);
     const rejected = (rejectRes.json() as IdeaResponse).idea;
     expect(rejected.status).toBe('rejected');
     expect(rejected.rewardPoints).toBeNull();
+    // The optional 驳回理由 is recorded so the author sees why.
+    expect(rejected.rejectReason).toBe('与当前方向不符，暂不采纳');
+  });
+
+  it('rejects an idea without a reason — rejectReason stays null', async () => {
+    const lead = await makeUser(ctx);
+    const member = await makeUser(ctx);
+    const projectId = await makeProject(ctx, lead.id);
+    await addMember(ctx, projectId, lead.id, 'lead');
+    await addMember(ctx, projectId, member.id, 'member');
+    const taskId = await makeTask(ctx, projectId, lead.id);
+    const memberCookie = await authCookie(ctx, member.id);
+    const leadCookie = await authCookie(ctx, lead.id);
+
+    const created = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/ideas`,
+      headers: headers(memberCookie),
+      payload: { body: '无理由驳回的想法' },
+    });
+    const ideaId = (created.json() as IdeasResponse).ideas[0]?.id;
+
+    const rejectRes = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/ideas/${ideaId}/reject`,
+      headers: headers(leadCookie),
+    });
+    expect(rejectRes.statusCode).toBe(200);
+    const rejected = (rejectRes.json() as IdeaResponse).idea;
+    expect(rejected.status).toBe('rejected');
+    expect(rejected.rejectReason).toBeNull();
   });
 
   it('lists ideas across visible projects with context + a status filter', async () => {

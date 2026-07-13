@@ -6,6 +6,7 @@ import {
   createStandaloneIdeaInputSchema,
   idParamSchema,
   ideasQuerySchema,
+  rejectIdeaInputSchema,
   type IdeaResponse,
   type IdeasResponse,
   type IdeasWithContextResponse,
@@ -177,11 +178,13 @@ const ideasRoutes: FastifyPluginAsync = async (fastify) => {
   // Task idea: project lead / global admin. Standalone idea: global admin only.
   fastify.post('/ideas/:id/reject', async (request): Promise<IdeaResponse> => {
     const { id } = parseParams(idParamSchema, request.params);
+    const input = parseBody(rejectIdeaInputSchema, request.body ?? {});
 
     const idea = await loadIdeaOrThrow(db, id);
     const { user, projectId } = await authorizeIdeaReview(db, request, idea);
 
-    const rejected = await rejectIdea(db, idea, projectId, user.id, bus);
+    const reason = input.reason && input.reason.length > 0 ? input.reason : null;
+    const rejected = await rejectIdea(db, idea, projectId, user.id, reason, bus);
     return { idea: rejected };
   });
 

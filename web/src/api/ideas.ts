@@ -15,6 +15,7 @@ import type {
   IdeaStatus,
   IdeasWithContextResponse,
   IdeaWithContext,
+  RejectIdeaInput,
 } from 'shared';
 import { api } from './client';
 import { queryKeys } from '../lib/query';
@@ -63,8 +64,8 @@ export const ideasApi = {
     }),
   adopt: (ideaId: string, body: AdoptIdeaInput): Promise<Idea> =>
     api.post<IdeaResponse>(`/ideas/${ideaId}/adopt`, body).then((r) => r.idea),
-  reject: (ideaId: string): Promise<Idea> =>
-    api.post<IdeaResponse>(`/ideas/${ideaId}/reject`).then((r) => r.idea),
+  reject: (ideaId: string, body?: RejectIdeaInput): Promise<Idea> =>
+    api.post<IdeaResponse>(`/ideas/${ideaId}/reject`, body).then((r) => r.idea),
   remove: (ideaId: string): Promise<void> => api.delete<void>(`/ideas/${ideaId}`),
 };
 
@@ -160,6 +161,8 @@ export function useAdoptIdea(): UseMutationResult<Idea, Error, AdoptIdeaVars> {
 
 export interface RejectIdeaVars {
   ideaId: string;
+  /** Optional 驳回理由 shown to the author; omit/empty to reject without one. */
+  reason?: string;
   /** Owning task id, so the task's idea list can be invalidated. */
   taskId?: string;
 }
@@ -168,7 +171,8 @@ export interface RejectIdeaVars {
 export function useRejectIdea(): UseMutationResult<Idea, Error, RejectIdeaVars> {
   const queryClient = useQueryClient();
   return useMutation<Idea, Error, RejectIdeaVars>({
-    mutationFn: ({ ideaId }) => ideasApi.reject(ideaId),
+    mutationFn: ({ ideaId, reason }) =>
+      ideasApi.reject(ideaId, reason && reason.trim() ? { reason: reason.trim() } : undefined),
     onSuccess: (_idea, { taskId }) => invalidateIdeas(queryClient, taskId),
   });
 }

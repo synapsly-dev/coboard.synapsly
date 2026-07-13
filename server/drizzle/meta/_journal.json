@@ -169,6 +169,13 @@
       "when": 1783945688542,
       "tag": "0023_jittery_frank_castle",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783955308188,
+      "tag": "0024_curly_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

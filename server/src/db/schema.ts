@@ -510,6 +510,8 @@ export const ideas = pgTable(
     adoptedBy: uuid('adopted_by').references(() => users.id, {
       onDelete: 'set null',
     }),
+    // Optional 驳回理由 written on reject; null while pending / after adopt.
+    rejectReason: text('reject_reason'),
     createdAt,
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -49,6 +49,7 @@ function makeIdea(overrides: Partial<IdeaWithContext> = {}): IdeaWithContext {
     status: 'pending',
     rewardPoints: null,
     adoptedBy: null,
+    rejectReason: null,
     files: [
       {
         id: '00000000-0000-0000-0000-00000000000f',

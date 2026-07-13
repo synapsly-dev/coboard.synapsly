@@ -331,6 +331,8 @@ export const ideaSchema = z.object({
   rewardPoints: z.number().int().nullable(),
   /** The lead/admin who adopted the idea; null otherwise. */
   adoptedBy: uuidSchema.nullable(),
+  /** The reviewer's 驳回理由; null when pending/adopted, or rejected without one. */
+  rejectReason: z.string().nullable(),
   /** The idea's file attachments (metadata only), oldest first. */
   files: z.array(attachmentSchema),
   createdAt: isoDateTimeSchema,
@@ -370,6 +372,15 @@ export const adoptIdeaInputSchema = z.object({
   rewardPoints: z.number().int().nonnegative().max(100000),
 });
 export type AdoptIdeaInput = z.infer<typeof adoptIdeaInputSchema>;
+
+/**
+ * POST /ideas/:id/reject — reject an idea (lead/admin). The 驳回理由 is optional;
+ * an empty/absent reason rejects without one (stored null). Trimmed, capped.
+ */
+export const rejectIdeaInputSchema = z.object({
+  reason: z.string().trim().max(2000).optional(),
+});
+export type RejectIdeaInput = z.infer<typeof rejectIdeaInputSchema>;
 
 /** GET /tasks/:id/ideas — a task's ideas (newest first). */
 export const ideasResponseSchema = z.object({

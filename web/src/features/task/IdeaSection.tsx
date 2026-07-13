@@ -117,6 +117,15 @@ function IdeaItem({
         <div className="mt-1 break-words">{renderMarkdown(idea.body)}</div>
         <IdeaAttachments idea={idea} canManage={canManage} />
 
+        {idea.status === 'rejected' && idea.rejectReason && (
+          <div className="mt-2 rounded-md border border-border bg-secondary/30 p-2.5">
+            <p className="text-xs font-medium text-muted-foreground">驳回理由</p>
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-foreground">
+              {idea.rejectReason}
+            </p>
+          </div>
+        )}
+
         {canManage && idea.status === 'pending' && (
           <div className="mt-2">
             <IdeaReviewActions idea={idea} />
