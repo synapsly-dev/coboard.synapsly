@@ -27,6 +27,7 @@ import {
   createNode,
   decideApplication,
   deleteNode,
+  leaveNode,
   listApplications,
   listTree,
   loadOrgNodeOrThrow,
@@ -45,10 +46,11 @@ import {
  * - POST   /org/nodes/:id/move               reparent / reorder (editor)
  * - DELETE /org/nodes/:id                    delete node + subtree, cascade (editor)
  * - PUT    /org/nodes/:id/members            replace the node's 负责人/成员 set (editor)
+ * - POST   /org/nodes/:id/leave              self-leave a 部门/小组/岗位 (any member)
  *
- * 岗位申报 (P1):
+ * 申请加入 / 岗位申报 (P1, extended 2026-07-13 to 部门/小组):
  * - GET    /org/applications?scope=          own applications + decidable pending ones
- * - POST   /org/nodes/:id/applications       apply to a position (any member)
+ * - POST   /org/nodes/:id/applications       apply to a 部门/小组/岗位 (any member)
  * - DELETE /org/applications/:id             withdraw own pending application
  * - POST   /org/applications/:id/approve     approve (approver; writes the member row)
  * - POST   /org/applications/:id/reject      reject (approver)
@@ -155,17 +157,23 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     return { node };
   });
 
+  // --- POST /org/nodes/:id/leave -------------------------------------------
+  // Self-service leave for 部门/小组/岗位; 负责人 rejected, non-member idempotent.
+  fastify.post('/org/nodes/:id/leave', async (request): Promise<OrgNodeResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    const user = requireAuth(request);
+    const existing = await loadOrgNodeOrThrow(db, id);
+    const node = await leaveNode(db, existing, user, bus);
+    return { node };
+  });
+
   // --- GET /org/applications -------------------------------------------------
-  fastify.get(
-    '/org/applications',
-    async (request): Promise<OrgApplicationsResponse> => {
-      const scope: OrgScope =
-        parseQuery(orgTreeQuerySchema, request.query).scope ?? 'all';
-      await assertCanViewScope(db, request, scope);
-      const user = requireAuth(request);
-      return listApplications(db, user, scope);
-    },
-  );
+  fastify.get('/org/applications', async (request): Promise<OrgApplicationsResponse> => {
+    const scope: OrgScope = parseQuery(orgTreeQuerySchema, request.query).scope ?? 'all';
+    await assertCanViewScope(db, request, scope);
+    const user = requireAuth(request);
+    return listApplications(db, user, scope);
+  });
 
   // --- POST /org/nodes/:id/applications --------------------------------------
   fastify.post(
@@ -181,15 +189,12 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // --- DELETE /org/applications/:id -------------------------------------------
-  fastify.delete(
-    '/org/applications/:id',
-    async (request): Promise<OrgApplicationResponse> => {
-      const { id } = parseParams(idParamSchema, request.params);
-      const user = requireAuth(request);
-      const application = await withdrawApplication(db, user, id, bus);
-      return { application };
-    },
-  );
+  fastify.delete('/org/applications/:id', async (request): Promise<OrgApplicationResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    const user = requireAuth(request);
+    const application = await withdrawApplication(db, user, id, bus);
+    return { application };
+  });
 
   // --- POST /org/applications/:id/approve --------------------------------------
   fastify.post(
@@ -204,16 +209,13 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // --- POST /org/applications/:id/reject ----------------------------------------
-  fastify.post(
-    '/org/applications/:id/reject',
-    async (request): Promise<OrgApplicationResponse> => {
-      const { id } = parseParams(idParamSchema, request.params);
-      const input = parseBody(decideOrgApplicationInputSchema, request.body);
-      const user = requireAuth(request);
-      const application = await decideApplication(db, user, id, 'rejected', input, bus);
-      return { application };
-    },
-  );
+  fastify.post('/org/applications/:id/reject', async (request): Promise<OrgApplicationResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    const input = parseBody(decideOrgApplicationInputSchema, request.body);
+    const user = requireAuth(request);
+    const application = await decideApplication(db, user, id, 'rejected', input, bus);
+    return { application };
+  });
 };
 
 export default orgRoutes;

@@ -15,6 +15,8 @@ import {
   orgNodes,
   projectMembers,
   projects,
+  trackMembers,
+  tracks,
   users,
   type UserRow,
 } from '../src/db/schema.js';
@@ -29,10 +31,7 @@ import {
 
 let seq = 0;
 
-async function makeUser(
-  ctx: TestContext,
-  role: 'admin' | 'member' = 'member',
-): Promise<UserRow> {
+async function makeUser(ctx: TestContext, role: 'admin' | 'member' = 'member'): Promise<UserRow> {
   seq += 1;
   const [row] = await ctx.db
     .insert(users)
@@ -108,12 +107,7 @@ async function setNodeMembers(
   expect(res.statusCode).toBe(200);
 }
 
-async function applyTo(
-  ctx: TestContext,
-  cookie: string,
-  nodeId: string,
-  note?: string,
-) {
+async function applyTo(ctx: TestContext, cookie: string, nodeId: string, note?: string) {
   return ctx.app.inject({
     method: 'POST',
     url: `/api/org/nodes/${nodeId}/applications`,
@@ -173,13 +167,15 @@ describe('岗位申报 / org applications', () => {
     await ctx.db.delete(orgApplications);
     await ctx.db.delete(orgNodeMembers);
     await ctx.db.delete(orgNodes);
+    await ctx.db.delete(trackMembers);
+    await ctx.db.delete(tracks);
     await ctx.db.delete(projectMembers);
     await ctx.db.delete(projects);
     await ctx.db.delete(users);
     seq = 0;
   });
 
-  it('member applies to a position and sees it in their list; non-position node → 400', async () => {
+  it('member applies to a position and sees it in their list', async () => {
     const admin = await makeUser(ctx, 'admin');
     const member = await makeUser(ctx);
     const adminCookie = await authCookie(ctx, admin.id);
@@ -192,11 +188,6 @@ describe('岗位申报 / org applications', () => {
       headcount: 3,
     });
     expect(position.node.headcount).toBe(3);
-    const group = await createNode(ctx, adminCookie, {
-      scope: 'all',
-      kind: 'group',
-      title: '前端组',
-    });
 
     const res = await applyTo(ctx, memberCookie, position.node.id, '我想加入');
     expect(res.statusCode).toBe(201);
@@ -213,10 +204,95 @@ describe('岗位申报 / org applications', () => {
     const list = await listApplications(ctx, memberCookie);
     expect(list.applications.map((a) => a.id)).toEqual([application.id]);
     expect(list.canDecideNodeIds).toHaveLength(0);
+  });
 
-    // Applying to a non-position node is rejected.
-    const bad = await applyTo(ctx, memberCookie, group.node.id);
-    expect(bad.statusCode).toBe(400);
+  it('member applies to a 部门/小组; approval writes the member row (2026-07-13)', async () => {
+    const admin = await makeUser(ctx, 'admin');
+    const member = await makeUser(ctx);
+    const adminCookie = await authCookie(ctx, admin.id);
+    const memberCookie = await authCookie(ctx, member.id);
+
+    const dept = await createNode(ctx, adminCookie, {
+      scope: 'all',
+      kind: 'department',
+      title: '增长部',
+    });
+    const group = await createNode(ctx, adminCookie, {
+      scope: 'all',
+      parentId: dept.node.id,
+      kind: 'group',
+      title: '内容组',
+    });
+
+    // Applying to a group (headcount 不限) succeeds and starts pending.
+    const applied = await applyTo(ctx, memberCookie, group.node.id, '想加入内容组');
+    expect(applied.statusCode).toBe(201);
+    const applicationId = (applied.json() as OrgApplicationResponse).application.id;
+
+    // Admin approves → the applicant becomes a member of the group.
+    const approved = await decide(ctx, adminCookie, applicationId, 'approve');
+    expect(approved.statusCode).toBe(200);
+    const rows = await memberRows(ctx, group.node.id, member.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.role).toBe('member');
+  });
+
+  it('applying to a 赛道 (track) node is rejected with 400 (use direct join)', async () => {
+    const admin = await makeUser(ctx, 'admin');
+    const member = await makeUser(ctx);
+    const memberCookie = await authCookie(ctx, member.id);
+
+    // A track node is created via track management; emulate the linked node.
+    const [track] = await ctx.db
+      .insert(tracks)
+      .values({ name: '增长赛道', key: `TRK${(seq += 1)}`, rank: '000000', createdBy: admin.id })
+      .returning();
+    const [trackNode] = await ctx.db
+      .insert(orgNodes)
+      .values({ kind: 'track', trackId: track!.id, title: '增长赛道', rank: '000000' })
+      .returning();
+
+    const res = await applyTo(ctx, memberCookie, trackNode!.id);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('self-leave a 部门/小组: member row removed; 负责人 → 409; non-member idempotent', async () => {
+    const admin = await makeUser(ctx, 'admin');
+    const member = await makeUser(ctx);
+    const lead = await makeUser(ctx);
+    const stranger = await makeUser(ctx);
+    const adminCookie = await authCookie(ctx, admin.id);
+    const memberCookie = await authCookie(ctx, member.id);
+    const leadCookie = await authCookie(ctx, lead.id);
+    const strangerCookie = await authCookie(ctx, stranger.id);
+
+    const group = await createNode(ctx, adminCookie, {
+      scope: 'all',
+      kind: 'group',
+      title: '投放组',
+    });
+    await setNodeMembers(ctx, adminCookie, group.node.id, [lead.id], [member.id]);
+
+    const leave = async (cookie: string) =>
+      ctx.app.inject({
+        method: 'POST',
+        url: `/api/org/nodes/${group.node.id}/leave`,
+        headers: headers(cookie),
+      });
+
+    // A 负责人 cannot self-leave.
+    const asLead = await leave(leadCookie);
+    expect(asLead.statusCode).toBe(409);
+    expect(await memberRows(ctx, group.node.id, lead.id)).toHaveLength(1);
+
+    // A member leaves → their row is gone.
+    const asMember = await leave(memberCookie);
+    expect(asMember.statusCode).toBe(200);
+    expect(await memberRows(ctx, group.node.id, member.id)).toHaveLength(0);
+
+    // A non-member leaving is a no-op (idempotent 200).
+    const asStranger = await leave(strangerCookie);
+    expect(asStranger.statusCode).toBe(200);
   });
 
   it('rejects a duplicate pending application and an existing occupant applying (409)', async () => {

@@ -74,10 +74,7 @@ export function RecruitView({ scope, nodes }: RecruitViewProps): JSX.Element {
   }, [nodes]);
   const positionCount = groups.reduce((sum, [, list]) => sum + list.length, 0);
 
-  const applications = useMemo(
-    () => appsQuery.data?.applications ?? [],
-    [appsQuery.data],
-  );
+  const applications = useMemo(() => appsQuery.data?.applications ?? [], [appsQuery.data]);
   const canDecide = useMemo(
     () => new Set(appsQuery.data?.canDecideNodeIds ?? []),
     [appsQuery.data],
@@ -116,6 +113,25 @@ export function RecruitView({ scope, nodes }: RecruitViewProps): JSX.Element {
     return map;
   }, [applications, canDecide, user]);
 
+  const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+
+  /**
+   * 部门/小组 加入申请 the caller may decide (2026-07-13). Positions keep their own
+   * per-card approver panel; department/group requests have no card, so surface them
+   * in a dedicated top section. Oldest first.
+   */
+  const pendingJoinRequests = useMemo(() => {
+    return applications
+      .filter(
+        (a) =>
+          a.status === 'pending' &&
+          canDecide.has(a.nodeId) &&
+          (!user || a.applicant.id !== user.id) &&
+          (nodeById.get(a.nodeId)?.kind ?? 'position') !== 'position',
+      )
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+  }, [applications, canDecide, user, nodeById]);
+
   if (appsQuery.isLoading) {
     return (
       <div className="flex h-full items-center justify-center px-6">
@@ -135,13 +151,65 @@ export function RecruitView({ scope, nodes }: RecruitViewProps): JSX.Element {
         </div>
       )}
 
-      {positionCount === 0 ? (
+      {pendingJoinRequests.length > 0 && (
+        <section>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            待处理的加入申请 · {pendingJoinRequests.length}
+          </h2>
+          <div className="mt-2 space-y-2">
+            {pendingJoinRequests.map((app) => (
+              <div
+                key={app.id}
+                className="flex items-start gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm"
+              >
+                <Avatar
+                  name={app.applicant.displayName}
+                  color={app.applicant.avatarColor}
+                  imageUrl={app.applicant.hasAvatar ? avatarUrl(app.applicant.id) : undefined}
+                  size="sm"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm">
+                    <span className="font-medium text-foreground">{app.applicant.displayName}</span>{' '}
+                    申请加入 <span className="font-medium text-foreground">{app.nodeTitle}</span>{' '}
+                    <span className="text-xs text-muted-foreground">
+                      {relativeTime(app.createdAt)}
+                    </span>
+                  </p>
+                  {app.note && (
+                    <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {app.note}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    onClick={() => setDecideTarget({ application: app, decision: 'approve' })}
+                  >
+                    通过
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setDecideTarget({ application: app, decision: 'reject' })}
+                  >
+                    驳回
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {positionCount === 0 && pendingJoinRequests.length === 0 ? (
         <EmptyState
           icon={BriefcaseBusiness}
           title="暂无招募岗位"
           description="管理员可在列表视图创建「岗位」节点并设置名额，即可在此开放申报。"
         />
-      ) : (
+      ) : positionCount === 0 ? null : (
         groups.map(([path, positions]) => (
           <section key={path}>
             <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -157,9 +225,7 @@ export function RecruitView({ scope, nodes }: RecruitViewProps): JSX.Element {
                   decidable={decidableByNode.get(node.id) ?? []}
                   onApply={() => setApplyTo(node)}
                   onWithdraw={(app) => setWithdrawTarget(app)}
-                  onDecide={(application, decision) =>
-                    setDecideTarget({ application, decision })
-                  }
+                  onDecide={(application, decision) => setDecideTarget({ application, decision })}
                 />
               ))}
             </div>
@@ -205,6 +271,7 @@ export function RecruitView({ scope, nodes }: RecruitViewProps): JSX.Element {
           scope={scope}
           application={decideTarget.application}
           decision={decideTarget.decision}
+          isPosition={nodeById.get(decideTarget.application.nodeId)?.kind === 'position'}
           open
           onOpenChange={(o) => !o && setDecideTarget(null)}
         />
@@ -232,8 +299,7 @@ function PositionCard({
   onDecide: (app: OrgApplication, decision: 'approve' | 'reject') => void;
 }): JSX.Element {
   const holders: OrgNodeMember[] = [...node.leads, ...node.members];
-  const onNode =
-    currentUserId !== null && holders.some((m) => m.userId === currentUserId);
+  const onNode = currentUserId !== null && holders.some((m) => m.userId === currentUserId);
   const full = isPositionFull(node);
 
   return (
@@ -344,9 +410,7 @@ function PositionCard({
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm">
-                    <span className="font-medium text-foreground">
-                      {app.applicant.displayName}
-                    </span>{' '}
+                    <span className="font-medium text-foreground">{app.applicant.displayName}</span>{' '}
                     <span className="text-xs text-muted-foreground">
                       {relativeTime(app.createdAt)}
                     </span>
@@ -551,12 +615,15 @@ function DecideDialog({
   scope,
   application,
   decision,
+  isPosition = true,
   open,
   onOpenChange,
 }: {
   scope: OrgScope;
   application: OrgApplication;
   decision: 'approve' | 'reject';
+  /** Positions read 录用/婉拒 (recruiting); 部门/小组 read 通过/驳回. */
+  isPosition?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
@@ -564,6 +631,9 @@ function DecideDialog({
   const [error, setError] = useState<string | null>(null);
   const decideMut = useDecideApplication(scope);
   const approve = decision === 'approve';
+  const approveVerb = isPosition ? '录用' : '通过';
+  const rejectVerb = isPosition ? '婉拒' : '驳回';
+  const verb = approve ? approveVerb : rejectVerb;
 
   const submit = async (): Promise<void> => {
     setError(null);
@@ -585,12 +655,14 @@ function DecideDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {approve ? '录用' : '婉拒'} {application.applicant.displayName}？
+            {verb} {application.applicant.displayName}？
           </DialogTitle>
           <DialogDescription>
             {approve
               ? `将把 ${application.applicant.displayName} 加入「${application.nodeTitle}」。`
-              : '婉拒后对方可再次申报该岗位。'}
+              : isPosition
+                ? '婉拒后对方可再次申报该岗位。'
+                : '驳回后对方可再次申请加入。'}
           </DialogDescription>
         </DialogHeader>
 
@@ -620,7 +692,7 @@ function DecideDialog({
             onClick={() => void submit()}
             loading={decideMut.isPending}
           >
-            {approve ? '录用' : '婉拒'}
+            {verb}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -47,6 +47,8 @@ export const orgApi = {
   remove: (id: string): Promise<void> => api.delete<void>(`/org/nodes/${id}`),
   setMembers: (id: string, input: SetOrgMembersInput): Promise<OrgNode> =>
     api.put<OrgNodeResponse>(`/org/nodes/${id}/members`, input).then((r) => r.node),
+  leave: (id: string): Promise<OrgNode> =>
+    api.post<OrgNodeResponse>(`/org/nodes/${id}/leave`).then((r) => r.node),
   applications: (scope: OrgScope, signal?: AbortSignal): Promise<OrgApplicationsResponse> =>
     api.get<OrgApplicationsResponse>('/org/applications', { query: { scope }, signal }),
   apply: (nodeId: string, input: CreateOrgApplicationInput): Promise<OrgApplication> =>
@@ -77,10 +79,7 @@ export function useOrgTree(scope: OrgScope): UseQueryResult<OrgNode[]> {
 }
 
 /** Invalidate a scope's tree after a mutation. */
-function invalidateScope(
-  queryClient: ReturnType<typeof useQueryClient>,
-  scope: OrgScope,
-): void {
+function invalidateScope(queryClient: ReturnType<typeof useQueryClient>, scope: OrgScope): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree(scope) });
 }
 
@@ -124,9 +123,7 @@ export function useMoveOrgNode(
   });
 }
 
-export function useDeleteOrgNode(
-  scope: OrgScope,
-): UseMutationResult<void, Error, string> {
+export function useDeleteOrgNode(scope: OrgScope): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: (id) => orgApi.remove(id),
@@ -146,6 +143,22 @@ export function useSetOrgMembers(
   return useMutation<OrgNode, Error, SetOrgMembersVars>({
     mutationFn: ({ id, input }) => orgApi.setMembers(id, input),
     onSuccess: () => invalidateScope(queryClient, scope),
+  });
+}
+
+/**
+ * Self-leave a 部门/小组/岗位 (POST /org/nodes/:id/leave). Removes the caller's own
+ * member row; the server rejects a 负责人 and is idempotent for a non-member. Also
+ * invalidates the applications list so a re-apply reflects the fresh state.
+ */
+export function useLeaveOrgNode(scope: OrgScope): UseMutationResult<OrgNode, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation<OrgNode, Error, string>({
+    mutationFn: (id) => orgApi.leave(id),
+    onSuccess: () => {
+      invalidateScope(queryClient, scope);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgApplications(scope) });
+    },
   });
 }
 

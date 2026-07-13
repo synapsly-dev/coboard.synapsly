@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Orbit, TreeDeciduous } from 'lucide-react';
+import { Orbit, ListTree } from 'lucide-react';
 import type { OrgNode, OrgNodeKind } from 'shared';
 import { Button, Tooltip } from '../../../components/ui';
 import type { OrgTreeNode } from '../tree';
-import { OrgChartCanvas } from './OrgChartCanvas';
+import { OrgOutlineTree } from './OrgOutlineTree';
 import { OrgPlanetCanvas } from './OrgPlanetCanvas';
 
 /**
- * 图谱 mode switcher: 星系 (planet/orbital, the default) vs 树形 (tidy-tree).
- * The role-oriented chart is a separate top-level view on OrgPage rather than a
- * mode inside this original chart surface.
+ * 图谱 mode switcher: 星系 (planet/orbital, the default) vs 树形 (a horizontal
+ * indented outline; the old pan/zoom card-tree was replaced 2026-07-13). The
+ * role-oriented chart is a separate top-level view on OrgPage rather than a mode
+ * inside this original chart surface.
  */
 export type OrgChartMode = 'galaxy' | 'tree';
 
@@ -29,6 +30,7 @@ interface OrgChartViewProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }
 
@@ -59,7 +61,7 @@ export function OrgChartView(props: OrgChartViewProps): JSX.Element {
           toggleMode();
         }}
       >
-        {mode === 'galaxy' ? <TreeDeciduous className="h-4 w-4" /> : <Orbit className="h-4 w-4" />}
+        {mode === 'galaxy' ? <ListTree className="h-4 w-4" /> : <Orbit className="h-4 w-4" />}
       </Button>
     </Tooltip>
   );
@@ -67,6 +69,6 @@ export function OrgChartView(props: OrgChartViewProps): JSX.Element {
   return mode === 'galaxy' ? (
     <OrgPlanetCanvas {...props} modeToggle={toggle} />
   ) : (
-    <OrgChartCanvas {...props} modeToggle={toggle} />
+    <OrgOutlineTree {...props} modeToggle={toggle} />
   );
 }

@@ -8,6 +8,7 @@ import {
   MoveDown,
   MoveUp,
   Pencil,
+  Plus,
   Trash2,
   UserPlus,
   Users,
@@ -25,8 +26,7 @@ import {
 import { avatarUrl, cn } from '../../lib/utils';
 import { InlineExpandablePeople } from './ExpandablePeople';
 import { occupancyLabel, ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
-import { OrgAddNodeButton } from './OrgAddNodeButton';
-import { TrackMembershipAction } from './TrackMembershipAction';
+import { NodeMembershipAction } from './NodeMembershipAction';
 import { indentInput, moveDownInput, moveUpInput, outdentInput, type OrgTreeNode } from './tree';
 
 interface OrgNodeRowProps {
@@ -41,6 +41,7 @@ interface OrgNodeRowProps {
   onAddChild: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit: (node: OrgNode) => void;
   onMembers: (node: OrgNode) => void;
+  onAddMembers: (node: OrgNode) => void;
   onDelete: (node: OrgTreeNode) => void;
   onMove: (id: string, input: MoveOrgNodeInput) => void;
 }
@@ -62,6 +63,7 @@ export function OrgNodeRow({
   onAddChild,
   onEdit,
   onMembers,
+  onAddMembers,
   onDelete,
   onMove,
 }: OrgNodeRowProps): JSX.Element {
@@ -138,79 +140,84 @@ export function OrgNodeRow({
         )}
       </div>
 
-      {node.trackId !== null && <TrackMembershipAction node={node} className="mt-0.5" />}
+      <NodeMembershipAction
+        node={node}
+        canManage={editable || canManageMembers}
+        className="mt-0.5"
+      />
 
       {(editable || canManageMembers) && (
         <div className="flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
-          {editable && (
-            <OrgAddNodeButton
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              title="新增小组"
-              kind="group"
-              onSelectKind={(kind) => onAddChild(node, kind)}
-            />
-          )}
           {canManageMembers && (
             <Button
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              title={node.trackId ? '管理赛道成员' : '加入员工'}
-              aria-label={node.trackId ? '管理赛道成员' : '加入员工'}
+              title={node.trackId ? '加入赛道成员' : '加入成员'}
+              aria-label={node.trackId ? '加入赛道成员' : '加入成员'}
               onClick={(event) => {
                 event.currentTarget.blur();
-                onMembers(node);
+                onAddMembers(node);
               }}
             >
               <UserPlus className="h-4 w-4" />
             </Button>
           )}
-          {node.trackId === null && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[10rem]">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              {editable && node.trackId === null && (
                 <DropdownMenuItem onSelect={() => onEdit(node)}>
                   <Pencil className="h-4 w-4 text-muted-foreground" /> 编辑
                 </DropdownMenuItem>
+              )}
+              {editable && (
+                <DropdownMenuItem onSelect={() => onAddChild(node, 'group')}>
+                  <Plus className="h-4 w-4 text-muted-foreground" /> 新增子级
+                </DropdownMenuItem>
+              )}
+              {canManageMembers && (
                 <DropdownMenuItem onSelect={() => onMembers(node)}>
                   <Users className="h-4 w-4 text-muted-foreground" /> 负责人 / 成员
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={!up} onSelect={() => up && onMove(node.id, up)}>
-                  <MoveUp className="h-4 w-4 text-muted-foreground" /> 上移
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={!down} onSelect={() => down && onMove(node.id, down)}>
-                  <MoveDown className="h-4 w-4 text-muted-foreground" /> 下移
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!indent}
-                  onSelect={() => indent && onMove(node.id, indent)}
-                >
-                  <IndentIncrease className="h-4 w-4 text-muted-foreground" />{' '}
-                  缩进（成为上一项的子级）
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  disabled={!outdent}
-                  onSelect={() => outdent && onMove(node.id, outdent)}
-                >
-                  <IndentDecrease className="h-4 w-4 text-muted-foreground" /> 取消缩进
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={() => onDelete(node)}
-                >
-                  <Trash2 className="h-4 w-4" /> 删除
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              )}
+              {editable && node.trackId === null && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={!up} onSelect={() => up && onMove(node.id, up)}>
+                    <MoveUp className="h-4 w-4 text-muted-foreground" /> 上移
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={!down} onSelect={() => down && onMove(node.id, down)}>
+                    <MoveDown className="h-4 w-4 text-muted-foreground" /> 下移
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!indent}
+                    onSelect={() => indent && onMove(node.id, indent)}
+                  >
+                    <IndentIncrease className="h-4 w-4 text-muted-foreground" />{' '}
+                    缩进（成为上一项的子级）
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!outdent}
+                    onSelect={() => outdent && onMove(node.id, outdent)}
+                  >
+                    <IndentDecrease className="h-4 w-4 text-muted-foreground" /> 取消缩进
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={() => onDelete(node)}
+                  >
+                    <Trash2 className="h-4 w-4" /> 删除
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
     </div>

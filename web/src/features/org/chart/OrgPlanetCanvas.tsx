@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Crown, MoreHorizontal, Pencil, Users } from 'lucide-react';
+import { Crown, MoreHorizontal, Pencil, UserPlus, Users } from 'lucide-react';
 import type { OrgNode, OrgNodeKind, OrgNodeMember } from 'shared';
 import {
   Avatar,
@@ -13,7 +13,7 @@ import {
 import { avatarUrl, cn } from '../../../lib/utils';
 import { isPositionFull, occupancyLabel } from '../labels';
 import { OrgAddNodeButton } from '../OrgAddNodeButton';
-import { TrackMembershipAction } from '../TrackMembershipAction';
+import { NodeMembershipAction } from '../NodeMembershipAction';
 import type { OrgTreeNode } from '../tree';
 import {
   FOCUS_R,
@@ -42,8 +42,9 @@ import { ZoomControls } from './ZoomControls';
  * orbits while the camera fitTo()s the new bounds. Items are DOM-ordered by key
  * (never reordered, which would restart transitions) and stacked with z-index.
  *
- * Same outer contract as OrgChartCanvas: {roots, editable, onAddChild, onEdit,
- * onMembers}. `modeToggle` is the 星系/树形 switch slot in the zoom cluster.
+ * Same outer contract as OrgOutlineTree: {roots, editable, onAddChild, onEdit,
+ * onMembers, onAddMembers}. `modeToggle` is the 星系/树形 switch slot in the zoom
+ * cluster.
  */
 interface OrgPlanetCanvasProps {
   roots: OrgTreeNode[];
@@ -51,6 +52,7 @@ interface OrgPlanetCanvasProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
   modeToggle?: ReactNode;
 }
@@ -58,11 +60,6 @@ interface OrgPlanetCanvasProps {
 /** Shared 400ms glide for position/size/opacity (motion-safe gated). */
 const GLIDE =
   'motion-safe:transition-[transform,width,height,opacity] motion-safe:duration-[400ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)]';
-
-/** Link glide — lines are laid out via left/top/width + rotate, so those
- * properties transition with the same curve as the nodes they join. */
-const LINK_GLIDE =
-  'motion-safe:transition-[left,top,width,transform,opacity] motion-safe:duration-[400ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)]';
 
 /** Circle fill + border per kind (hue at ~10% like the tree-mode accents). */
 const KIND_CIRCLE: Record<OrgNodeKind, string> = {
@@ -115,6 +112,7 @@ export function OrgPlanetCanvas({
   onAddChild,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
   modeToggle,
 }: OrgPlanetCanvasProps): JSX.Element {
@@ -132,21 +130,14 @@ export function OrgPlanetCanvas({
   // Key-stable DOM order: reordering children would recreate/interrupt CSS
   // transitions mid-glide, so items are always sorted by key and layered via z.
   const items = useMemo(() => [...layout.items].sort((a, b) => (a.key < b.key ? -1 : 1)), [layout]);
-  // Anchor links (小组/兼任 连线) resolve BOTH endpoints from the item list on
-  // every render, so a line's left/top/width/rotate re-derive from the exact
-  // same coordinates the nodes glide to — the lines move in lockstep. Sorted by
-  // key for the same DOM-order stability as items.
-  const itemByKey = useMemo(
-    () => new Map(layout.items.map((item) => [item.key, item] as const)),
-    [layout],
-  );
-  const links = useMemo(() => [...layout.links].sort((a, b) => (a.key < b.key ? -1 : 1)), [layout]);
   const focus = chain.length > 0 && !stale ? chain[chain.length - 1] : undefined;
   const focusItem = focus
     ? layout.items.find((i) => i.kind === 'planet' && i.node?.id === focus.id)
     : undefined;
   const focusOnMembers =
     focus && onMembers && (canManageMembers?.(focus) ?? true) ? onMembers : undefined;
+  const focusOnAddMembers =
+    focus && onAddMembers && (canManageMembers?.(focus) ?? true) ? onAddMembers : undefined;
 
   const focusPathRef = useRef(focusPath);
   focusPathRef.current = focusPath;
@@ -246,32 +237,10 @@ export function OrgPlanetCanvas({
           backgroundSize: '24px 24px',
         }}
       >
-        {/* 连线 pass: 1.5px divs from the FROM item's center, rotated to the
-            TO item — stacked between the rings (z-0) and ghosts (z-10). */}
-        {links.map((link) => {
-          const from = itemByKey.get(link.fromKey);
-          const to = itemByKey.get(link.toKey);
-          if (!from || !to) return null;
-          const dx = to.x - from.x;
-          const dy = to.y - from.y;
-          return (
-            <div
-              key={link.key}
-              aria-hidden
-              className={cn(
-                'pointer-events-none absolute z-[5] h-[1.5px] origin-left rounded-full bg-border/70',
-                'motion-safe:animate-fade-in',
-                LINK_GLIDE,
-              )}
-              style={{
-                left: from.x,
-                top: from.y - 0.75,
-                width: Math.hypot(dx, dy),
-                transform: `rotate(${Math.atan2(dy, dx)}rad)`,
-              }}
-            />
-          );
-        })}
+        {/* 连线 pass removed (2026-07-13): members read as belonging to a unit by
+            clustering next to it (proximity implies ownership); 兼任 members carry a
+            subtle ring + a tooltip listing their units. Straight radial spokes were
+            visual noise. */}
 
         {items.map((item) => (
           <OrbitItemView
@@ -284,12 +253,13 @@ export function OrgPlanetCanvas({
             onNodeClick={handleNodeClick}
             onEdit={onEdit}
             onMembers={onMembers}
+            onAddMembers={onAddMembers}
             canManageMembers={canManageMembers}
           />
         ))}
 
-        {/* Editable cluster under the focused star: 编辑 / 成员 / ＋新增子级. */}
-        {(editable || focusOnMembers) && focus && focusItem && (
+        {/* Editable cluster under the focused star: 编辑 / ＋加人 / 负责人·成员 / ＋新增子级. */}
+        {(editable || focusOnMembers || focusOnAddMembers) && focus && focusItem && (
           <div
             key={`controls:${focus.id}`}
             className="absolute left-0 top-0 z-50 -translate-x-1/2 motion-safe:animate-fade-in"
@@ -312,6 +282,22 @@ export function OrgPlanetCanvas({
                   </Button>
                 </Tooltip>
               )}
+              {focusOnAddMembers && (
+                <Tooltip content="加入成员">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 rounded-full sm:h-7 sm:w-7"
+                    aria-label={`加入成员到${focus.title}`}
+                    onClick={(event) => {
+                      event.currentTarget.blur();
+                      focusOnAddMembers(focus);
+                    }}
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                  </Button>
+                </Tooltip>
+              )}
               {focusOnMembers && (
                 <Tooltip content="负责人 / 成员">
                   <Button
@@ -330,7 +316,7 @@ export function OrgPlanetCanvas({
               )}
               {editable && onAddChild && (
                 <OrgAddNodeButton
-                  title={`在${focus.title}下新增小组`}
+                  title={`在${focus.title}下新增子级`}
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 rounded-full sm:h-7 sm:w-7"
@@ -416,6 +402,7 @@ function OrbitItemView({
   onNodeClick,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
 }: {
   item: OrbitItem;
@@ -426,6 +413,7 @@ function OrbitItemView({
   onNodeClick: (item: OrbitItem) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   const size = item.r * 2;
@@ -447,6 +435,7 @@ function OrbitItemView({
         onNodeClick={onNodeClick}
         onEdit={onEdit}
         onMembers={onMembers}
+        onAddMembers={onAddMembers}
         canManageMembers={canManageMembers}
       />
     </div>
@@ -462,6 +451,7 @@ function OrbitItemBody({
   onNodeClick,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
 }: {
   item: OrbitItem;
@@ -472,6 +462,7 @@ function OrbitItemBody({
   onNodeClick: (item: OrbitItem) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   // Orbit ring: a dashed, non-interactive circle.
@@ -555,7 +546,9 @@ function OrbitItemBody({
   // Planet (overview root or the focused star) / moon.
   const people = subtreePeople(node);
   const full = node.kind === 'position' && isPositionFull(node);
-  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
+  const canManageThis = canManageMembers?.(node) ?? true;
+  const nodeOnMembers = onMembers && canManageThis ? onMembers : undefined;
+  const nodeOnAddMembers = onAddMembers && canManageThis ? onAddMembers : undefined;
   return (
     <>
       <button
@@ -604,14 +597,13 @@ function OrbitItemBody({
         )}
       </button>
 
-      {node.trackId !== null && (
-        <div className="absolute -bottom-1 -right-1 z-20">
-          <TrackMembershipAction node={node} iconOnly />
-        </div>
-      )}
+      {/* Self-service membership affordance for the current user (all unit kinds). */}
+      <div className="absolute -bottom-1 -right-1 z-20">
+        <NodeMembershipAction node={node} iconOnly canManage={canManageThis} />
+      </div>
 
       {/* ⋯ menu on non-focused planets/moons (hover on sm+, always on touch). */}
-      {(editable || nodeOnMembers) && !isFocus && (onEdit || nodeOnMembers) && (
+      {!isFocus && (editable || nodeOnMembers || nodeOnAddMembers) && (
         <div className={cn('absolute -right-1 -top-1 z-10', HOVER_GATED)}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -626,6 +618,12 @@ function OrbitItemBody({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[9rem]">
+              {nodeOnAddMembers && (
+                <DropdownMenuItem onSelect={() => nodeOnAddMembers(node)}>
+                  <UserPlus className="h-4 w-4 text-muted-foreground" />
+                  加入成员
+                </DropdownMenuItem>
+              )}
               {editable && onEdit && node.trackId === null && (
                 <DropdownMenuItem onSelect={() => onEdit(node)}>
                   <Pencil className="h-4 w-4 text-muted-foreground" />

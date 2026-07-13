@@ -5,6 +5,7 @@ import {
   ChevronRight,
   MoreHorizontal,
   Pencil,
+  UserPlus,
   Users,
 } from 'lucide-react';
 import type { OrgNode, OrgNodeKind } from 'shared';
@@ -19,7 +20,7 @@ import { cn } from '../../../lib/utils';
 import { PeopleHoverCard } from '../ExpandablePeople';
 import { ORG_KIND_LABELS } from '../labels';
 import { OrgAddNodeButton } from '../OrgAddNodeButton';
-import { TrackMembershipAction } from '../TrackMembershipAction';
+import { NodeMembershipAction } from '../NodeMembershipAction';
 import type { OrgTreeNode } from '../tree';
 import { buildOrgRoleIndex, peopleOnNode, type OrgRoleIndex } from './org-role-selectors';
 import {
@@ -38,6 +39,7 @@ interface OrgRoleChartCanvasProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }
 
@@ -66,6 +68,7 @@ export function OrgRoleChartCanvas({
   onAddChild,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
 }: OrgRoleChartCanvasProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -105,6 +108,7 @@ export function OrgRoleChartCanvas({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onMembers={onMembers}
+              onAddMembers={onAddMembers}
               canManageMembers={canManageMembers}
             />
           ))}
@@ -181,6 +185,7 @@ export function OrgRoleChartCanvas({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onMembers={onMembers}
+              onAddMembers={onAddMembers}
               canManageMembers={canManageMembers}
             />
           ))}
@@ -195,6 +200,7 @@ export function OrgRoleChartCanvas({
               editable={editable}
               onEdit={onEdit}
               onMembers={onMembers}
+              onAddMembers={onAddMembers}
               canManageMembers={canManageMembers}
             />
           ))}
@@ -226,6 +232,7 @@ function BranchCard({
   onAddChild,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
 }: {
   node: OrgTreeNode;
@@ -238,12 +245,15 @@ function BranchCard({
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   const people = peopleOnNode(node);
   const subtreePeople = index.subtreePeopleByNode.get(node.id) ?? people;
   const hasChildren = node.children.length > 0;
-  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
+  const canManageThis = canManageMembers?.(node) ?? true;
+  const nodeOnMembers = onMembers && canManageThis ? onMembers : undefined;
+  const nodeOnAddMembers = onAddMembers && canManageThis ? onAddMembers : undefined;
 
   return (
     <div
@@ -270,9 +280,7 @@ function BranchCard({
           {subtreePeople.length > 0 ? (
             <PeopleHoverCard people={subtreePeople} max={MAX_AVATARS} />
           ) : null}
-          {node.trackId !== null && (
-            <TrackMembershipAction node={node} compact className="ml-auto" />
-          )}
+          <NodeMembershipAction node={node} compact canManage={canManageThis} className="ml-auto" />
         </div>
       </div>
 
@@ -294,11 +302,12 @@ function BranchCard({
             )}
           </Button>
         )}
-        {(editable || nodeOnMembers) && (
+        {(editable || nodeOnMembers || nodeOnAddMembers) && (
           <NodeActions
             node={node}
             onEdit={editable ? onEdit : undefined}
             onMembers={nodeOnMembers}
+            onAddMembers={nodeOnAddMembers}
           />
         )}
       </div>
@@ -327,6 +336,7 @@ function PositionCard({
   editable,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
 }: {
   node: OrgTreeNode;
@@ -336,9 +346,12 @@ function PositionCard({
   editable: boolean;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
-  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
+  const canManageThis = canManageMembers?.(node) ?? true;
+  const nodeOnMembers = onMembers && canManageThis ? onMembers : undefined;
+  const nodeOnAddMembers = onAddMembers && canManageThis ? onAddMembers : undefined;
   return (
     <div
       data-org-card
@@ -346,12 +359,16 @@ function PositionCard({
       style={{ left: x, top: y, width: ROLE_CARD_W, height: POSITION_CARD_H }}
     >
       <PositionContent node={node} index={index} onMembers={nodeOnMembers} />
-      {(editable || nodeOnMembers) && (
+      <div className="absolute bottom-2 right-2">
+        <NodeMembershipAction node={node} compact canManage={canManageThis} />
+      </div>
+      {(editable || nodeOnMembers || nodeOnAddMembers) && (
         <div className="absolute right-2 top-2">
           <NodeActions
             node={node}
             onEdit={editable ? onEdit : undefined}
             onMembers={nodeOnMembers}
+            onAddMembers={nodeOnAddMembers}
           />
         </div>
       )}
@@ -437,12 +454,14 @@ function NodeActions({
   node,
   onEdit,
   onMembers,
+  onAddMembers,
 }: {
   node: OrgTreeNode;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
 }): JSX.Element | null {
-  if (!onEdit && !onMembers) return null;
+  if (!onEdit && !onMembers && !onAddMembers) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -456,6 +475,12 @@ function NodeActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {onAddMembers && (
+          <DropdownMenuItem onSelect={() => onAddMembers(node)}>
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+            加入成员
+          </DropdownMenuItem>
+        )}
         {onEdit && node.trackId === null && (
           <DropdownMenuItem onSelect={() => onEdit(node)}>
             <Pencil className="h-4 w-4 text-muted-foreground" />
@@ -482,6 +507,7 @@ function MobileNode({
   onAddChild,
   onEdit,
   onMembers,
+  onAddMembers,
   canManageMembers,
 }: {
   node: OrgTreeNode;
@@ -492,19 +518,26 @@ function MobileNode({
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  onAddMembers?: (node: OrgNode) => void;
   canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
-  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
+  const canManageThis = canManageMembers?.(node) ?? true;
+  const nodeOnMembers = onMembers && canManageThis ? onMembers : undefined;
+  const nodeOnAddMembers = onAddMembers && canManageThis ? onAddMembers : undefined;
   if (node.kind === 'position') {
     return (
       <div className="relative min-h-[6.5rem] rounded-xl border border-border bg-card">
         <PositionContent node={node} index={index} onMembers={nodeOnMembers} />
-        {(editable || nodeOnMembers) && (
+        <div className="px-3.5 pb-2">
+          <NodeMembershipAction node={node} canManage={canManageThis} />
+        </div>
+        {(editable || nodeOnMembers || nodeOnAddMembers) && (
           <div className="absolute right-2 top-2">
             <NodeActions
               node={node}
               onEdit={editable ? onEdit : undefined}
               onMembers={nodeOnMembers}
+              onAddMembers={nodeOnAddMembers}
             />
           </div>
         )}
@@ -537,11 +570,9 @@ function MobileNode({
             <PeopleHoverCard people={subtreePeople} max={5} />
           </div>
         )}
-        {node.trackId !== null && (
-          <div className="mt-2">
-            <TrackMembershipAction node={node} />
-          </div>
-        )}
+        <div className="mt-2">
+          <NodeMembershipAction node={node} canManage={canManageThis} />
+        </div>
         <div className="absolute right-2 top-2 flex items-center gap-0.5">
           {node.children.length > 0 && (
             <Button
@@ -559,11 +590,12 @@ function MobileNode({
               )}
             </Button>
           )}
-          {(editable || nodeOnMembers) && (
+          {(editable || nodeOnMembers || nodeOnAddMembers) && (
             <NodeActions
               node={node}
               onEdit={editable ? onEdit : undefined}
               onMembers={nodeOnMembers}
+              onAddMembers={nodeOnAddMembers}
             />
           )}
         </div>
@@ -593,6 +625,7 @@ function MobileNode({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onMembers={onMembers}
+              onAddMembers={onAddMembers}
               canManageMembers={canManageMembers}
             />
           ))}

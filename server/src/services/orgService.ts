@@ -524,6 +524,39 @@ export async function setMembers(
   return serializeNode(db, node.id);
 }
 
+/**
+ * Leave a 部门/小组/岗位 as the caller (self-service, 2026-07-13). Removes the
+ * caller's own `member` row. A 负责人 (lead) can't self-leave — an admin must
+ * reassign the role first (mirrors a track manager). Track nodes leave via the
+ * track path. Idempotent for a non-member. Returns the refreshed node.
+ */
+export async function leaveNode(
+  db: Database,
+  node: OrgNodeRow,
+  user: UserRow,
+  realtimeBus: RealtimeBus = bus,
+): Promise<OrgNode> {
+  if (node.trackId !== null) {
+    throw validationError('赛道请在赛道卡片上退出');
+  }
+  const [existing] = await db
+    .select({ role: orgNodeMembers.role })
+    .from(orgNodeMembers)
+    .where(and(eq(orgNodeMembers.nodeId, node.id), eq(orgNodeMembers.userId, user.id)))
+    .limit(1);
+
+  if (existing?.role === 'lead') {
+    throw conflict('负责人不能直接退出，请联系管理员');
+  }
+  if (existing) {
+    await db
+      .delete(orgNodeMembers)
+      .where(and(eq(orgNodeMembers.nodeId, node.id), eq(orgNodeMembers.userId, user.id)));
+    publishOrgChange(realtimeBus, 'org_member_left', scopeOfNode(node), node.id);
+  }
+  return serializeNode(db, node.id);
+}
+
 // ---------------------------------------------------------------------------
 // 岗位申报 / org applications (P1)
 // ---------------------------------------------------------------------------
@@ -739,8 +772,9 @@ export async function applyToNode(
   realtimeBus: RealtimeBus = bus,
 ): Promise<OrgApplication> {
   const node = await loadOrgNodeOrThrow(db, nodeId);
-  if (node.kind !== 'position') {
-    throw validationError('只能申报岗位节点');
+  // 部门/小组/岗位都通过申请→审批加入 (2026-07-13); 赛道走直接加入 (POST /tracks/:id/join).
+  if (node.kind === 'track') {
+    throw validationError('赛道请直接加入，无需申请');
   }
 
   const existingMember = await db
@@ -749,7 +783,7 @@ export async function applyToNode(
     .where(and(eq(orgNodeMembers.nodeId, node.id), eq(orgNodeMembers.userId, user.id)))
     .limit(1);
   if (existingMember.length > 0) {
-    throw conflict('你已在该岗位');
+    throw conflict('你已是该单元成员');
   }
 
   const pending = await db
@@ -764,11 +798,12 @@ export async function applyToNode(
     )
     .limit(1);
   if (pending.length > 0) {
-    throw conflict('你已有待处理的申报');
+    throw conflict('你已提交过申请，请等待处理');
   }
 
+  // 名额仅对设置了 headcount 的岗位有意义; 部门/小组 headcount 为 null，天然跳过。
   if (node.headcount !== null && (await memberCount(db, node.id)) >= node.headcount) {
-    throw conflict('该岗位名额已满');
+    throw conflict('名额已满，暂时无法加入');
   }
 
   let inserted: OrgApplicationRow | undefined;
@@ -780,7 +815,7 @@ export async function applyToNode(
   } catch (error) {
     // Concurrent duplicate — the partial unique (node, user) WHERE pending index.
     if (isUniqueViolation(error)) {
-      throw conflict('你已有待处理的申报');
+      throw conflict('你已提交过申请，请等待处理');
     }
     throw error;
   }
@@ -840,13 +875,13 @@ export async function decideApplication(
   }
   const node = await loadOrgNodeOrThrow(db, application.nodeId);
   if (!(await canDecideOnNode(db, user, node))) {
-    throw forbidden('需要该岗位的负责人或管理员权限');
+    throw forbidden('需要该单元的负责人或管理员权限');
   }
 
   if (decision === 'approved') {
     const occupied = await memberCount(db, node.id);
     if (node.headcount !== null && occupied >= node.headcount) {
-      throw conflict('该岗位名额已满');
+      throw conflict('名额已满，暂时无法加入');
     }
     // Append after every current occupant (total count >= member count, so the
     // rank sorts after the existing members). A concurrent double-write is benign:

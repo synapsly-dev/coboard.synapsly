@@ -17,7 +17,7 @@ import { cn } from '../lib/utils';
 import { queryKeys } from '../lib/query';
 import { useAuth } from '../lib/auth-context';
 import { usersApi } from '../api/users';
-import { useDeleteOrgNode, useMoveOrgNode, useOrgTree } from '../api/org';
+import { useDeleteOrgNode, useMoveOrgNode, useOrgApplications, useOrgTree } from '../api/org';
 import { useTrackMemberCandidates } from '../api/tracks';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
 import { canEditOrgScope } from '../features/org/permissions';
@@ -27,6 +27,7 @@ import { OrgAddNodeButton } from '../features/org/OrgAddNodeButton';
 import { OrgNodeRow } from '../features/org/OrgNodeRow';
 import { OrgNodeDialog } from '../features/org/OrgNodeDialog';
 import { OrgMembersDialog, type OrgCandidate } from '../features/org/OrgMembersDialog';
+import { OrgAddPeopleDialog } from '../features/org/OrgAddPeopleDialog';
 import { RecruitView } from '../features/org/RecruitView';
 
 /**
@@ -52,6 +53,7 @@ export default function OrgPage(): JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
   const [membersNode, setMembersNode] = useState<OrgNode | null>(null);
+  const [addPeopleNode, setAddPeopleNode] = useState<OrgNode | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OrgTreeNode | null>(null);
 
   const { data: nodes, isLoading, isError, refetch } = useOrgTree(WHOLE_TEAM);
@@ -65,9 +67,12 @@ export default function OrgPage(): JSX.Element {
       node.leads.some((person) => person.userId === user.id));
   const canManageAnyNode = editable || (nodes ?? []).some(canManageNodeMembers);
 
+  // Whichever roster dialog is open needs the same candidate directory.
+  const rosterNode = membersNode ?? addPeopleNode;
+
   const trackCandidatesQuery = useTrackMemberCandidates(
-    membersNode?.trackId ?? null,
-    membersNode !== null && canManageNodeMembers(membersNode),
+    rosterNode?.trackId ?? null,
+    rosterNode !== null && canManageNodeMembers(rosterNode),
   );
 
   // Admins use the full user-management list; track managers use the public-safe,
@@ -79,7 +84,7 @@ export default function OrgPage(): JSX.Element {
   });
   const candidates: OrgCandidate[] = useMemo(() => {
     const source =
-      membersNode?.trackId != null
+      rosterNode?.trackId != null
         ? (trackCandidatesQuery.data ?? [])
         : (allUsersQuery.data ?? []).filter((candidate) => candidate.isActive);
     const normalized: OrgCandidate[] = source.map((candidate) => ({
@@ -92,7 +97,7 @@ export default function OrgPage(): JSX.Element {
     // Keep already-assigned people visible even if their account was deactivated
     // after assignment, so opening and saving the dialog never drops them silently.
     const seen = new Set(normalized.map((candidate) => candidate.id));
-    for (const person of [...(membersNode?.leads ?? []), ...(membersNode?.members ?? [])]) {
+    for (const person of [...(rosterNode?.leads ?? []), ...(rosterNode?.members ?? [])]) {
       if (seen.has(person.userId)) continue;
       normalized.push({
         id: person.userId,
@@ -103,12 +108,24 @@ export default function OrgPage(): JSX.Element {
       seen.add(person.userId);
     }
     return normalized;
-  }, [allUsersQuery.data, membersNode, trackCandidatesQuery.data]);
+  }, [allUsersQuery.data, rosterNode, trackCandidatesQuery.data]);
   const candidatesLoading =
-    membersNode?.trackId != null ? trackCandidatesQuery.isLoading : allUsersQuery.isLoading;
+    rosterNode?.trackId != null ? trackCandidatesQuery.isLoading : allUsersQuery.isLoading;
 
   const moveMut = useMoveOrgNode(WHOLE_TEAM);
   const deleteMut = useDeleteOrgNode(WHOLE_TEAM);
+
+  // Approver inbox size (pending 申请 the caller may decide) → 招募 tab badge.
+  const { data: appsData } = useOrgApplications(WHOLE_TEAM);
+  const pendingRequestCount = useMemo(() => {
+    const canDecide = new Set(appsData?.canDecideNodeIds ?? []);
+    return (appsData?.applications ?? []).filter(
+      (a) =>
+        a.status === 'pending' &&
+        canDecide.has(a.nodeId) &&
+        (user === null || a.applicant.id !== user.id),
+    ).length;
+  }, [appsData, user]);
 
   const roots = useMemo(() => buildTree(nodes ?? []), [nodes]);
   const visibleRows = useMemo(() => flattenVisible(roots, collapsed), [roots, collapsed]);
@@ -127,6 +144,10 @@ export default function OrgPage(): JSX.Element {
 
   const handleOpenMembers = (node: OrgNode): void => {
     if (canManageNodeMembers(node)) setMembersNode(node);
+  };
+
+  const handleAddPeople = (node: OrgNode): void => {
+    if (canManageNodeMembers(node)) setAddPeopleNode(node);
   };
 
   const confirmDelete = async (): Promise<void> => {
@@ -166,16 +187,25 @@ export default function OrgPage(): JSX.Element {
                     type="button"
                     onClick={() => setView(key)}
                     className={cn(
-                      'inline-flex items-center justify-center rounded p-1.5 transition-[background-color,color,transform] duration-base ease-standard active:scale-[0.94]',
+                      'relative inline-flex items-center justify-center rounded p-1.5 transition-[background-color,color,transform] duration-base ease-standard active:scale-[0.94]',
                       view === key
                         ? 'bg-secondary text-foreground'
                         : 'text-muted-foreground hover:-translate-y-0.5 hover:text-foreground',
                     )}
                     aria-pressed={view === key}
-                    aria-label={label}
+                    aria-label={
+                      key === 'recruit' && pendingRequestCount > 0
+                        ? `${label}（${pendingRequestCount} 个待处理申请）`
+                        : label
+                    }
                     title={label}
                   >
                     <Icon className="h-4 w-4" />
+                    {key === 'recruit' && pendingRequestCount > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
+                        {pendingRequestCount > 9 ? '9+' : pendingRequestCount}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -250,6 +280,7 @@ export default function OrgPage(): JSX.Element {
             }
             onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
             onMembers={canManageAnyNode ? handleOpenMembers : undefined}
+            onAddMembers={canManageAnyNode ? handleAddPeople : undefined}
             canManageMembers={canManageNodeMembers}
           />
         ) : view === 'chart' ? (
@@ -261,6 +292,7 @@ export default function OrgPage(): JSX.Element {
             }
             onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
             onMembers={canManageAnyNode ? handleOpenMembers : undefined}
+            onAddMembers={canManageAnyNode ? handleAddPeople : undefined}
             canManageMembers={canManageNodeMembers}
           />
         ) : (
@@ -279,6 +311,7 @@ export default function OrgPage(): JSX.Element {
                 onEdit={(n) => setNodeDialog({ mode: 'edit', node: n })}
                 canManageMembers={canManageNodeMembers(node)}
                 onMembers={handleOpenMembers}
+                onAddMembers={handleAddPeople}
                 onDelete={(n) => setDeleteTarget(n)}
                 onMove={handleMove}
               />
@@ -308,7 +341,7 @@ export default function OrgPage(): JSX.Element {
         />
       )}
 
-      {/* Members dialog */}
+      {/* Members dialog (full tri-state batch editor, via ⋯) */}
       {membersNode && canManageNodeMembers(membersNode) && (
         <OrgMembersDialog
           scope={WHOLE_TEAM}
@@ -317,6 +350,18 @@ export default function OrgPage(): JSX.Element {
           candidatesLoading={candidatesLoading}
           open
           onOpenChange={(o) => !o && setMembersNode(null)}
+        />
+      )}
+
+      {/* Quick add-people dialog (＋加人 — append only) */}
+      {addPeopleNode && canManageNodeMembers(addPeopleNode) && (
+        <OrgAddPeopleDialog
+          scope={WHOLE_TEAM}
+          node={addPeopleNode}
+          candidates={candidates}
+          candidatesLoading={candidatesLoading}
+          open
+          onOpenChange={(o) => !o && setAddPeopleNode(null)}
         />
       )}
 
