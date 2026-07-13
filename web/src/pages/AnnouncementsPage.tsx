@@ -16,6 +16,7 @@ import {
   Label,
   Spinner,
   Textarea,
+  useConfirm,
 } from '../components/ui';
 import { avatarUrl } from '../lib/utils';
 import { isApiClientError } from '../api/client';
@@ -111,6 +112,7 @@ function AnnouncementCard({
   onEdit: () => void;
 }): JSX.Element {
   const deleteAnnouncement = useDeleteAnnouncement();
+  const confirm = useConfirm();
   const edited = announcement.updatedAt !== announcement.createdAt;
 
   return (
@@ -140,8 +142,8 @@ function AnnouncementCard({
               aria-label="删除信息"
               title="删除"
               loading={deleteAnnouncement.isPending}
-              onClick={() => {
-                if (window.confirm(`确定删除信息「${announcement.title}」？`)) {
+              onClick={async () => {
+                if (await confirm({ title: '删除信息', description: `确定删除信息「${announcement.title}」？` })) {
                   deleteAnnouncement.mutate(announcement.id);
                 }
               }}

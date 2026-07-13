@@ -13,6 +13,7 @@ import {
   DialogTitle,
   Input,
   Textarea,
+  useConfirm,
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import { useAdoptIdea, useDeleteIdea, useRejectIdea } from '../../api/ideas';
@@ -57,6 +58,7 @@ export function IdeaDetailDialog({
 }): JSX.Element {
   const { user } = useAuth();
   const deleteIdea = useDeleteIdea();
+  const confirm = useConfirm();
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isAuthor = idea != null && idea.author.id === user?.id;
@@ -107,7 +109,7 @@ export function IdeaDetailDialog({
                     loading={deleteIdea.isPending}
                     onClick={() => {
                       setDeleteError(null);
-                      confirmDeleteIdea(deleteIdea, idea, {
+                      void confirmDeleteIdea(confirm, deleteIdea, idea, {
                         // The list refetch also drops the idea; closing here gives
                         // immediate feedback instead of relying on the lookup.
                         onSuccess: () => onOpenChange(false),

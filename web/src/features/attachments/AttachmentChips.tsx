@@ -13,6 +13,7 @@ import {
 } from '../../api/attachments';
 import { formatFileSize } from '../task/AttachmentSection';
 import { FilePreviewDialog } from './FilePreviewDialog';
+import { useConfirm } from '../../components/ui';
 
 /**
  * Attachment display for ideas / comments: image thumbnails (click → lightbox)
@@ -61,6 +62,7 @@ export function AttachmentChips({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const confirm = useConfirm();
 
   if (files.length === 0 && !canUpload) return null;
 
@@ -69,7 +71,7 @@ export function AttachmentChips({
   const others = files.filter((f) => !images.includes(f));
 
   async function handleDelete(file: Attachment): Promise<void> {
-    if (!window.confirm(`确定删除附件「${file.filename}」？`)) return;
+    if (!(await confirm({ title: '删除附件', description: `确定删除附件「${file.filename}」？` }))) return;
     setError(null);
     setDeletingId(file.id);
     try {

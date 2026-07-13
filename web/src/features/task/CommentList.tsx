@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import type { CommentWithAuthor, ProjectMemberWithUser, Task } from 'shared';
 import { updateCommentInputSchema } from 'shared';
-import { Avatar, Button, Spinner, Textarea } from '../../components/ui';
+import { Avatar, Button, Spinner, Textarea, useConfirm } from '../../components/ui';
 import { avatarUrl } from '../../lib/utils';
 import { useAuth } from '../../lib/auth-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -80,6 +80,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
   const queryClient = useQueryClient();
   const updateComment = useUpdateComment(taskId);
   const deleteComment = useDeleteComment(taskId);
+  const confirm = useConfirm();
 
   const isAuthor = user?.id === comment.authorId;
   const canEdit = isAuthor;
@@ -146,8 +147,8 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
                   size="icon"
                   className="h-9 w-9 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
                   aria-label="删除评论"
-                  onClick={() => {
-                    if (window.confirm('确定删除这条评论？')) {
+                  onClick={async () => {
+                    if (await confirm({ title: '删除评论', description: '确定删除这条评论？' })) {
                       deleteComment.mutate(comment.id);
                     }
                   }}

@@ -12,6 +12,7 @@ export { Avatar, type AvatarProps, type AvatarSize } from './Avatar';
 export { Spinner, FullPageSpinner } from './Spinner';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { TooltipProvider, Tooltip, type TooltipProps } from './Tooltip';
+export { ConfirmProvider, useConfirm, type ConfirmOptions } from './ConfirmDialog';
 
 export {
   Dialog,

@@ -12,7 +12,7 @@ import { queryClient } from './lib/query';
 import { AuthProvider, useAuth } from './lib/auth-context';
 import { RealtimeListener } from './lib/sse';
 import { AppShell } from './components/layout/AppShell';
-import { TooltipProvider } from './components/ui';
+import { ConfirmProvider, TooltipProvider } from './components/ui';
 import { FullPageSpinner } from './components/ui/Spinner';
 
 import LoginPage from './pages/Login';
@@ -158,9 +158,11 @@ export default function App(): JSX.Element {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <ConfirmProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ConfirmProvider>
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>

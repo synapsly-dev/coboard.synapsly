@@ -21,7 +21,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         'placeholder:text-muted-foreground',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'resize-y',
+        'resize-none',
         invalid ? 'border-destructive focus-visible:ring-destructive' : 'border-input',
         className,
       )}

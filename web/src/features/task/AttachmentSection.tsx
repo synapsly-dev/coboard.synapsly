@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Download, Eye, Paperclip, Trash2, Upload } from 'lucide-react';
 import type { Task, TaskFile } from 'shared';
 import { isImageMime, isInlinePreviewable } from 'shared';
-import { Button, Spinner } from '../../components/ui';
+import { Button, Spinner, useConfirm } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import {
   MAX_TASK_FILE_BYTES,
@@ -171,6 +171,7 @@ function FileRow({
   onPreview: () => void;
 }): JSX.Element {
   const deleteFile = useDeleteTaskFile(taskId);
+  const confirm = useConfirm();
   const previewable = isInlinePreviewable(file.mime);
   const isImage = isImageMime(file.mime);
 
@@ -241,8 +242,8 @@ function FileRow({
           aria-label={`删除 ${file.filename}`}
           title="删除"
           loading={deleteFile.isPending}
-          onClick={() => {
-            if (window.confirm(`确定删除附件「${file.filename}」？`)) {
+          onClick={async () => {
+            if (await confirm({ title: '删除附件', description: `确定删除附件「${file.filename}」？` })) {
               deleteFile.mutate(file.id);
             }
           }}

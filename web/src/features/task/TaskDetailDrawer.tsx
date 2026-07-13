@@ -41,6 +41,7 @@ import {
   SelectValue,
   Spinner,
   Textarea,
+  useConfirm,
 } from '../../components/ui';
 import { useAuth } from '../../lib/auth-context';
 import { avatarUrl, cn } from '../../lib/utils';
@@ -175,6 +176,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
   const assignTask = useAssignTask(projectId);
   const releaseTask = useReleaseTask(projectId, user?.id);
   const deleteTask = useDeleteTask(projectId);
+  const confirm = useConfirm();
 
   const [tab, setTab] = useState<Tab>(initialTab ?? 'comments');
   const [editing, setEditing] = useState(false);
@@ -734,8 +736,8 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             size="sm"
             className="text-muted-foreground hover:text-destructive"
             loading={deleteTask.isPending}
-            onClick={() => {
-              if (window.confirm('确定删除这个任务？此操作不可撤销。')) {
+            onClick={async () => {
+              if (await confirm({ title: '删除任务', description: '确定删除这个任务？此操作不可撤销。' })) {
                 deleteTask.mutate(task.id, { onSuccess: onClose });
               }
             }}

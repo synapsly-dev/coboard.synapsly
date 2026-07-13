@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, Plus, Trash2, X } from 'lucide-react';
 import { createLabelInputSchema } from 'shared';
-import { Button, Input, Spinner } from '../../components/ui';
+import { Button, Input, Spinner, useConfirm } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import { useCreateLabel, useDeleteLabel, useLabels } from '../../api/labels';
 import { useAuth } from '../../lib/auth-context';
@@ -44,6 +44,7 @@ export function LabelPicker({ value, onChange, className }: LabelPickerProps): J
   const { data: labels, isLoading } = useLabels();
   const createLabel = useCreateLabel();
   const deleteLabel = useDeleteLabel();
+  const confirm = useConfirm();
 
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -121,12 +122,12 @@ export function LabelPicker({ value, onChange, className }: LabelPickerProps): J
                     aria-label={`删除标签 ${label.name}`}
                     title="从标签库删除"
                     disabled={deleteLabel.isPending}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `从标签库删除「${label.name}」？该标签会从所有任务上移除。`,
-                        )
-                      ) {
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: '删除标签',
+                        description: `从标签库删除「${label.name}」？该标签会从所有任务上移除。`,
+                      });
+                      if (ok) {
                         deleteLabel.mutate(label.id, {
                           onSuccess: () => onChange(value.filter((v) => v !== label.id)),
                         });

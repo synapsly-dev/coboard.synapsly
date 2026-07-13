@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Lightbulb, Send, Trash2 } from 'lucide-react';
 import type { Idea, Task } from 'shared';
 import { createIdeaInputSchema } from 'shared';
-import { Avatar, Badge, Button, Spinner, Textarea } from '../../components/ui';
+import { Avatar, Badge, Button, Spinner, Textarea, useConfirm } from '../../components/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { avatarUrl } from '../../lib/utils';
 import { useCreateIdea, useDeleteIdea, useTaskIdeas } from '../../api/ideas';
@@ -77,6 +77,7 @@ function IdeaItem({
   canDelete: boolean;
 }): JSX.Element {
   const deleteIdea = useDeleteIdea();
+  const confirm = useConfirm();
 
   return (
     <li className="flex gap-3">
@@ -107,7 +108,7 @@ function IdeaItem({
               className="ml-auto h-9 w-9 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
               aria-label="删除想法"
               loading={deleteIdea.isPending}
-              onClick={() => confirmDeleteIdea(deleteIdea, idea)}
+              onClick={() => void confirmDeleteIdea(confirm, deleteIdea, idea)}
             >
               {!deleteIdea.isPending && <Trash2 className="h-3.5 w-3.5" aria-hidden />}
             </Button>

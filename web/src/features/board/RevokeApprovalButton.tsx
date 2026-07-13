@@ -1,6 +1,6 @@
 import { Undo2 } from 'lucide-react';
 import type { Task } from 'shared';
-import { Button } from '../../components/ui';
+import { Button, useConfirm } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import { useRevokeApproval } from '../../api/tasks';
 
@@ -27,6 +27,7 @@ export function RevokeApprovalButton({
   onRevoked,
 }: RevokeApprovalButtonProps): JSX.Element {
   const revoke = useRevokeApproval(projectId);
+  const confirm = useConfirm();
 
   return (
     <div className={className} onClick={(e) => e.stopPropagation()}>
@@ -37,8 +38,14 @@ export function RevokeApprovalButton({
         className="w-full sm:w-auto"
         loading={revoke.isPending}
         aria-label="撤销通过"
-        onClick={() => {
-          if (window.confirm(`确定撤销「${task.title}」的通过？任务将退回「待审阅」重新审阅。`)) {
+        onClick={async () => {
+          const ok = await confirm({
+            title: '撤销通过',
+            description: `确定撤销「${task.title}」的通过？任务将退回「待审阅」重新审阅。`,
+            confirmText: '撤销通过',
+            destructive: false,
+          });
+          if (ok) {
             revoke.mutate(task.id, { onSuccess: () => onRevoked?.() });
           }
         }}

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
   Spinner,
+  useConfirm,
 } from '../components/ui';
 import { avatarUrl, cn } from '../lib/utils';
 import { useAuth } from '../lib/auth-context';
@@ -240,6 +241,7 @@ function AssetCard({
   onOpenTask: (taskId: string) => void;
 }): JSX.Element {
   const deleteAsset = useDeleteAsset();
+  const confirm = useConfirm();
   const meta = ASSET_KIND_META[asset.kind];
   const edited = asset.updatedAt !== asset.createdAt;
   const showLink = asset.url != null && SAFE_URL.test(asset.url);
@@ -292,8 +294,8 @@ function AssetCard({
               aria-label="删除资产"
               title="删除"
               loading={deleteAsset.isPending}
-              onClick={() => {
-                if (window.confirm(`确定删除资产「${asset.title}」？`)) {
+              onClick={async () => {
+                if (await confirm({ title: '删除资产', description: `确定删除资产「${asset.title}」？` })) {
                   deleteAsset.mutate(asset.id);
                 }
               }}

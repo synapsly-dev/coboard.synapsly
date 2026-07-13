@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { IdeaWithContext, User } from 'shared';
 import { IdeaDetailDialog } from './IdeaDetailDialog';
+import { ConfirmProvider } from '../../components/ui';
 
 /**
  * 想法详情 read dialog: full body through the safe Markdown pipeline, attachment
@@ -69,7 +70,9 @@ function renderDialog(idea: IdeaWithContext | null, canManage: boolean): void {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <IdeaDetailDialog idea={idea} canManage={canManage} onOpenChange={vi.fn()} />
+      <ConfirmProvider>
+        <IdeaDetailDialog idea={idea} canManage={canManage} onOpenChange={vi.fn()} />
+      </ConfirmProvider>
     </QueryClientProvider>,
   );
 }

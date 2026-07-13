@@ -22,6 +22,7 @@ import {
   SelectValue,
   Spinner,
   Textarea,
+  useConfirm,
 } from '../components/ui';
 import { avatarUrl } from '../lib/utils';
 import { useAllIdeas, useCreateStandaloneIdea, useDeleteIdea } from '../api/ideas';
@@ -297,6 +298,7 @@ function IdeaCard({
 }): JSX.Element {
   const isStandalone = idea.taskId == null;
   const deleteIdea = useDeleteIdea();
+  const confirm = useConfirm();
 
   /** Overlaid 删除 button (top-right); kept out of the clickable task-card button. */
   const deleteButton = canDelete ? (
@@ -309,7 +311,7 @@ function IdeaCard({
       loading={deleteIdea.isPending}
       onClick={(e) => {
         e.stopPropagation();
-        confirmDeleteIdea(deleteIdea, idea);
+        void confirmDeleteIdea(confirm, deleteIdea, idea);
       }}
     >
       {!deleteIdea.isPending && <Trash2 className="h-3.5 w-3.5" aria-hidden />}

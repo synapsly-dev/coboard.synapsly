@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FileText, Send, Trash2 } from 'lucide-react';
 import type { Task, TaskText } from 'shared';
 import { createTaskTextInputSchema } from 'shared';
-import { Avatar, Button, Spinner, Textarea } from '../../components/ui';
+import { Avatar, Button, Spinner, Textarea, useConfirm } from '../../components/ui';
 import { avatarUrl } from '../../lib/utils';
 import { isApiClientError } from '../../api/client';
 import { useCreateTaskText, useDeleteTaskText, useTaskTexts } from '../../api/task-texts';
@@ -115,6 +115,7 @@ function TextRow({
   canDelete: boolean;
 }): JSX.Element {
   const deleteText = useDeleteTaskText(taskId);
+  const confirm = useConfirm();
 
   return (
     <li className="flex min-w-0 gap-2 py-2">
@@ -140,8 +141,8 @@ function TextRow({
               aria-label="删除交付内容"
               title="删除"
               loading={deleteText.isPending}
-              onClick={() => {
-                if (window.confirm('确定删除这条交付内容？')) {
+              onClick={async () => {
+                if (await confirm({ title: '删除交付内容', description: '确定删除这条交付内容？' })) {
                   deleteText.mutate(text.id);
                 }
               }}
