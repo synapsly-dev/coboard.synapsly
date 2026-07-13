@@ -62,6 +62,7 @@ function makeTask(overrides: Partial<Task> & Pick<Task, 'id' | 'title'>): Task {
     maxClaimants: null,
     dueDate: null,
     createdBy: 'user-1',
+    creator: null,
     rank: 'm',
     completedAt: null,
     deliveredAt: null,

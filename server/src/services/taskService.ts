@@ -185,6 +185,7 @@ export function serializeTask(
   reviewer: UserSummary | null = null,
   deliverer: UserSummary | null = null,
   firstApprover: UserSummary | null = null,
+  creator: UserSummary | null = null,
 ): Task {
   return {
     id: row.id,
@@ -208,6 +209,7 @@ export function serializeTask(
     maxClaimants: row.maxClaimants,
     dueDate: row.dueDate,
     createdBy: row.createdBy,
+    creator,
     rank: row.rank,
     completedAt: row.completedAt ? row.completedAt.toISOString() : null,
     deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
@@ -327,15 +329,24 @@ function firstApproverFor(
   return row.firstApprovedBy ? byId.get(row.firstApprovedBy) ?? null : null;
 }
 
+/** Resolve a task row's creator (发布者) summary from `createdBy`, or null if gone. */
+function creatorFor(
+  row: Pick<TaskRow, 'createdBy'>,
+  byId: Map<string, UserSummary>,
+): UserSummary | null {
+  return byId.get(row.createdBy) ?? null;
+}
+
 /**
- * The reviewer + deliverer + 初审人 user ids referenced by a set of task rows
- * (for batch summary load).
+ * The creator (发布者) + reviewer + deliverer + 初审人 user ids referenced by a set
+ * of task rows (for batch summary load).
  */
 function taskPeopleIds(
-  rows: Array<Pick<TaskRow, 'reviewedBy' | 'deliveredBy' | 'firstApprovedBy'>>,
+  rows: Array<Pick<TaskRow, 'createdBy' | 'reviewedBy' | 'deliveredBy' | 'firstApprovedBy'>>,
 ): string[] {
   const ids: string[] = [];
   for (const r of rows) {
+    ids.push(r.createdBy);
     if (r.reviewedBy) ids.push(r.reviewedBy);
     if (r.deliveredBy) ids.push(r.deliveredBy);
     if (r.firstApprovedBy) ids.push(r.firstApprovedBy);
@@ -357,6 +368,7 @@ async function serializeTaskById(db: Database, row: TaskRow): Promise<Task> {
     reviewerFor(row, people),
     delivererFor(row, people),
     firstApproverFor(row, people),
+    creatorFor(row, people),
   );
 }
 
@@ -402,6 +414,7 @@ async function serializeTaskRows(db: Database, rows: TaskRow[]): Promise<Task[]>
       reviewerFor(row, people),
       delivererFor(row, people),
       firstApproverFor(row, people),
+      creatorFor(row, people),
     ),
   );
 }
@@ -501,6 +514,7 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
       reviewerFor(row, people),
       delivererFor(row, people),
       firstApproverFor(row, people),
+      creatorFor(row, people),
     ),
   );
 }

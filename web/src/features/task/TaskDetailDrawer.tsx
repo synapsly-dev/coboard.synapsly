@@ -409,6 +409,23 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
 
         {/* Meta + claimants */}
         <div className="grid gap-3 rounded-lg border border-border bg-secondary/30 p-3">
+          {/* 发布者 (publisher) — who created the task, with the publish time; always shown. */}
+          {task.creator && (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="w-16 shrink-0 font-medium text-muted-foreground">发布者</span>
+              <Avatar
+                name={task.creator.displayName}
+                color={task.creator.avatarColor}
+                imageUrl={task.creator.hasAvatar ? avatarUrl(task.creator.id) : undefined}
+                size="xs"
+              />
+              <span className="min-w-0 truncate text-foreground">{task.creator.displayName}</span>
+              <span className="ml-auto shrink-0 text-muted-foreground" title={`发布于 ${task.createdAt}`}>
+                {relativeTime(task.createdAt)}
+              </span>
+            </div>
+          )}
+
           {/* Claimants list */}
           <div className="flex items-start gap-3">
             <span className="w-16 shrink-0 pt-1 text-xs font-medium text-muted-foreground">

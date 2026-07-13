@@ -76,6 +76,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     maxClaimants: null,
     dueDate: '2026-06-20',
     createdBy: 'user-1',
+    creator: null,
     rank: 'm',
     completedAt: null,
     deliveredAt: null,

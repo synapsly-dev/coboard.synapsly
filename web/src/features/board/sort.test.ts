@@ -45,6 +45,7 @@ function task(over: Partial<Task> & { id: string }): Task {
     maxClaimants: null,
     dueDate: null,
     createdBy: '00000000-0000-0000-0000-000000000001',
+    creator: null,
     rank: 'm',
     completedAt: null,
     deliveredAt: null,

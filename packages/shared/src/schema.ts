@@ -222,6 +222,8 @@ export const taskSchema = z.object({
   maxClaimants: z.number().int().nullable(),
   dueDate: dateOnlySchema.nullable(),
   createdBy: uuidSchema,
+  /** The publisher (发布者) summary resolved from `createdBy`; null if the user is gone. */
+  creator: userSummarySchema.nullable(),
   rank: z.string(),
   completedAt: isoDateTimeSchema.nullable(),
   deliveredAt: isoDateTimeSchema.nullable(),

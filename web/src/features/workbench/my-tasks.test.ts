@@ -44,6 +44,7 @@ function makeTask(
     maxClaimants: null,
     dueDate: null,
     createdBy: 'user-creator',
+    creator: null,
     rank: 'a0',
     completedAt: null,
     deliveredAt: null,

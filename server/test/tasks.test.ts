@@ -199,6 +199,10 @@ describe('POST /projects/:id/tasks (create)', () => {
     expect(task.status).toBe('open');
     expect(task.claimants).toHaveLength(0);
     expect(task.priority).toBe('medium');
+    // The 发布者 (creator) summary is resolved from createdBy so the UI can show it.
+    expect(task.createdBy).toBe(u.id);
+    expect(task.creator?.id).toBe(u.id);
+    expect(typeof task.creator?.displayName).toBe('string');
   });
 
   it('dispatches to in_progress with a claimant when assigneeId is given', async () => {
