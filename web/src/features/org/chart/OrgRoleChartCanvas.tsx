@@ -3,23 +3,23 @@ import {
   BriefcaseBusiness,
   ChevronDown,
   ChevronRight,
-  Crown,
   MoreHorizontal,
   Pencil,
   Users,
 } from 'lucide-react';
 import type { OrgNode, OrgNodeKind } from 'shared';
 import {
-  Avatar,
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../components/ui';
-import { avatarUrl, cn } from '../../../lib/utils';
+import { cn } from '../../../lib/utils';
+import { PeopleHoverCard } from '../ExpandablePeople';
 import { ORG_KIND_LABELS } from '../labels';
 import { OrgAddNodeButton } from '../OrgAddNodeButton';
+import { TrackMembershipAction } from '../TrackMembershipAction';
 import type { OrgTreeNode } from '../tree';
 import { buildOrgRoleIndex, peopleOnNode, type OrgRoleIndex } from './org-role-selectors';
 import {
@@ -38,6 +38,7 @@ interface OrgRoleChartCanvasProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }
 
 const EDGE_RADIUS = 8;
@@ -65,6 +66,7 @@ export function OrgRoleChartCanvas({
   onAddChild,
   onEdit,
   onMembers,
+  canManageMembers,
 }: OrgRoleChartCanvasProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const toggleCollapsed = (id: string): void =>
@@ -86,10 +88,7 @@ export function OrgRoleChartCanvas({
     <div className="relative h-full w-full">
       <div className="h-full overflow-y-auto bg-background px-4 pb-8 pt-4 md:hidden">
         <div className="mb-3 flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5">
-          <div>
-            <p className="text-xs text-muted-foreground">组织</p>
-            <p className="font-semibold">团队</p>
-          </div>
+          <p className="font-semibold">团队</p>
           <span className="text-sm tabular-nums text-muted-foreground">
             {index.totalMemberCount} 人
           </span>
@@ -106,6 +105,7 @@ export function OrgRoleChartCanvas({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onMembers={onMembers}
+              canManageMembers={canManageMembers}
             />
           ))}
         </div>
@@ -161,10 +161,7 @@ export function OrgRoleChartCanvas({
                 height: layout.team.height,
               }}
             >
-              <div>
-                <p className="text-xs text-muted-foreground">组织</p>
-                <p className="text-base font-semibold">团队</p>
-              </div>
+              <p className="text-base font-semibold">团队</p>
               <span className="text-sm tabular-nums text-muted-foreground">
                 {index.totalMemberCount} 人
               </span>
@@ -184,6 +181,7 @@ export function OrgRoleChartCanvas({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onMembers={onMembers}
+              canManageMembers={canManageMembers}
             />
           ))}
 
@@ -197,6 +195,7 @@ export function OrgRoleChartCanvas({
               editable={editable}
               onEdit={onEdit}
               onMembers={onMembers}
+              canManageMembers={canManageMembers}
             />
           ))}
         </div>
@@ -227,6 +226,7 @@ function BranchCard({
   onAddChild,
   onEdit,
   onMembers,
+  canManageMembers,
 }: {
   node: OrgTreeNode;
   x: number;
@@ -238,15 +238,17 @@ function BranchCard({
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   const people = peopleOnNode(node);
+  const subtreePeople = index.subtreePeopleByNode.get(node.id) ?? people;
   const hasChildren = node.children.length > 0;
-  const lead = node.leads[0];
+  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
 
   return (
     <div
       data-org-card
-      className="group/card absolute rounded-xl border border-border bg-muted/40 transition-[box-shadow,transform] duration-base ease-standard hover:-translate-y-px hover:shadow-sm"
+      className="group/card absolute rounded-xl border border-border bg-muted/40 transition-[box-shadow,transform] duration-base ease-standard hover:z-20 hover:-translate-y-px hover:shadow-sm"
       style={{ left: x, top: y, width: ROLE_CARD_W, height: BRANCH_CARD_H }}
     >
       <div
@@ -265,27 +267,12 @@ function BranchCard({
         </div>
         <div className="flex min-h-6 items-center gap-1.5 pr-12 text-[11px] text-muted-foreground">
           <span>{ORG_KIND_LABELS[node.kind]}</span>
-          {lead ? (
-            <button
-              type="button"
-              onClick={() => onMembers?.(node)}
-              disabled={!onMembers}
-              className="flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 enabled:hover:bg-accent"
-            >
-              <span className="relative">
-                <Avatar
-                  name={lead.displayName}
-                  color={lead.avatarColor}
-                  imageUrl={lead.hasAvatar ? avatarUrl(lead.userId) : undefined}
-                  size="xs"
-                />
-                <Crown className="absolute -right-1 -top-1 h-2.5 w-2.5 fill-amber-400 text-amber-500" />
-              </span>
-              <span className="max-w-24 truncate">{lead.displayName}</span>
-            </button>
-          ) : people.length > 0 ? (
-            <span>直属 {people.length} 人</span>
+          {subtreePeople.length > 0 ? (
+            <PeopleHoverCard people={subtreePeople} max={MAX_AVATARS} />
           ) : null}
+          {node.trackId !== null && (
+            <TrackMembershipAction node={node} compact className="ml-auto" />
+          )}
         </div>
       </div>
 
@@ -307,7 +294,13 @@ function BranchCard({
             )}
           </Button>
         )}
-        {editable && <NodeActions node={node} onEdit={onEdit} onMembers={onMembers} />}
+        {(editable || nodeOnMembers) && (
+          <NodeActions
+            node={node}
+            onEdit={editable ? onEdit : undefined}
+            onMembers={nodeOnMembers}
+          />
+        )}
       </div>
 
       {editable && onAddChild && (
@@ -334,6 +327,7 @@ function PositionCard({
   editable,
   onEdit,
   onMembers,
+  canManageMembers,
 }: {
   node: OrgTreeNode;
   x: number;
@@ -342,17 +336,23 @@ function PositionCard({
   editable: boolean;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
+  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
   return (
     <div
       data-org-card
-      className="group/card absolute rounded-xl border border-border bg-card transition-[border-color,box-shadow,transform] duration-base ease-standard hover:-translate-y-px hover:border-foreground/20 hover:shadow-sm"
+      className="group/card absolute rounded-xl border border-border bg-card transition-[border-color,box-shadow,transform] duration-base ease-standard hover:z-20 hover:-translate-y-px hover:border-foreground/20 hover:shadow-sm"
       style={{ left: x, top: y, width: ROLE_CARD_W, height: POSITION_CARD_H }}
     >
-      <PositionContent node={node} index={index} onMembers={onMembers} />
-      {editable && (
+      <PositionContent node={node} index={index} onMembers={nodeOnMembers} />
+      {(editable || nodeOnMembers) && (
         <div className="absolute right-2 top-2">
-          <NodeActions node={node} onEdit={onEdit} onMembers={onMembers} />
+          <NodeActions
+            node={node}
+            onEdit={editable ? onEdit : undefined}
+            onMembers={nodeOnMembers}
+          />
         </div>
       )}
     </div>
@@ -369,8 +369,6 @@ function PositionContent({
   onMembers?: (node: OrgNode) => void;
 }): JSX.Element {
   const people = peopleOnNode(node);
-  const shown = people.slice(0, MAX_AVATARS);
-  const overflow = people.length - shown.length;
   const vacancy = index.vacanciesByPosition.get(node.id);
   const occupancy =
     node.headcount == null ? `${people.length}/∞` : `${people.length}/${node.headcount}`;
@@ -380,35 +378,12 @@ function PositionContent({
 
   const peopleRow = (
     <>
-      <span className="flex shrink-0 -space-x-1.5">
-        {shown.map((person) => (
-          <span key={person.userId} className="relative inline-flex">
-            <Avatar
-              name={person.displayName}
-              color={person.avatarColor}
-              imageUrl={person.hasAvatar ? avatarUrl(person.userId) : undefined}
-              size="xs"
-              className="ring-2 ring-card"
-            />
-            {person.role === 'lead' && (
-              <Crown className="absolute -right-1 -top-1 h-2.5 w-2.5 fill-amber-400 text-amber-500" />
-            )}
-          </span>
-        ))}
-        {overflow > 0 && (
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary text-[10px] font-medium text-muted-foreground ring-2 ring-card">
-            +{overflow}
-          </span>
-        )}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-left text-xs text-muted-foreground">
-        {people.length > 0
-          ? people
-              .slice(0, 2)
-              .map((person) => person.displayName)
-              .join('、')
-          : '暂未任职'}
-      </span>
+      {people.length > 0 ? (
+        <PeopleHoverCard people={people} max={MAX_AVATARS} />
+      ) : (
+        <span className="min-w-0 flex-1 text-left text-xs text-muted-foreground">暂未任职</span>
+      )}
+      {people.length > 0 && <span className="min-w-0 flex-1" />}
       {hasConcurrentRole && (
         <span
           className="shrink-0 rounded border border-border px-1 py-0.5 text-[10px] text-muted-foreground"
@@ -481,7 +456,7 @@ function NodeActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        {onEdit && (
+        {onEdit && node.trackId === null && (
           <DropdownMenuItem onSelect={() => onEdit(node)}>
             <Pencil className="h-4 w-4 text-muted-foreground" />
             编辑
@@ -490,7 +465,7 @@ function NodeActions({
         {onMembers && (
           <DropdownMenuItem onSelect={() => onMembers(node)}>
             <Users className="h-4 w-4 text-muted-foreground" />
-            负责人 / 成员
+            {node.trackId ? '赛道经理 / 成员' : '负责人 / 成员'}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -507,6 +482,7 @@ function MobileNode({
   onAddChild,
   onEdit,
   onMembers,
+  canManageMembers,
 }: {
   node: OrgTreeNode;
   index: OrgRoleIndex;
@@ -516,14 +492,20 @@ function MobileNode({
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
+  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
   if (node.kind === 'position') {
     return (
       <div className="relative min-h-[6.5rem] rounded-xl border border-border bg-card">
-        <PositionContent node={node} index={index} onMembers={onMembers} />
-        {editable && (
+        <PositionContent node={node} index={index} onMembers={nodeOnMembers} />
+        {(editable || nodeOnMembers) && (
           <div className="absolute right-2 top-2">
-            <NodeActions node={node} onEdit={onEdit} onMembers={onMembers} />
+            <NodeActions
+              node={node}
+              onEdit={editable ? onEdit : undefined}
+              onMembers={nodeOnMembers}
+            />
           </div>
         )}
       </div>
@@ -532,6 +514,7 @@ function MobileNode({
 
   const isCollapsed = collapsed.has(node.id);
   const people = peopleOnNode(node);
+  const subtreePeople = index.subtreePeopleByNode.get(node.id) ?? people;
   return (
     <div className="space-y-2">
       <div className="relative rounded-xl border border-border bg-muted/40 px-3 py-2.5">
@@ -549,6 +532,16 @@ function MobileNode({
           {ORG_KIND_LABELS[node.kind]}
           {people.length > 0 ? ` · 直属 ${people.length} 人` : ''}
         </p>
+        {subtreePeople.length > 0 && (
+          <div className="mt-2">
+            <PeopleHoverCard people={subtreePeople} max={5} />
+          </div>
+        )}
+        {node.trackId !== null && (
+          <div className="mt-2">
+            <TrackMembershipAction node={node} />
+          </div>
+        )}
         <div className="absolute right-2 top-2 flex items-center gap-0.5">
           {node.children.length > 0 && (
             <Button
@@ -566,7 +559,13 @@ function MobileNode({
               )}
             </Button>
           )}
-          {editable && <NodeActions node={node} onEdit={onEdit} onMembers={onMembers} />}
+          {(editable || nodeOnMembers) && (
+            <NodeActions
+              node={node}
+              onEdit={editable ? onEdit : undefined}
+              onMembers={nodeOnMembers}
+            />
+          )}
         </div>
         {editable && onAddChild && (
           <div className="mt-2">
@@ -594,6 +593,7 @@ function MobileNode({
               onAddChild={onAddChild}
               onEdit={onEdit}
               onMembers={onMembers}
+              canManageMembers={canManageMembers}
             />
           ))}
         </div>

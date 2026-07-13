@@ -18,6 +18,7 @@ import {
   ORG_KIND_LABELS,
 } from '../labels';
 import { OrgAddNodeButton } from '../OrgAddNodeButton';
+import { TrackMembershipAction } from '../TrackMembershipAction';
 import type { OrgTreeNode } from '../tree';
 import { layoutTree, NODE_H, NODE_W, type Edge } from './layout';
 import { useCanvas } from './useCanvas';
@@ -37,6 +38,7 @@ interface OrgChartCanvasProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
   /** 星系/树形 mode switch slot, rendered inside the zoom control cluster. */
   modeToggle?: ReactNode;
 }
@@ -52,6 +54,7 @@ export function OrgChartCanvas({
   onAddChild,
   onEdit,
   onMembers,
+  canManageMembers,
   modeToggle,
 }: OrgChartCanvasProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -132,6 +135,7 @@ export function OrgChartCanvas({
             onAddChild={onAddChild}
             onEdit={onEdit}
             onMembers={onMembers}
+            canManageMembers={canManageMembers}
           />
         ))}
       </div>
@@ -171,6 +175,7 @@ function NodeCard({
   onAddChild,
   onEdit,
   onMembers,
+  canManageMembers,
 }: {
   node: OrgTreeNode;
   x: number;
@@ -182,6 +187,7 @@ function NodeCard({
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   const lead = node.leads[0];
   const stack = [...node.leads.slice(1), ...node.members];
@@ -189,6 +195,7 @@ function NodeCard({
   const overflow = stack.length - shown.length;
   const hasChildren = node.children.length > 0;
   const full = node.kind === 'position' && isPositionFull(node);
+  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
 
   // Old-chart hover-gating pattern: always visible on touch, hover/focus on sm+.
   const hoverGated =
@@ -208,7 +215,12 @@ function NodeCard({
 
       <div className="flex h-full min-h-0 flex-col gap-1 overflow-hidden p-3">
         {/* Row 1: kind badge + occupancy chip (positions only, slate when full). */}
-        <div className={cn('flex items-center gap-1 overflow-hidden', editable && 'pr-6')}>
+        <div
+          className={cn(
+            'flex items-center gap-1 overflow-hidden',
+            (editable || nodeOnMembers) && 'pr-6',
+          )}
+        >
           <span
             className={cn(
               'shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none',
@@ -232,16 +244,28 @@ function NodeCard({
         </div>
 
         {/* Row 2: title. */}
-        <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground" title={node.title}>
+        <p
+          className="line-clamp-2 text-sm font-semibold leading-snug text-foreground"
+          title={node.title}
+        >
           {node.title}
         </p>
 
         {/* Row 3: people — lead + member stack, clickable when onMembers exists. */}
-        <PeopleRow node={node} lead={lead} shown={shown} overflow={overflow} onMembers={onMembers} />
+        <div className="mt-auto flex min-w-0 items-center gap-1">
+          <PeopleRow
+            node={node}
+            lead={lead}
+            shown={shown}
+            overflow={overflow}
+            onMembers={nodeOnMembers}
+          />
+          {node.trackId !== null && <TrackMembershipAction node={node} compact />}
+        </div>
       </div>
 
       {/* Editable ⋯ menu, top-right in-card. */}
-      {editable && (onEdit || onMembers) && (
+      {(editable || nodeOnMembers) && (onEdit || nodeOnMembers) && (
         <div className={cn('absolute right-2 top-2', hoverGated)}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -256,16 +280,16 @@ function NodeCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[9rem]">
-              {onEdit && (
+              {editable && onEdit && node.trackId === null && (
                 <DropdownMenuItem onSelect={() => onEdit(node)}>
                   <Pencil className="h-4 w-4 text-muted-foreground" />
                   编辑
                 </DropdownMenuItem>
               )}
-              {onMembers && (
-                <DropdownMenuItem onSelect={() => onMembers(node)}>
+              {nodeOnMembers && (
+                <DropdownMenuItem onSelect={() => nodeOnMembers(node)}>
                   <Users className="h-4 w-4 text-muted-foreground" />
-                  负责人 / 成员
+                  {node.trackId ? '赛道经理 / 成员' : '负责人 / 成员'}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -371,7 +395,7 @@ function PeopleRow({
   );
 
   if (!onMembers) {
-    return <div className="mt-auto flex min-w-0 items-center gap-1.5">{content}</div>;
+    return <div className="flex min-w-0 flex-1 items-center gap-1.5">{content}</div>;
   }
   return (
     <button
@@ -382,7 +406,7 @@ function PeopleRow({
       }}
       title={`查看${node.title}的负责人与成员`}
       aria-label={`查看${node.title}的负责人与成员`}
-      className="-mx-1 mt-auto flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors duration-base ease-standard hover:bg-accent/60"
+      className="-mx-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors duration-base ease-standard hover:bg-accent/60"
     >
       {content}
     </button>

@@ -29,6 +29,7 @@ interface OrgChartViewProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }
 
 export function OrgChartView(props: OrgChartViewProps): JSX.Element {

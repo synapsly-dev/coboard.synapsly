@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import type { TaskResponse, TrackResponse, TracksResponse } from 'shared';
+import type { OrgTreeResponse, TaskResponse, TrackResponse, TracksResponse } from 'shared';
 import type { TestContext } from './helpers.js';
 import { createTestContext } from './helpers.js';
 import { createSession, SESSION_COOKIE } from '../src/auth/session.js';
@@ -24,10 +24,7 @@ import {
 
 let seq = 0;
 
-async function makeUser(
-  ctx: TestContext,
-  role: 'admin' | 'member' = 'member',
-): Promise<UserRow> {
+async function makeUser(ctx: TestContext, role: 'admin' | 'member' = 'member'): Promise<UserRow> {
   seq += 1;
   const [row] = await ctx.db
     .insert(users)
@@ -116,6 +113,84 @@ describe('赛道 / tracks (P0)', () => {
     const body = res.json() as TracksResponse;
     expect(body.tracks).toHaveLength(1);
     expect(body.tracks[0]!.name).toBe('升学');
+
+    const orgRes = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/org/tree?scope=all',
+      headers: headers(memberCookie),
+    });
+    expect(orgRes.statusCode).toBe(200);
+    const org = orgRes.json() as OrgTreeResponse;
+    expect(org.nodes).toContainEqual(
+      expect.objectContaining({
+        kind: 'track',
+        trackId: track.id,
+        title: '升学赛道',
+      }),
+    );
+  });
+
+  it('lets a member join and leave a track, with the same roster shown in org', async () => {
+    const admin = await makeUser(ctx, 'admin');
+    const member = await makeUser(ctx, 'member');
+    const adminCookie = await authCookie(ctx, admin.id);
+    const memberCookie = await authCookie(ctx, member.id);
+    const { track } = await createTrack(ctx, adminCookie, { name: '求职', key: 'career' });
+
+    const join = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tracks/${track.id}/join`,
+      headers: headers(memberCookie),
+    });
+    expect(join.statusCode).toBe(200);
+    expect((join.json() as TrackResponse).track.members.map((m) => m.userId)).toEqual([member.id]);
+
+    // Retrying is idempotent and does not create duplicate membership.
+    const retry = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tracks/${track.id}/join`,
+      headers: headers(memberCookie),
+    });
+    expect((retry.json() as TrackResponse).track.members).toHaveLength(1);
+
+    const orgRes = await ctx.app.inject({
+      method: 'GET',
+      url: '/api/org/tree?scope=all',
+      headers: headers(memberCookie),
+    });
+    const trackNode = (orgRes.json() as OrgTreeResponse).nodes.find(
+      (node) => node.trackId === track.id,
+    );
+    expect(trackNode?.members.map((m) => m.userId)).toEqual([member.id]);
+
+    const leave = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tracks/${track.id}/leave`,
+      headers: headers(memberCookie),
+    });
+    expect(leave.statusCode).toBe(200);
+    expect((leave.json() as TrackResponse).track.members).toEqual([]);
+  });
+
+  it('does not let a track manager self-leave before handing off', async () => {
+    const admin = await makeUser(ctx, 'admin');
+    const manager = await makeUser(ctx, 'member');
+    const adminCookie = await authCookie(ctx, admin.id);
+    const managerCookie = await authCookie(ctx, manager.id);
+    const { track } = await createTrack(ctx, adminCookie, { name: '升学', key: 'managed' });
+    await ctx.app.inject({
+      method: 'PUT',
+      url: `/api/tracks/${track.id}/members`,
+      headers: headers(adminCookie),
+      payload: { managers: [manager.id], members: [] },
+    });
+
+    const leave = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tracks/${track.id}/leave`,
+      headers: headers(managerCookie),
+    });
+    expect(leave.statusCode).toBe(409);
   });
 
   it('forbids a non-admin from creating a track (403)', async () => {
@@ -270,7 +345,10 @@ describe('赛道 / tracks (P0)', () => {
     const workerCookie = await authCookie(ctx, worker.id);
 
     // mgr manages track A only.
-    const { track: trackA } = await createTrack(ctx, adminCookie, { name: '升学', key: 'shengxue' });
+    const { track: trackA } = await createTrack(ctx, adminCookie, {
+      name: '升学',
+      key: 'shengxue',
+    });
     const { track: trackB } = await createTrack(ctx, adminCookie, { name: '求职', key: 'qiuzhi' });
     await ctx.app.inject({
       method: 'PUT',
@@ -388,9 +466,7 @@ describe('赛道经理的项目管理权 (2026-07-11 spec)', () => {
       headers: headers(mgrCookie),
     });
     const body = members.json() as { members: { userId: string; role: string }[] };
-    expect(body.members).toEqual([
-      expect.objectContaining({ userId: mgr.id, role: 'lead' }),
-    ]);
+    expect(body.members).toEqual([expect.objectContaining({ userId: mgr.id, role: 'lead' })]);
   });
 
   it('requires a trackId from a 赛道经理 (400) and rejects a foreign track (403)', async () => {

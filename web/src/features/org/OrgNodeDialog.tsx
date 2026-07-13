@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { trackKeySchema } from 'shared';
 import type { OrgNode, OrgNodeKind, OrgScope } from 'shared';
 import {
   Button,
@@ -18,10 +19,11 @@ import {
 } from '../../components/ui';
 import { isApiClientError } from '../../api/client';
 import { useCreateOrgNode, useUpdateOrgNode } from '../../api/org';
+import { useCreateTrack } from '../../api/tracks';
 import { ORG_KIND_LABELS, ORG_KIND_OPTIONS } from './labels';
 
 /**
- * Create / edit an org node (团队架构). Collects a title, a kind (部门/小组/岗位), an
+ * Create / edit an org node (团队架构). Collects a title, a kind (部门/赛道/小组/岗位), an
  * optional description, and — for 岗位 (P1) — an optional 名额 (headcount, 1..999;
  * blank = 不限). Create mode appends the node under `parentId` (null = a new root) in
  * `scope`; edit mode patches the given node. The server is the real validator — this
@@ -54,14 +56,20 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
 
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState<OrgNodeKind>('group');
+  const [trackKey, setTrackKey] = useState('');
   const [description, setDescription] = useState('');
   /** 名额 as raw input text; '' = 不限 (null on the wire). */
   const [headcount, setHeadcount] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const createMut = useCreateOrgNode(scope);
+  const createTrackMut = useCreateTrack();
   const updateMut = useUpdateOrgNode(scope);
-  const pending = createMut.isPending || updateMut.isPending;
+  const pending = createMut.isPending || createTrackMut.isPending || updateMut.isPending;
+  const canCreateTrack = mode === 'create' && scope === 'all' && props.parentId === null;
+  const kindOptions: OrgNodeKind[] = canCreateTrack
+    ? ['department', 'track', 'group', 'position']
+    : ORG_KIND_OPTIONS;
 
   // Reset the form to the node's values (edit) or blank defaults (create) each time
   // the dialog opens.
@@ -71,6 +79,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
     if (editingNode) {
       setTitle(editingNode.title);
       setKind(editingNode.kind);
+      setTrackKey('');
       setDescription(editingNode.description ?? '');
       setHeadcount(editingNode.headcount != null ? String(editingNode.headcount) : '');
     } else {
@@ -82,6 +91,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
       );
       setDescription('');
       setHeadcount('');
+      setTrackKey('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -110,6 +120,22 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
         await updateMut.mutateAsync({
           id: editingNode.id,
           input: { title: trimmed, kind, description: desc, headcount: parsedHeadcount },
+        });
+      } else if (kind === 'track') {
+        if (!canCreateTrack) {
+          setError('赛道只能作为全团队架构的根节点创建');
+          return;
+        }
+        const normalizedKey = trackKey.trim().toLowerCase();
+        const parsedKey = trackKeySchema.safeParse(normalizedKey);
+        if (!parsedKey.success) {
+          setError(parsedKey.error.issues[0]?.message ?? '赛道标识格式不正确');
+          return;
+        }
+        await createTrackMut.mutateAsync({
+          name: trimmed,
+          key: parsedKey.data,
+          ...(desc ? { description: desc } : {}),
         });
       } else {
         await createMut.mutateAsync({
@@ -160,7 +186,7 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ORG_KIND_OPTIONS.map((k) => (
+                {kindOptions.map((k) => (
                   <SelectItem key={k} value={k}>
                     {ORG_KIND_LABELS[k]}
                   </SelectItem>
@@ -168,6 +194,24 @@ export function OrgNodeDialog(props: OrgNodeDialogProps): JSX.Element {
               </SelectContent>
             </Select>
           </div>
+
+          {kind === 'track' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="org-track-key" required>
+                赛道标识
+              </Label>
+              <Input
+                id="org-track-key"
+                value={trackKey}
+                onChange={(e) => setTrackKey(e.target.value.toLowerCase())}
+                placeholder="track-key"
+                maxLength={20}
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              <p className="text-xs text-muted-foreground">2-20 位小写字母、数字或连字符。</p>
+            </div>
+          )}
 
           {kind === 'position' && (
             <div className="space-y-1.5">

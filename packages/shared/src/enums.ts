@@ -31,12 +31,7 @@ export type ProjectRole = (typeof projectRoles)[number];
  * columns: open → in_progress → pending_review → done. `pending_review` is the
  * post-deliver state awaiting a lead/admin review (v2 §1).
  */
-export const taskStatuses = [
-  'open',
-  'in_progress',
-  'pending_review',
-  'done',
-] as const;
+export const taskStatuses = ['open', 'in_progress', 'pending_review', 'done'] as const;
 export const taskStatusSchema = z.enum(taskStatuses);
 export type TaskStatus = (typeof taskStatuses)[number];
 
@@ -142,11 +137,13 @@ export type IdeaStatus = (typeof ideaStatuses)[number];
 
 /**
  * Org-tree node kind (team org / division-of-labor page). Purely a visual/semantic
- * label — the tree nests to any depth regardless of kind: `department` (部门) and
- * `group` (小组) are the structural levels; `position` (岗位, P1) is a recruitable
- * leaf that carries a headcount and accepts 申报 (applications).
+ * label — the tree nests to any depth regardless of kind: `track` (赛道) and
+ * `department` (部门) may sit side-by-side at the team root, `group` (小组) is
+ * the execution level, and `position` (岗位, P1) is a recruitable leaf that carries
+ * a headcount and accepts 申报 (applications). A `track` node is linked to the
+ * operational Track entity rather than being a second, name-only copy of it.
  */
-export const orgNodeKinds = ['department', 'group', 'position'] as const;
+export const orgNodeKinds = ['department', 'group', 'position', 'track'] as const;
 export const orgNodeKindSchema = z.enum(orgNodeKinds);
 export type OrgNodeKind = (typeof orgNodeKinds)[number];
 
@@ -155,12 +152,7 @@ export type OrgNodeKind = (typeof orgNodeKinds)[number];
  * `approved` (writing the member row) or `rejected`; the applicant may withdraw
  * their own pending application (`withdrawn`).
  */
-export const applicationStatuses = [
-  'pending',
-  'approved',
-  'rejected',
-  'withdrawn',
-] as const;
+export const applicationStatuses = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
 export const applicationStatusSchema = z.enum(applicationStatuses);
 export type ApplicationStatus = (typeof applicationStatuses)[number];
 

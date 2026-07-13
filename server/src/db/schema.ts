@@ -64,9 +64,7 @@ const primaryId = uuid('id')
   .primaryKey()
   .default(sql`gen_random_uuid()`);
 
-const createdAt = timestamp('created_at', { withTimezone: true })
-  .notNull()
-  .defaultNow();
+const createdAt = timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 
 /**
  * Postgres `bytea` column carrying raw binary data as a Node `Buffer` (§7.2). Used
@@ -127,9 +125,7 @@ export const userAvatars = pgTable('user_avatars', {
     .references(() => users.id, { onDelete: 'cascade' }),
   // Base64-encoded image bytes (no `data:` prefix).
   data: text('data').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ---------------------------------------------------------------------------
@@ -146,9 +142,7 @@ export const sessions = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     createdAt,
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
     // Synapsly ID token captured at login; used as `id_token_hint` for
     // RP-initiated single logout (/end_session). Null for dev-login sessions.
     oidcIdToken: text('oidc_id_token'),
@@ -177,9 +171,7 @@ export const tracks = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt,
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex('tracks_key_uniq').on(table.key)],
 );
@@ -257,10 +249,7 @@ export const projectMembers = pgTable(
     createdAt,
   },
   (table) => [
-    uniqueIndex('project_members_project_user_uniq').on(
-      table.projectId,
-      table.userId,
-    ),
+    uniqueIndex('project_members_project_user_uniq').on(table.projectId, table.userId),
     index('project_members_user_id_idx').on(table.userId),
   ],
 );
@@ -357,9 +346,7 @@ export const taskClaimants = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     // Per-claimant points share; null until delivered, cleared again on reject.
     points: integer('points'),
-    claimedAt: timestamp('claimed_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.taskId, table.userId] }),
@@ -524,9 +511,7 @@ export const ideas = pgTable(
       onDelete: 'set null',
     }),
     createdAt,
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('ideas_task_id_idx').on(table.taskId),
@@ -624,9 +609,7 @@ export const announcements = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt,
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('announcements_created_at_idx').on(table.createdAt)],
 );
@@ -673,6 +656,10 @@ export const orgNodes = pgTable(
     parentId: uuid('parent_id').references((): AnyPgColumn => orgNodes.id, {
       onDelete: 'cascade',
     }),
+    // Whole-team root nodes of kind `track` bind the visual organization tree to
+    // the operational Track entity. The linked track owns its roster; deleting the
+    // track removes its visual branch and descendants as one organizational unit.
+    trackId: uuid('track_id').references(() => tracks.id, { onDelete: 'cascade' }),
     kind: orgNodeKindEnum('kind').notNull().default('group'),
     title: text('title').notNull(),
     description: text('description'),
@@ -681,13 +668,12 @@ export const orgNodes = pgTable(
     // Lexicographic ordering key among siblings (mirrors tasks.rank).
     rank: text('rank').notNull(),
     createdAt,
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('org_nodes_project_parent_idx').on(table.projectId, table.parentId),
     index('org_nodes_parent_idx').on(table.parentId),
+    uniqueIndex('org_nodes_track_id_uniq').on(table.trackId),
   ],
 );
 
@@ -738,9 +724,7 @@ export const assets = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt,
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     index('assets_kind_created_idx').on(table.kind, table.createdAt),
@@ -793,9 +777,7 @@ export const orgApplications = pgTable(
 export const settings = pgTable('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ---------------------------------------------------------------------------

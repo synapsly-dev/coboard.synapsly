@@ -14,6 +14,9 @@ export interface TooltipProps {
   delayDuration?: number;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Optional surface override for richer tooltip/hover-card content. */
+  contentClassName?: string;
+  arrowClassName?: string;
 }
 
 /** Lightweight tooltip wrapper around Radix Tooltip. */
@@ -25,13 +28,11 @@ export function Tooltip({
   delayDuration = 200,
   open,
   onOpenChange,
+  contentClassName,
+  arrowClassName,
 }: TooltipProps): JSX.Element {
   return (
-    <TooltipPrimitive.Root
-      delayDuration={delayDuration}
-      open={open}
-      onOpenChange={onOpenChange}
-    >
+    <TooltipPrimitive.Root delayDuration={delayDuration} open={open} onOpenChange={onOpenChange}>
       <TooltipPrimitive.Trigger asChild>{children}</TooltipPrimitive.Trigger>
       <TooltipPrimitive.Portal>
         <TooltipPrimitive.Content
@@ -41,10 +42,11 @@ export function Tooltip({
           className={cn(
             'z-50 max-w-xs rounded-md bg-foreground px-2.5 py-1.5 text-xs text-background shadow-md',
             'animate-popover-in',
+            contentClassName,
           )}
         >
           {content}
-          <TooltipPrimitive.Arrow className="fill-foreground" />
+          <TooltipPrimitive.Arrow className={cn('fill-foreground', arrowClassName)} />
         </TooltipPrimitive.Content>
       </TooltipPrimitive.Portal>
     </TooltipPrimitive.Root>

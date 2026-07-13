@@ -481,11 +481,7 @@ export type OrgNodeMember = z.infer<typeof orgNodeMemberSchema>;
  * people by role, each ordered by their display rank.
  */
 /** 岗位名额 (P1): 1..999, or null = 不限名额. */
-export const headcountSchema = z
-  .number()
-  .int()
-  .min(1, '名额至少为 1')
-  .max(999, '名额最多为 999');
+export const headcountSchema = z.number().int().min(1, '名额至少为 1').max(999, '名额最多为 999');
 
 export const orgNodeSchema = z.object({
   id: uuidSchema,
@@ -493,6 +489,8 @@ export const orgNodeSchema = z.object({
   projectId: uuidSchema.nullable(),
   /** Parent node; null = a root node. */
   parentId: uuidSchema.nullable(),
+  /** Operational Track bound to a `track` root node; null for every other kind. */
+  trackId: uuidSchema.nullable(),
   kind: orgNodeKindSchema,
   title: z.string(),
   description: z.string().nullable(),
@@ -631,7 +629,9 @@ export type MoveOrgNodeInput = z.infer<typeof moveOrgNodeInputSchema>;
  */
 export const setOrgMembersInputSchema = z
   .object({
-    leads: z.array(uuidSchema).max(1, '一个节点只能设置一位负责人'),
+    // Ordinary org nodes are service-limited to one lead; a Track node maps this
+    // field to Track managers and may therefore carry multiple managers.
+    leads: z.array(uuidSchema).max(20),
     members: z.array(uuidSchema).max(50),
   })
   .refine((v) => new Set([...v.leads, ...v.members]).size === v.leads.length + v.members.length, {
@@ -1038,6 +1038,16 @@ export const trackResponseSchema = z.object({
 });
 export type TrackResponse = z.infer<typeof trackResponseSchema>;
 
+/**
+ * GET /tracks/:id/member-candidates — active workspace users that an administrator
+ * or this track's manager may place on the track. Deliberately exposes only the
+ * public display summary (never email, global role, or project memberships).
+ */
+export const trackMemberCandidatesResponseSchema = z.object({
+  users: z.array(userSummarySchema),
+});
+export type TrackMemberCandidatesResponse = z.infer<typeof trackMemberCandidatesResponseSchema>;
+
 /** POST /tracks — create a 赛道 (global admin; 409 on duplicate key). */
 export const createTrackInputSchema = z.object({
   name: trackNameSchema,
@@ -1059,9 +1069,10 @@ export const updateTrackInputSchema = z
 export type UpdateTrackInput = z.infer<typeof updateTrackInputSchema>;
 
 /**
- * PUT /tracks/:id/members — replace the track's people (global admin). `managers`
- * and `members` are disjoint user-id sets; the track's membership becomes exactly
- * these. Managers gain lead-equivalent authority over the track's projects.
+ * PUT /tracks/:id/members — replace the track's people (global admin or one of the
+ * track's current managers). `managers` and `members` are disjoint user-id sets;
+ * the track's membership becomes exactly these. Managers gain lead-equivalent
+ * authority over the track's projects.
  */
 export const setTrackMembersInputSchema = z
   .object({

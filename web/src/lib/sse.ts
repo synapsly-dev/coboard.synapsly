@@ -131,6 +131,7 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       void queryClient.invalidateQueries({ queryKey: ['tracks'] });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
       void queryClient.invalidateQueries({ queryKey: ['stats', 'tracks'] });
+      void queryClient.invalidateQueries({ queryKey: ['org'] });
       break;
     }
     default: {

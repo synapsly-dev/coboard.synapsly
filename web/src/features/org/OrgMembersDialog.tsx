@@ -14,6 +14,7 @@ import {
 import { avatarUrl, cn } from '../../lib/utils';
 import { isApiClientError } from '../../api/client';
 import { useSetOrgMembers } from '../../api/org';
+import { useSetTrackMembers } from '../../api/tracks';
 
 /** A person who may be placed on a node — normalized from users / project members. */
 export interface OrgCandidate {
@@ -52,27 +53,31 @@ export function OrgMembersDialog({
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [filter, setFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const setMut = useSetOrgMembers(scope);
+  const setOrgMut = useSetOrgMembers(scope);
+  const setTrackMut = useSetTrackMembers();
+  const isPending = node.trackId !== null ? setTrackMut.isPending : setOrgMut.isPending;
+  const leadLabel = node.trackId ? '赛道经理' : '负责人';
+  const allowsMultipleLeads = node.trackId !== null;
 
   // Seed the tri-state from the node's current people each time the dialog opens.
   useEffect(() => {
     if (!open) return;
     const seed: Record<string, Assignment> = {};
     node.leads.forEach((lead, index) => {
-      seed[lead.userId] = index === 0 ? 'lead' : 'member';
+      seed[lead.userId] = allowsMultipleLeads || index === 0 ? 'lead' : 'member';
     });
     for (const m of node.members) seed[m.userId] = 'member';
     setAssignments(seed);
     setFilter('');
     setError(null);
-  }, [open, node]);
+  }, [allowsMultipleLeads, open, node]);
 
   const cycle = (id: string): void => {
     setAssignments((prev) => {
       const cur = prev[id] ?? 'none';
       const next: Assignment = cur === 'none' ? 'lead' : cur === 'lead' ? 'member' : 'none';
       const updated = { ...prev };
-      if (next === 'lead') {
+      if (next === 'lead' && !allowsMultipleLeads) {
         for (const [otherId, assignment] of Object.entries(updated)) {
           if (otherId !== id && assignment === 'lead') {
             updated[otherId] = 'member';
@@ -109,12 +114,19 @@ export function OrgMembersDialog({
       if (a === 'lead') leads.push(c.id);
       else if (a === 'member') members.push(c.id);
     }
-    if (leads.length > 1) {
-      setError('一个节点只能设置一位负责人');
+    if (!allowsMultipleLeads && leads.length > 1) {
+      setError(`一个节点只能设置一位${leadLabel}`);
       return;
     }
     try {
-      await setMut.mutateAsync({ id: node.id, input: { leads, members } });
+      if (node.trackId !== null) {
+        await setTrackMut.mutateAsync({
+          id: node.trackId,
+          input: { managers: leads, members },
+        });
+      } else {
+        await setOrgMut.mutateAsync({ id: node.id, input: { leads, members } });
+      }
       onOpenChange(false);
     } catch (err) {
       setError(isApiClientError(err) ? err.message : '保存失败，请重试');
@@ -125,7 +137,9 @@ export function OrgMembersDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>设置「{node.title}」的负责人与成员</DialogTitle>
+          <DialogTitle>
+            设置「{node.title}」的{leadLabel}与成员
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -140,7 +154,7 @@ export function OrgMembersDialog({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            点击右侧标记切换：无 → 负责人 → 成员。当前 {counts.leads} 位负责人、
+            点击右侧标记切换：无 → {leadLabel} → 成员。当前 {counts.leads} 位{leadLabel}、
             {counts.members} 位成员。
           </p>
 
@@ -173,7 +187,7 @@ export function OrgMembersDialog({
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
                       {c.displayName}
                     </span>
-                    <AssignmentChip assignment={a} />
+                    <AssignmentChip assignment={a} leadLabel={leadLabel} />
                   </button>
                 );
               })
@@ -184,10 +198,10 @@ export function OrgMembersDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={setMut.isPending}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
             取消
           </Button>
-          <Button onClick={() => void save()} loading={setMut.isPending}>
+          <Button onClick={() => void save()} loading={isPending}>
             保存
           </Button>
         </DialogFooter>
@@ -196,11 +210,17 @@ export function OrgMembersDialog({
   );
 }
 
-function AssignmentChip({ assignment }: { assignment: Assignment }): JSX.Element {
+function AssignmentChip({
+  assignment,
+  leadLabel,
+}: {
+  assignment: Assignment;
+  leadLabel: string;
+}): JSX.Element {
   if (assignment === 'lead') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">
-        <Crown className="h-3 w-3" /> 负责人
+        <Crown className="h-3 w-3" /> {leadLabel}
       </span>
     );
   }

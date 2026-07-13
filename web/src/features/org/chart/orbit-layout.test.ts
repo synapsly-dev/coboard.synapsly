@@ -25,11 +25,17 @@ import {
 } from './orbit-layout';
 
 /** Minimal OrgNode factory (same shape as layout.test.ts). */
-function node(id: string, parentId: string | null, rank: string, extra?: Partial<OrgNode>): OrgNode {
+function node(
+  id: string,
+  parentId: string | null,
+  rank: string,
+  extra?: Partial<OrgNode>,
+): OrgNode {
   return {
     id,
     projectId: null,
     parentId,
+    trackId: null,
     kind: 'group',
     title: id,
     description: null,
@@ -131,7 +137,11 @@ describe('orbitLayout', () => {
 
     expect(ofKind(layout, 'core')).toHaveLength(1);
     expect(ofKind(layout, 'ring')).toHaveLength(1);
-    expect(ofKind(layout, 'planet').map((i) => i.node?.id).sort()).toEqual(['a', 'b', 'c']);
+    expect(
+      ofKind(layout, 'planet')
+        .map((i) => i.node?.id)
+        .sort(),
+    ).toEqual(['a', 'b', 'c']);
     expect(ofKind(layout, 'moon')).toHaveLength(0);
     expect(ofKind(layout, 'leaf')).toHaveLength(0);
     expect(ofKind(layout, 'ghost')).toHaveLength(0);
@@ -190,7 +200,11 @@ describe('orbitLayout', () => {
     expect(leaves.slice(1).every((l) => l.isLead === false)).toBe(true);
 
     // Other roots ghosted; grandchild never emitted.
-    expect(ofKind(layout, 'ghost').map((g) => g.node?.id).sort()).toEqual(['b', 'c']);
+    expect(
+      ofKind(layout, 'ghost')
+        .map((g) => g.node?.id)
+        .sort(),
+    ).toEqual(['b', 'c']);
     expect(layout.items.some((i) => i.node?.id === 'deep')).toBe(false);
 
     // One moon ring; the member cluster is seated by a halo, not a ring.
@@ -297,7 +311,11 @@ describe('orbitLayout', () => {
     for (const stale of [['zz'], ['a', 'zz'], ['a1']]) {
       const layout = orbitLayout(roots, stale);
       expect(ofKind(layout, 'core')).toHaveLength(1);
-      expect(ofKind(layout, 'planet').map((i) => i.node?.id).sort()).toEqual(['a', 'b']);
+      expect(
+        ofKind(layout, 'planet')
+          .map((i) => i.node?.id)
+          .sort(),
+      ).toEqual(['a', 'b']);
       expect(ofKind(layout, 'ghost')).toHaveLength(0);
       expect(ofKind(layout, 'leaf')).toHaveLength(0);
     }
@@ -459,9 +477,7 @@ describe('orbitLayout v2 全员星图 (subtree members, fans, links)', () => {
 
     const leafOuter = Math.max(...leaves.map((l) => distFrom(center, l) + LEAF_R));
     for (const ghost of ghosts) {
-      expect(distFrom(center, ghost)).toBeGreaterThanOrEqual(
-        leafOuter + GHOST_CLEARANCE - 1e-6,
-      );
+      expect(distFrom(center, ghost)).toBeGreaterThanOrEqual(leafOuter + GHOST_CLEARANCE - 1e-6);
     }
     // The fan really grew the scene: ghosts sit beyond the static default arc.
     expect(Math.min(...ghosts.map((g) => distFrom(center, g)))).toBeGreaterThan(GHOST_ARC_R);

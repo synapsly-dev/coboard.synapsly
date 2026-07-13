@@ -129,9 +129,7 @@ describe('0003_task_lifecycle_v2 migration', () => {
       task_id: string;
       user_id: string;
       points: number | null;
-    }>(
-      `SELECT task_id, user_id, points FROM task_claimants ORDER BY task_id, user_id;`,
-    );
+    }>(`SELECT task_id, user_id, points FROM task_claimants ORDER BY task_id, user_id;`);
     const rows = claimants.rows.map((r) => ({
       taskId: r.task_id,
       userId: r.user_id,
@@ -188,9 +186,7 @@ describe('0006 no-project tasks migration', () => {
          AND table_name IN ('tasks', 'activities')
        ORDER BY table_name;`,
     );
-    const nullable = Object.fromEntries(
-      cols.rows.map((r) => [r.table_name, r.is_nullable]),
-    );
+    const nullable = Object.fromEntries(cols.rows.map((r) => [r.table_name, r.is_nullable]));
     expect(nullable.tasks).toBe('YES');
     expect(nullable.activities).toBe('YES');
 
@@ -261,5 +257,104 @@ describe('0016_unique_super_admin migration', () => {
         VALUES ('second-sa@x.com', NULL, 'Second SA', '#64748b', 'super_admin');
       `),
     ).rejects.toThrow();
+  });
+});
+
+describe('0022/0023 Track organization migration', () => {
+  it('reuses matching roots, creates missing roots, and preserves both rosters', async () => {
+    pglite = new PGlite();
+    const tags = await orderedTags();
+    const enumTag = '0022_demonic_agent_zero';
+    const linkTag = '0023_jittery_frank_castle';
+    const enumIndex = tags.indexOf(enumTag);
+    expect(enumIndex).toBeGreaterThan(0);
+    expect(tags[enumIndex + 1]).toBe(linkTag);
+
+    for (const tag of tags.slice(0, enumIndex)) {
+      await applyMigration(pglite, tag);
+    }
+
+    await pglite.exec(`
+      INSERT INTO users (id, email, display_name, avatar_color, role, created_at)
+      VALUES
+        ('10000000-0000-0000-0000-000000000001', 'admin@x.com', 'Admin', '#111111', 'admin', '2026-01-01T00:00:00Z'),
+        ('10000000-0000-0000-0000-000000000002', 'lead@x.com', 'Lead', '#222222', 'member', '2026-01-02T00:00:00Z'),
+        ('10000000-0000-0000-0000-000000000003', 'member@x.com', 'Member', '#333333', 'member', '2026-01-03T00:00:00Z');
+
+      INSERT INTO tracks (id, name, key, rank, created_by, created_at, updated_at)
+      VALUES
+        ('20000000-0000-0000-0000-000000000001', '升学', 'study', 'a',
+         '10000000-0000-0000-0000-000000000001', '2026-02-01T00:00:00Z', '2026-02-01T00:00:00Z'),
+        ('20000000-0000-0000-0000-000000000002', '求职', 'career', 'b',
+         '10000000-0000-0000-0000-000000000001', '2026-02-02T00:00:00Z', '2026-02-02T00:00:00Z');
+
+      INSERT INTO org_nodes (id, project_id, parent_id, kind, title, rank, created_at, updated_at)
+      VALUES
+        ('30000000-0000-0000-0000-000000000001', NULL, NULL, 'department', '升学赛道', 'a',
+         '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'),
+        ('30000000-0000-0000-0000-000000000002', NULL,
+         '30000000-0000-0000-0000-000000000001', 'group', '内容组', 'a',
+         '2026-03-02T00:00:00Z', '2026-03-02T00:00:00Z');
+
+      INSERT INTO org_node_members (node_id, user_id, role, rank)
+      VALUES
+        ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'lead', 'a'),
+        ('30000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', 'member', 'b');
+
+      INSERT INTO track_members (track_id, user_id, role, rank)
+      VALUES
+        ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', 'manager', 'a');
+    `);
+
+    await applyMigration(pglite, enumTag);
+    await applyMigration(pglite, linkTag);
+
+    const nodes = await pglite.query<{
+      id: string;
+      parent_id: string | null;
+      track_id: string | null;
+      kind: string;
+      title: string;
+    }>(`SELECT id, parent_id, track_id, kind::text AS kind, title FROM org_nodes ORDER BY title;`);
+
+    expect(nodes.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: '30000000-0000-0000-0000-000000000001',
+          track_id: '20000000-0000-0000-0000-000000000001',
+          kind: 'track',
+          title: '升学赛道',
+        }),
+        expect.objectContaining({
+          track_id: '20000000-0000-0000-0000-000000000002',
+          kind: 'track',
+          title: '求职赛道',
+        }),
+        expect.objectContaining({
+          id: '30000000-0000-0000-0000-000000000002',
+          parent_id: '30000000-0000-0000-0000-000000000001',
+          kind: 'group',
+        }),
+      ]),
+    );
+
+    const roster = await pglite.query<{ user_id: string; role: string }>(`
+      SELECT user_id, role::text AS role
+      FROM track_members
+      WHERE track_id = '20000000-0000-0000-0000-000000000001'
+      ORDER BY user_id;
+    `);
+    expect(roster.rows).toEqual([
+      { user_id: '10000000-0000-0000-0000-000000000002', role: 'manager' },
+      // Existing Track manager wins over the legacy org-node member role.
+      { user_id: '10000000-0000-0000-0000-000000000003', role: 'manager' },
+    ]);
+
+    const legacyRows = await pglite.query<{ count: number }>(`
+      SELECT count(*)::int AS count
+      FROM org_node_members
+      WHERE node_id = '30000000-0000-0000-0000-000000000001';
+    `);
+    expect(legacyRows.rows[0]?.count).toBe(0);
   });
 });

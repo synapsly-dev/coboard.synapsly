@@ -9,6 +9,7 @@ import type { ApplicationStatus, OrgNode, OrgNodeKind } from 'shared';
  */
 export const ORG_KIND_LABELS: Record<OrgNodeKind, string> = {
   department: '部门',
+  track: '赛道',
   group: '小组',
   position: '岗位',
 };
@@ -18,10 +19,9 @@ export const ORG_KIND_OPTIONS: OrgNodeKind[] = ['department', 'group', 'position
 
 /** Badge classes per kind (subtle, tokenized; distinct hue per level). */
 export const ORG_KIND_BADGE: Record<OrgNodeKind, string> = {
-  department:
-    'bg-primary/10 text-primary ring-1 ring-inset ring-primary/20',
-  group:
-    'bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400',
+  department: 'bg-primary/10 text-primary ring-1 ring-inset ring-primary/20',
+  track: 'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400',
+  group: 'bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400',
   position:
     'bg-violet-500/10 text-violet-600 ring-1 ring-inset ring-violet-500/20 dark:text-violet-400',
 };
@@ -34,6 +34,7 @@ export const ORG_KIND_BADGE: Record<OrgNodeKind, string> = {
  */
 export const ORG_KIND_ACCENT: Record<OrgNodeKind, string> = {
   department: 'bg-primary/80',
+  track: 'bg-amber-500/80 dark:bg-amber-400/80',
   group: 'bg-sky-500/80 dark:bg-sky-400/80',
   position: 'bg-violet-500/80 dark:bg-violet-400/80',
 };
@@ -73,12 +74,10 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
  * (`bg-{c}-500/10 text + ring`, with a `dark:` text bump), theme-aware.
  */
 export const APPLICATION_STATUS_CHIP: Record<ApplicationStatus, string> = {
-  pending:
-    'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400',
+  pending: 'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400',
   approved:
     'bg-emerald-500/10 text-emerald-600 ring-1 ring-inset ring-emerald-500/20 dark:text-emerald-400',
-  rejected:
-    'bg-rose-500/10 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400',
+  rejected: 'bg-rose-500/10 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400',
   withdrawn:
     'bg-slate-500/10 text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:text-slate-300',
 };

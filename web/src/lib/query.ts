@@ -41,6 +41,8 @@ export const queryKeys = {
   projectDirectory: () => ['projects', 'directory'] as const,
   /** All 赛道 (tracks, P0 §2) visible to the current user. */
   tracks: () => ['tracks'] as const,
+  /** Public-safe active users available to an authorized track roster editor. */
+  trackMemberCandidates: (trackId: string) => ['tracks', trackId, 'member-candidates'] as const,
   project: (projectId: string) => ['projects', projectId] as const,
   projectMembers: (projectId: string) => ['projects', projectId, 'members'] as const,
   board: (projectId: string) => ['projects', projectId, 'tasks'] as const,
@@ -74,20 +76,16 @@ export const queryKeys = {
   orgApplications: (scope: string) => ['org', 'applications', scope] as const,
   leaderboard: (params: Record<string, string | undefined>) =>
     ['stats', 'leaderboard', params] as const,
-  myStats: (params: Record<string, string | undefined>) =>
-    ['stats', 'me', params] as const,
-  trend: (params: Record<string, string | undefined>) =>
-    ['stats', 'trend', params] as const,
+  myStats: (params: Record<string, string | undefined>) => ['stats', 'me', params] as const,
+  trend: (params: Record<string, string | undefined>) => ['stats', 'trend', params] as const,
   /** Contribution rolled up by 赛道 (P0 §2 GET /stats/tracks). */
-  trackStats: (params: Record<string, string | undefined>) =>
-    ['stats', 'tracks', params] as const,
+  trackStats: (params: Record<string, string | undefined>) => ['stats', 'tracks', params] as const,
   /**
    * 资产库 (P3 §1) listings, parameterized by the server-side filters. Nested
    * under the `['assets']` prefix so mutations and the SSE layer refresh every
    * filtered view with one blanket invalidation.
    */
-  assets: (kind?: string, trackId?: string) =>
-    ['assets', kind ?? 'all', trackId ?? 'all'] as const,
+  assets: (kind?: string, trackId?: string) => ['assets', kind ?? 'all', trackId ?? 'all'] as const,
   /** 工作台 (P2 §4): pending_review tasks the caller can act on. */
   reviewQueue: () => ['workbench', 'review-queue'] as const,
   /** 工作台 (P2 §4): the caller's recently rejected tasks. */

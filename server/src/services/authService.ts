@@ -8,6 +8,7 @@ import { getRegistrationSettings } from './settingsService.js';
 import {
   createSsoUser,
   findUserByEmail,
+  findSuperAdmin,
   findUserBySynapslySub,
   linkSynapslySub,
   setUserRole,
@@ -215,9 +216,11 @@ export async function completeSsoJoin(
 }
 
 /**
- * Dev fake-login (non-production only). Finds the user by email or creates one as
- * a super admin so local testing has full access. Keeps the app runnable offline;
- * the route hard-guards on DEV_LOGIN + non-production.
+ * Dev fake-login (non-production only). Each normalized email maps to one stable
+ * local account. The first account bootstraps the workspace as super admin; once
+ * that slot is occupied, every new email becomes a regular member so development
+ * can exercise multi-user and permission-sensitive flows. The route hard-guards
+ * on DEV_LOGIN + non-production.
  */
 export async function devLogin(
   db: Database,
@@ -229,10 +232,11 @@ export async function devLogin(
     if (!existing.isActive) throw unauthorized('账号已被停用');
     return existing;
   }
+  const role: UserRole = (await findSuperAdmin(db)) ? 'member' : 'super_admin';
   return createSsoUser(db, {
     email,
     displayName: input.displayName?.trim() || email.split('@')[0] || '开发用户',
-    role: 'super_admin',
+    role,
     synapslySub: `dev:${email}`,
   });
 }

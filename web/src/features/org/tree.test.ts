@@ -13,11 +13,17 @@ import { canEditOrgScope } from './permissions';
 import { isPositionFull, occupancyLabel, occupancyShort, occupiedCount } from './labels';
 
 /** Minimal OrgNode factory for the pure-helper tests. */
-function node(id: string, parentId: string | null, rank: string, extra?: Partial<OrgNode>): OrgNode {
+function node(
+  id: string,
+  parentId: string | null,
+  rank: string,
+  extra?: Partial<OrgNode>,
+): OrgNode {
   return {
     id,
     projectId: null,
     parentId,
+    trackId: null,
     kind: 'group',
     title: id,
     description: null,
@@ -78,11 +84,7 @@ describe('reorder move inputs', () => {
   });
 
   it('outdent lifts to the grandparent after the former parent; null at root', () => {
-    const tree = [
-      node('p', null, 'a'),
-      node('p2', null, 'b'),
-      node('c', 'p', 'a'),
-    ];
+    const tree = [node('p', null, 'a'), node('p2', null, 'b'), node('c', 'p', 'a')];
     // `c` under `p` outdents to root, placed before `p2` (p's next sibling).
     expect(outdentInput(tree, tree[2]!)).toEqual({ parentId: null, beforeId: 'p2' });
     expect(outdentInput(tree, tree[0]!)).toBeNull();

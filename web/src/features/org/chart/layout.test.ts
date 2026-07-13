@@ -1,22 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import type { OrgNode } from 'shared';
 import { buildTree } from '../tree';
-import {
-  layoutTree,
-  NODE_H,
-  NODE_W,
-  PADDING,
-  RANK_GAP,
-  ROOT_GAP,
-  SIBLING_GAP,
-} from './layout';
+import { layoutTree, NODE_H, NODE_W, PADDING, RANK_GAP, ROOT_GAP, SIBLING_GAP } from './layout';
 
 /** Minimal OrgNode factory (same shape as tree.test.ts). */
-function node(id: string, parentId: string | null, rank: string, extra?: Partial<OrgNode>): OrgNode {
+function node(
+  id: string,
+  parentId: string | null,
+  rank: string,
+  extra?: Partial<OrgNode>,
+): OrgNode {
   return {
     id,
     projectId: null,
     parentId,
+    trackId: null,
     kind: 'group',
     title: id,
     description: null,
@@ -58,11 +56,7 @@ describe('layoutTree', () => {
   });
 
   it('centers a parent over its two children and anchors edges center-to-center', () => {
-    const roots = buildTree([
-      node('p', null, 'a'),
-      node('c1', 'p', 'a'),
-      node('c2', 'p', 'b'),
-    ]);
+    const roots = buildTree([node('p', null, 'a'), node('c1', 'p', 'a'), node('c2', 'p', 'b')]);
     const layout = layoutTree(roots, none);
 
     const p = placed(layout, 'p');

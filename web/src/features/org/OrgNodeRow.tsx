@@ -23,8 +23,10 @@ import {
   DropdownMenuTrigger,
 } from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
+import { InlineExpandablePeople } from './ExpandablePeople';
 import { occupancyLabel, ORG_KIND_BADGE, ORG_KIND_LABELS } from './labels';
 import { OrgAddNodeButton } from './OrgAddNodeButton';
+import { TrackMembershipAction } from './TrackMembershipAction';
 import { indentInput, moveDownInput, moveUpInput, outdentInput, type OrgTreeNode } from './tree';
 
 interface OrgNodeRowProps {
@@ -32,6 +34,8 @@ interface OrgNodeRowProps {
   /** Flat node list — used to derive the up/down/indent/outdent moves. */
   nodes: OrgNode[];
   editable: boolean;
+  /** Whether this caller may manage this specific node's people. */
+  canManageMembers: boolean;
   collapsed: boolean;
   onToggleCollapse: (id: string) => void;
   onAddChild: (node: OrgNode, kind: OrgNodeKind) => void;
@@ -52,6 +56,7 @@ export function OrgNodeRow({
   node,
   nodes,
   editable,
+  canManageMembers,
   collapsed,
   onToggleCollapse,
   onAddChild,
@@ -114,108 +119,98 @@ export function OrgNodeRow({
 
         {(node.leads.length > 0 || node.members.length > 0) && (
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            {node.leads.map((p) => (
-              <span key={p.userId} className="inline-flex items-center gap-1.5">
-                <span className="relative">
+            {node.leads.map((person) => (
+              <span key={person.userId} className="inline-flex items-center gap-1.5">
+                <span className="relative inline-flex">
                   <Avatar
-                    name={p.displayName}
-                    color={p.avatarColor}
-                    imageUrl={p.hasAvatar ? avatarUrl(p.userId) : undefined}
+                    name={person.displayName}
+                    color={person.avatarColor}
+                    imageUrl={person.hasAvatar ? avatarUrl(person.userId) : undefined}
                     size="xs"
                   />
                   <Crown className="absolute -right-1 -top-1.5 h-3 w-3 rotate-12 fill-amber-400 text-amber-500" />
                 </span>
-                <span className="text-xs font-medium text-foreground">{p.displayName}</span>
+                <span className="text-xs font-medium text-foreground">{person.displayName}</span>
               </span>
             ))}
-            {node.members.length > 0 && (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="flex -space-x-2">
-                  {node.members.slice(0, 6).map((p) => (
-                    <Avatar
-                      key={p.userId}
-                      name={p.displayName}
-                      color={p.avatarColor}
-                      imageUrl={p.hasAvatar ? avatarUrl(p.userId) : undefined}
-                      size="xs"
-                      className="ring-2 ring-card"
-                    />
-                  ))}
-                </span>
-                {node.members.length > 6 && (
-                  <span className="text-xs text-muted-foreground">+{node.members.length - 6}</span>
-                )}
-              </span>
-            )}
+            {node.members.length > 0 && <InlineExpandablePeople people={node.members} max={8} />}
           </div>
         )}
       </div>
 
-      {editable && (
+      {node.trackId !== null && <TrackMembershipAction node={node} className="mt-0.5" />}
+
+      {(editable || canManageMembers) && (
         <div className="flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
-          <OrgAddNodeButton
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="新增小组"
-            kind="group"
-            onSelectKind={(kind) => onAddChild(node, kind)}
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="加入员工"
-            aria-label="加入员工"
-            onClick={(event) => {
-              event.currentTarget.blur();
-              onMembers(node);
-            }}
-          >
-            <UserPlus className="h-4 w-4" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[10rem]">
-              <DropdownMenuItem onSelect={() => onEdit(node)}>
-                <Pencil className="h-4 w-4 text-muted-foreground" /> 编辑
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onMembers(node)}>
-                <Users className="h-4 w-4 text-muted-foreground" /> 负责人 / 成员
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled={!up} onSelect={() => up && onMove(node.id, up)}>
-                <MoveUp className="h-4 w-4 text-muted-foreground" /> 上移
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={!down} onSelect={() => down && onMove(node.id, down)}>
-                <MoveDown className="h-4 w-4 text-muted-foreground" /> 下移
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!indent}
-                onSelect={() => indent && onMove(node.id, indent)}
-              >
-                <IndentIncrease className="h-4 w-4 text-muted-foreground" />{' '}
-                缩进（成为上一项的子级）
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!outdent}
-                onSelect={() => outdent && onMove(node.id, outdent)}
-              >
-                <IndentDecrease className="h-4 w-4 text-muted-foreground" /> 取消缩进
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onSelect={() => onDelete(node)}
-              >
-                <Trash2 className="h-4 w-4" /> 删除
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {editable && (
+            <OrgAddNodeButton
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="新增小组"
+              kind="group"
+              onSelectKind={(kind) => onAddChild(node, kind)}
+            />
+          )}
+          {canManageMembers && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title={node.trackId ? '管理赛道成员' : '加入员工'}
+              aria-label={node.trackId ? '管理赛道成员' : '加入员工'}
+              onClick={(event) => {
+                event.currentTarget.blur();
+                onMembers(node);
+              }}
+            >
+              <UserPlus className="h-4 w-4" />
+            </Button>
+          )}
+          {node.trackId === null && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[10rem]">
+                <DropdownMenuItem onSelect={() => onEdit(node)}>
+                  <Pencil className="h-4 w-4 text-muted-foreground" /> 编辑
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onMembers(node)}>
+                  <Users className="h-4 w-4 text-muted-foreground" /> 负责人 / 成员
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled={!up} onSelect={() => up && onMove(node.id, up)}>
+                  <MoveUp className="h-4 w-4 text-muted-foreground" /> 上移
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={!down} onSelect={() => down && onMove(node.id, down)}>
+                  <MoveDown className="h-4 w-4 text-muted-foreground" /> 下移
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!indent}
+                  onSelect={() => indent && onMove(node.id, indent)}
+                >
+                  <IndentIncrease className="h-4 w-4 text-muted-foreground" />{' '}
+                  缩进（成为上一项的子级）
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={!outdent}
+                  onSelect={() => outdent && onMove(node.id, outdent)}
+                >
+                  <IndentDecrease className="h-4 w-4 text-muted-foreground" /> 取消缩进
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => onDelete(node)}
+                >
+                  <Trash2 className="h-4 w-4" /> 删除
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       )}
     </div>

@@ -13,6 +13,7 @@ import {
 import { avatarUrl, cn } from '../../../lib/utils';
 import { isPositionFull, occupancyLabel } from '../labels';
 import { OrgAddNodeButton } from '../OrgAddNodeButton';
+import { TrackMembershipAction } from '../TrackMembershipAction';
 import type { OrgTreeNode } from '../tree';
 import {
   FOCUS_R,
@@ -50,6 +51,7 @@ interface OrgPlanetCanvasProps {
   onAddChild?: (node: OrgNode, kind: OrgNodeKind) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
   modeToggle?: ReactNode;
 }
 
@@ -65,6 +67,7 @@ const LINK_GLIDE =
 /** Circle fill + border per kind (hue at ~10% like the tree-mode accents). */
 const KIND_CIRCLE: Record<OrgNodeKind, string> = {
   department: 'border-primary/50 bg-primary/10',
+  track: 'border-amber-500/50 bg-amber-500/10',
   group: 'border-sky-500/50 bg-sky-500/10',
   position: 'border-violet-500/50 bg-violet-500/10',
 };
@@ -72,11 +75,13 @@ const KIND_CIRCLE: Record<OrgNodeKind, string> = {
 /** Kind-colored glow; the focused star gets the brighter variant. */
 const KIND_GLOW: Record<OrgNodeKind, string> = {
   department: 'shadow-[0_0_20px_-2px_hsl(var(--primary)/0.35)]',
+  track: 'shadow-[0_0_20px_-2px_rgba(245,158,11,0.4)]',
   group: 'shadow-[0_0_20px_-2px_rgba(14,165,233,0.4)]',
   position: 'shadow-[0_0_20px_-2px_rgba(139,92,246,0.4)]',
 };
 const KIND_GLOW_FOCUS: Record<OrgNodeKind, string> = {
   department: 'shadow-[0_0_44px_-4px_hsl(var(--primary)/0.55)]',
+  track: 'shadow-[0_0_44px_-4px_rgba(245,158,11,0.6)]',
   group: 'shadow-[0_0_44px_-4px_rgba(14,165,233,0.6)]',
   position: 'shadow-[0_0_44px_-4px_rgba(139,92,246,0.6)]',
 };
@@ -84,6 +89,7 @@ const KIND_GLOW_FOCUS: Record<OrgNodeKind, string> = {
 /** Member-cluster halo tint per focused-unit kind (inline radial-gradient stop). */
 const HALO_TINT: Record<OrgNodeKind, string> = {
   department: 'hsl(var(--primary)/0.09)',
+  track: 'rgba(245,158,11,0.09)',
   group: 'rgba(14,165,233,0.09)',
   position: 'rgba(139,92,246,0.09)',
 };
@@ -109,6 +115,7 @@ export function OrgPlanetCanvas({
   onAddChild,
   onEdit,
   onMembers,
+  canManageMembers,
   modeToggle,
 }: OrgPlanetCanvasProps): JSX.Element {
   const [focusPath, setFocusPath] = useState<string[]>([]);
@@ -124,10 +131,7 @@ export function OrgPlanetCanvas({
   const layout = useMemo(() => orbitLayout(roots, focusPath), [roots, focusPath]);
   // Key-stable DOM order: reordering children would recreate/interrupt CSS
   // transitions mid-glide, so items are always sorted by key and layered via z.
-  const items = useMemo(
-    () => [...layout.items].sort((a, b) => (a.key < b.key ? -1 : 1)),
-    [layout],
-  );
+  const items = useMemo(() => [...layout.items].sort((a, b) => (a.key < b.key ? -1 : 1)), [layout]);
   // Anchor links (小组/兼任 连线) resolve BOTH endpoints from the item list on
   // every render, so a line's left/top/width/rotate re-derive from the exact
   // same coordinates the nodes glide to — the lines move in lockstep. Sorted by
@@ -136,14 +140,13 @@ export function OrgPlanetCanvas({
     () => new Map(layout.items.map((item) => [item.key, item] as const)),
     [layout],
   );
-  const links = useMemo(
-    () => [...layout.links].sort((a, b) => (a.key < b.key ? -1 : 1)),
-    [layout],
-  );
+  const links = useMemo(() => [...layout.links].sort((a, b) => (a.key < b.key ? -1 : 1)), [layout]);
   const focus = chain.length > 0 && !stale ? chain[chain.length - 1] : undefined;
   const focusItem = focus
     ? layout.items.find((i) => i.kind === 'planet' && i.node?.id === focus.id)
     : undefined;
+  const focusOnMembers =
+    focus && onMembers && (canManageMembers?.(focus) ?? true) ? onMembers : undefined;
 
   const focusPathRef = useRef(focusPath);
   focusPathRef.current = focusPath;
@@ -281,18 +284,19 @@ export function OrgPlanetCanvas({
             onNodeClick={handleNodeClick}
             onEdit={onEdit}
             onMembers={onMembers}
+            canManageMembers={canManageMembers}
           />
         ))}
 
         {/* Editable cluster under the focused star: 编辑 / 成员 / ＋新增子级. */}
-        {editable && focus && focusItem && (
+        {(editable || focusOnMembers) && focus && focusItem && (
           <div
             key={`controls:${focus.id}`}
             className="absolute left-0 top-0 z-50 -translate-x-1/2 motion-safe:animate-fade-in"
             style={{ left: focusItem.x, top: focusItem.y + FOCUS_R + 12 }}
           >
             <div className="flex items-center gap-0.5 rounded-full border border-border bg-card/95 p-0.5 shadow-md backdrop-blur">
-              {onEdit && (
+              {editable && onEdit && focus.trackId === null && (
                 <Tooltip content="编辑">
                   <Button
                     variant="ghost"
@@ -308,7 +312,7 @@ export function OrgPlanetCanvas({
                   </Button>
                 </Tooltip>
               )}
-              {onMembers && (
+              {focusOnMembers && (
                 <Tooltip content="负责人 / 成员">
                   <Button
                     variant="ghost"
@@ -317,14 +321,14 @@ export function OrgPlanetCanvas({
                     aria-label={`管理${focus.title}的负责人与成员`}
                     onClick={(event) => {
                       event.currentTarget.blur();
-                      onMembers(focus);
+                      focusOnMembers(focus);
                     }}
                   >
                     <Users className="h-3.5 w-3.5" />
                   </Button>
                 </Tooltip>
               )}
-              {onAddChild && (
+              {editable && onAddChild && (
                 <OrgAddNodeButton
                   title={`在${focus.title}下新增小组`}
                   variant="ghost"
@@ -380,7 +384,9 @@ export function OrgPlanetCanvas({
 
       {/* Gesture hint — pointless on touch, so only shown for hover devices. */}
       <p className="pointer-events-none absolute bottom-4 left-4 hidden text-[11px] text-muted-foreground [@media(hover:hover)]:block">
-        {chain.length > 0 ? '双击空白/Esc 返回上级 · 捏合或 Ctrl+滚轮缩放' : '点击部门聚焦 · 双指滑动平移 · 捏合缩放'}
+        {chain.length > 0
+          ? '双击空白/Esc 返回上级 · 捏合或 Ctrl+滚轮缩放'
+          : '点击部门聚焦 · 双指滑动平移 · 捏合缩放'}
       </p>
 
       <ZoomControls
@@ -410,6 +416,7 @@ function OrbitItemView({
   onNodeClick,
   onEdit,
   onMembers,
+  canManageMembers,
 }: {
   item: OrbitItem;
   isFocus: boolean;
@@ -419,6 +426,7 @@ function OrbitItemView({
   onNodeClick: (item: OrbitItem) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   const size = item.r * 2;
   return (
@@ -439,6 +447,7 @@ function OrbitItemView({
         onNodeClick={onNodeClick}
         onEdit={onEdit}
         onMembers={onMembers}
+        canManageMembers={canManageMembers}
       />
     </div>
   );
@@ -453,6 +462,7 @@ function OrbitItemBody({
   onNodeClick,
   onEdit,
   onMembers,
+  canManageMembers,
 }: {
   item: OrbitItem;
   isFocus: boolean;
@@ -462,6 +472,7 @@ function OrbitItemBody({
   onNodeClick: (item: OrbitItem) => void;
   onEdit?: (node: OrgNode) => void;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   // Orbit ring: a dashed, non-interactive circle.
   if (item.kind === 'ring') {
@@ -505,6 +516,7 @@ function OrbitItemBody({
         anchors={item.anchors}
         focusNode={focusNode}
         onMembers={onMembers}
+        canManageMembers={canManageMembers}
       />
     );
   }
@@ -543,6 +555,7 @@ function OrbitItemBody({
   // Planet (overview root or the focused star) / moon.
   const people = subtreePeople(node);
   const full = node.kind === 'position' && isPositionFull(node);
+  const nodeOnMembers = onMembers && (canManageMembers?.(node) ?? true) ? onMembers : undefined;
   return (
     <>
       <button
@@ -591,8 +604,14 @@ function OrbitItemBody({
         )}
       </button>
 
+      {node.trackId !== null && (
+        <div className="absolute -bottom-1 -right-1 z-20">
+          <TrackMembershipAction node={node} iconOnly />
+        </div>
+      )}
+
       {/* ⋯ menu on non-focused planets/moons (hover on sm+, always on touch). */}
-      {editable && !isFocus && (onEdit || onMembers) && (
+      {(editable || nodeOnMembers) && !isFocus && (onEdit || nodeOnMembers) && (
         <div className={cn('absolute -right-1 -top-1 z-10', HOVER_GATED)}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -607,14 +626,14 @@ function OrbitItemBody({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[9rem]">
-              {onEdit && (
+              {editable && onEdit && node.trackId === null && (
                 <DropdownMenuItem onSelect={() => onEdit(node)}>
                   <Pencil className="h-4 w-4 text-muted-foreground" />
                   编辑
                 </DropdownMenuItem>
               )}
-              {onMembers && (
-                <DropdownMenuItem onSelect={() => onMembers(node)}>
+              {nodeOnMembers && (
+                <DropdownMenuItem onSelect={() => nodeOnMembers(node)}>
                   <Users className="h-4 w-4 text-muted-foreground" />
                   负责人 / 成员
                 </DropdownMenuItem>
@@ -639,15 +658,19 @@ function LeafBody({
   anchors,
   focusNode,
   onMembers,
+  canManageMembers,
 }: {
   member: OrgNodeMember;
   isLead: boolean;
   anchors?: OrgTreeNode[];
   focusNode: OrgTreeNode | undefined;
   onMembers?: (node: OrgNode) => void;
+  canManageMembers?: (node: OrgNode) => boolean;
 }): JSX.Element {
   const shared = anchors !== undefined && anchors.length > 1;
   const target = anchors?.[0] ?? focusNode;
+  const targetOnMembers =
+    target && onMembers && (canManageMembers?.(target) ?? true) ? onMembers : undefined;
   // Cluster cell (饱满星团): avatar + name INSIDE the cell — packed phyllotaxis
   // cells leave no room for floating labels, and the self-contained chip is what
   // makes the cluster read as a solid, harmonious disc.
@@ -677,13 +700,13 @@ function LeafBody({
   );
 
   const body =
-    onMembers && target ? (
+    targetOnMembers && target ? (
       <button
         type="button"
         aria-label={`查看${target.title}的负责人与成员`}
         onClick={(event) => {
           event.currentTarget.blur();
-          onMembers(target);
+          targetOnMembers(target);
         }}
         className={cn(
           'absolute inset-0 rounded-full outline-none transition-transform duration-base ease-standard hover:scale-110 focus-visible:ring-2 focus-visible:ring-ring motion-safe:animate-fade-in',

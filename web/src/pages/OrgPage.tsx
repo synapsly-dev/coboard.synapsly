@@ -18,6 +18,7 @@ import { queryKeys } from '../lib/query';
 import { useAuth } from '../lib/auth-context';
 import { usersApi } from '../api/users';
 import { useDeleteOrgNode, useMoveOrgNode, useOrgTree } from '../api/org';
+import { useTrackMemberCandidates } from '../api/tracks';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
 import { canEditOrgScope } from '../features/org/permissions';
 import { OrgChartView } from '../features/org/chart/OrgChartView';
@@ -57,23 +58,54 @@ export default function OrgPage(): JSX.Element {
 
   const editable = canEditOrgScope(user, WHOLE_TEAM, undefined);
 
-  // Candidate people for the members dialog: all active users in the workspace.
+  const canManageNodeMembers = (node: OrgNode): boolean =>
+    editable ||
+    (node.trackId !== null &&
+      user !== null &&
+      node.leads.some((person) => person.userId === user.id));
+  const canManageAnyNode = editable || (nodes ?? []).some(canManageNodeMembers);
+
+  const trackCandidatesQuery = useTrackMemberCandidates(
+    membersNode?.trackId ?? null,
+    membersNode !== null && canManageNodeMembers(membersNode),
+  );
+
+  // Admins use the full user-management list; track managers use the public-safe,
+  // track-scoped candidate directory exposed specifically for roster editing.
   const allUsersQuery = useQuery({
     queryKey: queryKeys.users(),
     queryFn: async ({ signal }) => (await usersApi.list(signal)).users,
     enabled: editable,
   });
   const candidates: OrgCandidate[] = useMemo(() => {
-    return (allUsersQuery.data ?? [])
-      .filter((u) => u.isActive)
-      .map((u) => ({
-        id: u.id,
-        displayName: u.displayName,
-        avatarColor: u.avatarColor,
-        hasAvatar: u.hasAvatar,
-      }));
-  }, [allUsersQuery.data]);
-  const candidatesLoading = allUsersQuery.isLoading;
+    const source =
+      membersNode?.trackId != null
+        ? (trackCandidatesQuery.data ?? [])
+        : (allUsersQuery.data ?? []).filter((candidate) => candidate.isActive);
+    const normalized: OrgCandidate[] = source.map((candidate) => ({
+      id: candidate.id,
+      displayName: candidate.displayName,
+      avatarColor: candidate.avatarColor,
+      hasAvatar: candidate.hasAvatar,
+    }));
+
+    // Keep already-assigned people visible even if their account was deactivated
+    // after assignment, so opening and saving the dialog never drops them silently.
+    const seen = new Set(normalized.map((candidate) => candidate.id));
+    for (const person of [...(membersNode?.leads ?? []), ...(membersNode?.members ?? [])]) {
+      if (seen.has(person.userId)) continue;
+      normalized.push({
+        id: person.userId,
+        displayName: person.displayName,
+        avatarColor: person.avatarColor,
+        hasAvatar: person.hasAvatar,
+      });
+      seen.add(person.userId);
+    }
+    return normalized;
+  }, [allUsersQuery.data, membersNode, trackCandidatesQuery.data]);
+  const candidatesLoading =
+    membersNode?.trackId != null ? trackCandidatesQuery.isLoading : allUsersQuery.isLoading;
 
   const moveMut = useMoveOrgNode(WHOLE_TEAM);
   const deleteMut = useDeleteOrgNode(WHOLE_TEAM);
@@ -91,6 +123,10 @@ export default function OrgPage(): JSX.Element {
 
   const handleMove = (id: string, input: MoveOrgNodeInput): void => {
     moveMut.mutate({ id, input });
+  };
+
+  const handleOpenMembers = (node: OrgNode): void => {
+    if (canManageNodeMembers(node)) setMembersNode(node);
   };
 
   const confirmDelete = async (): Promise<void> => {
@@ -146,7 +182,7 @@ export default function OrgPage(): JSX.Element {
 
               {editable && (
                 <OrgAddNodeButton
-                  label="新建根部门"
+                  label="新建"
                   kind="department"
                   onSelectKind={(kind) =>
                     setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
@@ -195,7 +231,7 @@ export default function OrgPage(): JSX.Element {
               action={
                 editable ? (
                   <OrgAddNodeButton
-                    label="新建根部门"
+                    label="新建"
                     kind="department"
                     onSelectKind={(kind) =>
                       setNodeDialog({ mode: 'create', parentId: null, defaultKind: kind })
@@ -213,7 +249,8 @@ export default function OrgPage(): JSX.Element {
               setNodeDialog({ mode: 'create', parentId: node.id, defaultKind: kind })
             }
             onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
-            onMembers={(node) => setMembersNode(node)}
+            onMembers={canManageAnyNode ? handleOpenMembers : undefined}
+            canManageMembers={canManageNodeMembers}
           />
         ) : view === 'chart' ? (
           <OrgChartView
@@ -223,7 +260,8 @@ export default function OrgPage(): JSX.Element {
               setNodeDialog({ mode: 'create', parentId: node.id, defaultKind: kind })
             }
             onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
-            onMembers={(node) => setMembersNode(node)}
+            onMembers={canManageAnyNode ? handleOpenMembers : undefined}
+            canManageMembers={canManageNodeMembers}
           />
         ) : (
           <div className="mx-auto w-full max-w-4xl space-y-1.5 px-4 pb-6 sm:px-6">
@@ -239,7 +277,8 @@ export default function OrgPage(): JSX.Element {
                   setNodeDialog({ mode: 'create', parentId: n.id, defaultKind: kind })
                 }
                 onEdit={(n) => setNodeDialog({ mode: 'edit', node: n })}
-                onMembers={(n) => setMembersNode(n)}
+                canManageMembers={canManageNodeMembers(node)}
+                onMembers={handleOpenMembers}
                 onDelete={(n) => setDeleteTarget(n)}
                 onMove={handleMove}
               />
@@ -270,7 +309,7 @@ export default function OrgPage(): JSX.Element {
       )}
 
       {/* Members dialog */}
-      {membersNode && (
+      {membersNode && canManageNodeMembers(membersNode) && (
         <OrgMembersDialog
           scope={WHOLE_TEAM}
           node={membersNode}

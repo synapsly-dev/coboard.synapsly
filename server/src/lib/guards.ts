@@ -63,11 +63,7 @@ export interface ProjectMembership {
 
 /** Load a project by id or throw 404. */
 async function loadProject(db: Database, projectId: string): Promise<ProjectRow> {
-  const rows = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
+  const rows = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   const project = rows[0];
   if (!project) {
     throw notFound('项目不存在');
@@ -101,14 +97,28 @@ export async function isTrackManager(
 }
 
 /**
+ * Require either a global administrator or a current manager of the given track.
+ * Used by track-roster operations: managers may organize their own track without
+ * gaining visibility into the administrator-only user-management surface.
+ */
+export async function requireTrackManagerOrAdmin(
+  db: Database,
+  request: FastifyRequest,
+  trackId: string,
+): Promise<UserRow> {
+  const user = requireAuth(request);
+  if (!isAdminRole(user.role) && !(await isTrackManager(db, user.id, trackId))) {
+    throw forbidden('需要管理员或该赛道经理权限');
+  }
+  return user;
+}
+
+/**
  * Every track `userId` manages (赛道运营经理 rows). Powers the track-scoped
  * project-management rights (2026-07-11 spec): a manager may create projects in —
  * and move projects between — exactly these tracks.
  */
-export async function listManagedTrackIds(
-  db: Database,
-  userId: string,
-): Promise<string[]> {
+export async function listManagedTrackIds(db: Database, userId: string): Promise<string[]> {
   const rows = await db
     .select({ trackId: trackMembers.trackId })
     .from(trackMembers)
@@ -132,12 +142,7 @@ export async function requireProjectMember(
   const rows = await db
     .select()
     .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, user.id),
-      ),
-    )
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, user.id)))
     .limit(1);
   const membership = rows[0];
   // A global admin is lead-equivalent on EVERY project (§6.3) — including ones they
@@ -147,8 +152,7 @@ export async function requireProjectMember(
   const isGlobalAdmin = isAdminRole(user.role);
   // A 赛道运营经理 (manager of the project's owning track) is lead-equivalent over
   // every project in that track (P0 §3). Only checked when not already a global admin.
-  const isTrackMgr =
-    !isGlobalAdmin && (await isTrackManager(db, user.id, project.trackId));
+  const isTrackMgr = !isGlobalAdmin && (await isTrackManager(db, user.id, project.trackId));
 
   if (membership) {
     return {
@@ -232,8 +236,7 @@ export async function requireTaskVisibility(
     return { user, membership: null, isLead: canEditNoProjectTask(user, task) };
   }
   const membership = await requireProjectMember(db, request, task.projectId);
-  const isLead =
-    membership.projectRole === 'lead' || isAdminRole(membership.user.role);
+  const isLead = membership.projectRole === 'lead' || isAdminRole(membership.user.role);
   return { user: membership.user, membership, isLead };
 }
 

@@ -19,6 +19,7 @@ import {
   orgNodeMembers,
   orgNodes,
   projectMembers,
+  trackMembers,
   users,
   type OrgApplicationRow,
   type OrgNodeRow,
@@ -28,6 +29,7 @@ import { conflict, forbidden, notFound, validationError } from '../lib/errors.js
 import { publishChange } from './activityService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
 import { rankBetween } from './taskService.js';
+import { setTrackMembers } from './trackService.js';
 
 /**
  * Org-tree service (团队架构 / division-of-labor page). Owns the data access for the
@@ -77,15 +79,12 @@ function toOrgNodeMember(user: UserRow, role: 'lead' | 'member'): OrgNodeMember 
 }
 
 /** Map a node row + its (already role-split, ordered) people to the wire shape. */
-function toOrgNode(
-  row: OrgNodeRow,
-  leads: OrgNodeMember[],
-  members: OrgNodeMember[],
-): OrgNode {
+function toOrgNode(row: OrgNodeRow, leads: OrgNodeMember[], members: OrgNodeMember[]): OrgNode {
   return {
     id: row.id,
     projectId: row.projectId,
     parentId: row.parentId,
+    trackId: row.trackId,
     kind: row.kind,
     title: row.title,
     description: row.description,
@@ -135,13 +134,16 @@ export async function listTree(db: Database, scope: OrgScope): Promise<OrgNode[]
     return [];
   }
 
-  const nodeIds = nodeRows.map((n) => n.id);
-  const memberRows = await db
-    .select({ member: orgNodeMembers, user: users })
-    .from(orgNodeMembers)
-    .innerJoin(users, eq(orgNodeMembers.userId, users.id))
-    .where(inArray(orgNodeMembers.nodeId, nodeIds))
-    .orderBy(asc(orgNodeMembers.rank));
+  const regularNodeIds = nodeRows.filter((n) => n.trackId === null).map((n) => n.id);
+  const memberRows =
+    regularNodeIds.length > 0
+      ? await db
+          .select({ member: orgNodeMembers, user: users })
+          .from(orgNodeMembers)
+          .innerJoin(users, eq(orgNodeMembers.userId, users.id))
+          .where(inArray(orgNodeMembers.nodeId, regularNodeIds))
+          .orderBy(asc(orgNodeMembers.rank))
+      : [];
 
   const leadsByNode = new Map<string, OrgNodeMember[]>();
   const membersByNode = new Map<string, OrgNodeMember[]>();
@@ -152,6 +154,30 @@ export async function listTree(db: Database, scope: OrgScope): Promise<OrgNode[]
     bucket.set(member.nodeId, list);
   }
 
+  // A linked Track node displays the canonical track_members roster. Managers map
+  // to visual leads; no duplicate org_node_members rows are maintained for it.
+  const trackNodeByTrackId = new Map(
+    nodeRows.flatMap((node) => (node.trackId ? [[node.trackId, node.id] as const] : [])),
+  );
+  const trackIds = [...trackNodeByTrackId.keys()];
+  if (trackIds.length > 0) {
+    const trackMemberRows = await db
+      .select({ member: trackMembers, user: users })
+      .from(trackMembers)
+      .innerJoin(users, eq(trackMembers.userId, users.id))
+      .where(inArray(trackMembers.trackId, trackIds))
+      .orderBy(asc(trackMembers.rank));
+    for (const { member, user } of trackMemberRows) {
+      const nodeId = trackNodeByTrackId.get(member.trackId);
+      if (!nodeId) continue;
+      const role = member.role === 'manager' ? 'lead' : 'member';
+      const bucket = role === 'lead' ? leadsByNode : membersByNode;
+      const list = bucket.get(nodeId) ?? [];
+      list.push(toOrgNodeMember(user, role));
+      bucket.set(nodeId, list);
+    }
+  }
+
   return nodeRows.map((n) =>
     toOrgNode(n, leadsByNode.get(n.id) ?? [], membersByNode.get(n.id) ?? []),
   );
@@ -160,6 +186,23 @@ export async function listTree(db: Database, scope: OrgScope): Promise<OrgNode[]
 /** Load a single node (with its people) as the wire shape — used by mutation responses. */
 async function serializeNode(db: Database, id: string): Promise<OrgNode> {
   const row = await loadOrgNodeOrThrow(db, id);
+  if (row.trackId !== null) {
+    const trackMemberRows = await db
+      .select({ member: trackMembers, user: users })
+      .from(trackMembers)
+      .innerJoin(users, eq(trackMembers.userId, users.id))
+      .where(eq(trackMembers.trackId, row.trackId))
+      .orderBy(asc(trackMembers.rank));
+
+    const leads: OrgNodeMember[] = [];
+    const members: OrgNodeMember[] = [];
+    for (const { member, user } of trackMemberRows) {
+      const role = member.role === 'manager' ? 'lead' : 'member';
+      (role === 'lead' ? leads : members).push(toOrgNodeMember(user, role));
+    }
+    return toOrgNode(row, leads, members);
+  }
+
   const memberRows = await db
     .select({ member: orgNodeMembers, user: users })
     .from(orgNodeMembers)
@@ -194,8 +237,10 @@ async function siblingsOrdered(
   parentId: string | null,
   excludeId?: string,
 ): Promise<Sibling[]> {
-  const scopePred = projectId === null ? isNull(orgNodes.projectId) : eq(orgNodes.projectId, projectId);
-  const parentPred = parentId === null ? isNull(orgNodes.parentId) : eq(orgNodes.parentId, parentId);
+  const scopePred =
+    projectId === null ? isNull(orgNodes.projectId) : eq(orgNodes.projectId, projectId);
+  const parentPred =
+    parentId === null ? isNull(orgNodes.parentId) : eq(orgNodes.parentId, parentId);
   const rows = await db
     .select({ id: orgNodes.id, rank: orgNodes.rank })
     .from(orgNodes)
@@ -225,7 +270,11 @@ function rankForPosition(siblings: Sibling[], beforeId: string | null | undefine
  * The set of node ids in `rootId`'s subtree (including `rootId`), computed over the
  * scope's nodes. Used to reject a move that would make a node its own ancestor.
  */
-async function subtreeIds(db: Database, projectId: string | null, rootId: string): Promise<Set<string>> {
+async function subtreeIds(
+  db: Database,
+  projectId: string | null,
+  rootId: string,
+): Promise<Set<string>> {
   const rows = await db
     .select({ id: orgNodes.id, parentId: orgNodes.parentId })
     .from(orgNodes)
@@ -306,6 +355,9 @@ export async function createNode(
   input: CreateOrgNodeInput,
   realtimeBus: RealtimeBus = bus,
 ): Promise<OrgNode> {
+  if (input.kind === 'track') {
+    throw validationError('赛道节点由赛道管理自动创建');
+  }
   const projectId = projectIdOfScope(input.scope);
   const parentId = input.parentId ?? null;
   await assertValidParent(db, projectId, parentId);
@@ -340,6 +392,12 @@ export async function updateNode(
   input: UpdateOrgNodeInput,
   realtimeBus: RealtimeBus = bus,
 ): Promise<OrgNode> {
+  if (node.trackId !== null) {
+    throw validationError('赛道节点请在赛道管理中编辑');
+  }
+  if (input.kind === 'track') {
+    throw validationError('赛道节点由赛道管理自动创建');
+  }
   const patch: Partial<OrgNodeRow> = { updatedAt: new Date() };
   if (input.title !== undefined) patch.title = input.title;
   if (input.kind !== undefined) patch.kind = input.kind;
@@ -368,6 +426,9 @@ export async function moveNode(
   input: MoveOrgNodeInput,
   realtimeBus: RealtimeBus = bus,
 ): Promise<OrgNode> {
+  if (node.trackId !== null) {
+    throw validationError('赛道节点固定为团队架构根节点，不能移动');
+  }
   const projectId = node.projectId;
   const newParentId = input.parentId;
   await assertValidParent(db, projectId, newParentId, node.id);
@@ -392,6 +453,9 @@ export async function deleteNode(
   node: OrgNodeRow,
   realtimeBus: RealtimeBus = bus,
 ): Promise<void> {
+  if (node.trackId !== null) {
+    throw validationError('请在赛道管理中删除赛道');
+  }
   await db.delete(orgNodes).where(eq(orgNodes.id, node.id));
   publishOrgChange(realtimeBus, 'org_node_deleted', scopeOfNode(node), node.id);
 }
@@ -407,6 +471,16 @@ export async function setMembers(
   input: SetOrgMembersInput,
   realtimeBus: RealtimeBus = bus,
 ): Promise<OrgNode> {
+  if (node.trackId !== null) {
+    await setTrackMembers(
+      db,
+      node.trackId,
+      { managers: input.leads, members: input.members },
+      realtimeBus,
+    );
+    return serializeNode(db, node.id);
+  }
+
   if (input.leads.length > 1) {
     throw validationError('一个节点只能设置一位负责人');
   }
@@ -417,10 +491,7 @@ export async function setMembers(
   }
 
   if (allIds.length > 0) {
-    const found = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(inArray(users.id, allIds));
+    const found = await db.select({ id: users.id }).from(users).where(inArray(users.id, allIds));
     if (found.length !== new Set(allIds).size) {
       throw validationError('存在无效的用户');
     }
@@ -500,15 +571,8 @@ function toOrgApplication(
 }
 
 /** Load an application by id or throw 404. */
-async function loadApplicationOrThrow(
-  db: Database,
-  id: string,
-): Promise<OrgApplicationRow> {
-  const rows = await db
-    .select()
-    .from(orgApplications)
-    .where(eq(orgApplications.id, id))
-    .limit(1);
+async function loadApplicationOrThrow(db: Database, id: string): Promise<OrgApplicationRow> {
+  const rows = await db.select().from(orgApplications).where(eq(orgApplications.id, id)).limit(1);
   const application = rows[0];
   if (!application) {
     throw notFound('申报不存在');
@@ -537,7 +601,7 @@ async function decidableNodeIds(
   db: Database,
   user: UserRow,
   scope: OrgScope,
-  scopeNodes: { id: string; parentId: string | null }[],
+  scopeNodes: { id: string; parentId: string | null; trackId: string | null }[],
 ): Promise<Set<string>> {
   const allIds = new Set(scopeNodes.map((n) => n.id));
   if (isAdminRole(user.role)) {
@@ -560,12 +624,23 @@ async function decidableNodeIds(
     return leadRows.length > 0 ? allIds : new Set();
   }
 
-  // Whole-team tree: an org lead decides for their node and its whole subtree.
+  // Whole-team tree: an ordinary org lead or a linked Track's manager decides for
+  // their node and its whole subtree.
   const leadRows = await db
     .select({ nodeId: orgNodeMembers.nodeId })
     .from(orgNodeMembers)
     .where(and(eq(orgNodeMembers.userId, user.id), eq(orgNodeMembers.role, 'lead')));
-  const leadNodeIds = new Set(leadRows.map((r) => r.nodeId));
+  const managerRows = await db
+    .select({ trackId: trackMembers.trackId })
+    .from(trackMembers)
+    .where(and(eq(trackMembers.userId, user.id), eq(trackMembers.role, 'manager')));
+  const managedTrackIds = new Set(managerRows.map((r) => r.trackId));
+  const leadNodeIds = new Set([
+    ...leadRows.map((r) => r.nodeId),
+    ...scopeNodes
+      .filter((node) => node.trackId !== null && managedTrackIds.has(node.trackId))
+      .map((node) => node.id),
+  ]);
   if (leadNodeIds.size === 0) {
     return new Set();
   }
@@ -596,7 +671,7 @@ export async function canDecideOnNode(
   node: OrgNodeRow,
 ): Promise<boolean> {
   const scopeNodes = await db
-    .select({ id: orgNodes.id, parentId: orgNodes.parentId })
+    .select({ id: orgNodes.id, parentId: orgNodes.parentId, trackId: orgNodes.trackId })
     .from(orgNodes)
     .where(inScope(node.projectId));
   const decidable = await decidableNodeIds(db, user, scopeOfNode(node), scopeNodes);
@@ -616,7 +691,7 @@ export async function listApplications(
 ): Promise<OrgApplicationsResponse> {
   const projectId = projectIdOfScope(scope);
   const scopeNodes = await db
-    .select({ id: orgNodes.id, parentId: orgNodes.parentId })
+    .select({ id: orgNodes.id, parentId: orgNodes.parentId, trackId: orgNodes.trackId })
     .from(orgNodes)
     .where(inScope(projectId));
   if (scopeNodes.length === 0) {

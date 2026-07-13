@@ -10,9 +10,11 @@ import type {
   CreateTrackInput,
   SetTrackMembersInput,
   Track,
+  TrackMemberCandidatesResponse,
   TrackResponse,
   TracksResponse,
   UpdateTrackInput,
+  UserSummary,
 } from 'shared';
 import { api } from './client';
 import { queryKeys } from '../lib/query';
@@ -21,8 +23,8 @@ import { useAuth } from '../lib/auth-context';
 /**
  * Track (赛道, P0 §2) data + mutation hooks. A 赛道 is the top operational grouping
  * above projects, carrying 赛道运营经理(managers) + members. The listing is readable
- * by any logged-in user; create / edit / delete / set-members are global-admin only
- * (enforced server-side, §3).
+ * by any logged-in user; create / edit / delete are global-admin only, while a
+ * track's current managers may also edit that track's roster (enforced server-side).
  *
  * Conventions mirror {@link projectsApi}:
  * - Low-level fetchers live on {@link tracksApi}; hooks compose them.
@@ -40,8 +42,12 @@ export const tracksApi = {
   update: (id: string, input: UpdateTrackInput): Promise<TrackResponse> =>
     api.patch<TrackResponse>(`/tracks/${id}`, input),
   remove: (id: string): Promise<void> => api.delete<void>(`/tracks/${id}`),
+  memberCandidates: (id: string, signal?: AbortSignal): Promise<TrackMemberCandidatesResponse> =>
+    api.get<TrackMemberCandidatesResponse>(`/tracks/${id}/member-candidates`, { signal }),
   setMembers: (id: string, input: SetTrackMembersInput): Promise<TrackResponse> =>
     api.put<TrackResponse>(`/tracks/${id}/members`, input),
+  join: (id: string): Promise<TrackResponse> => api.post<TrackResponse>(`/tracks/${id}/join`),
+  leave: (id: string): Promise<TrackResponse> => api.post<TrackResponse>(`/tracks/${id}/leave`),
 };
 
 /** All tracks visible to the current user (§7 GET /tracks). */
@@ -55,6 +61,21 @@ export function useTracks(): UseQueryResult<Track[]> {
   });
 }
 
+/** Active users available to a global admin or this track's current manager. */
+export function useTrackMemberCandidates(
+  trackId: string | null,
+  enabled: boolean,
+): UseQueryResult<UserSummary[]> {
+  return useQuery<UserSummary[]>({
+    queryKey: queryKeys.trackMemberCandidates(trackId ?? 'none'),
+    queryFn: async ({ signal }) => {
+      if (trackId === null) return [];
+      return (await tracksApi.memberCandidates(trackId, signal)).users;
+    },
+    enabled: enabled && trackId !== null,
+  });
+}
+
 /**
  * The non-archived tracks a user manages (赛道运营经理). Pure helper behind the
  * manager-scoped affordances (e.g. the 「新建项目」 赛道 picker, spec 2026-07-11 §2)
@@ -65,9 +86,7 @@ export function managedActiveTracks(
   userId: string | undefined,
 ): Track[] {
   if (!tracks || !userId) return [];
-  return tracks.filter(
-    (t) => !t.archived && t.managers.some((m) => m.userId === userId),
-  );
+  return tracks.filter((t) => !t.archived && t.managers.some((m) => m.userId === userId));
 }
 
 /**
@@ -85,7 +104,8 @@ export function useIsAnyTrackManager(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Mutations — admin track management (P0 §2, §3)
+// Mutations — track management (structural writes are admin-only; roster writes
+// also permit a current manager of that track) (P0 §2, §3)
 // ---------------------------------------------------------------------------
 
 /** Create a track (admin) — POST /tracks (409 on duplicate key). */
@@ -98,6 +118,7 @@ export function useCreateTrack(): UseMutationResult<Track, Error, CreateTrackInp
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
     },
   });
 }
@@ -117,6 +138,7 @@ export function useUpdateTrack(): UseMutationResult<Track, Error, UpdateTrackVar
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
     },
   });
 }
@@ -128,6 +150,7 @@ export function useDeleteTrack(): UseMutationResult<void, Error, string> {
     mutationFn: (id) => tracksApi.remove(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
       // Deleting a track can change which track projects render under.
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
     },
@@ -149,6 +172,31 @@ export function useSetTrackMembers(): UseMutationResult<Track, Error, SetTrackMe
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
+    },
+  });
+}
+
+/** Join an active Track as the current user. */
+export function useJoinTrack(): UseMutationResult<Track, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation<Track, Error, string>({
+    mutationFn: async (id) => (await tracksApi.join(id)).track,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
+    },
+  });
+}
+
+/** Leave a Track as the current user; managers are rejected by the server. */
+export function useLeaveTrack(): UseMutationResult<Track, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation<Track, Error, string>({
+    mutationFn: async (id) => (await tracksApi.leave(id)).track,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
     },
   });
 }

@@ -297,18 +297,18 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
     expect((res.json() as AuthConfigResponse).devLogin).toBe(true);
   });
 
-  it('creates + authenticates a super admin by email', async () => {
-    const res = await ctx.app.inject({
+  it('maps different emails to different accounts and only bootstraps the first as super admin', async () => {
+    const first = await ctx.app.inject({
       method: 'POST',
       url: '/api/auth/dev-login',
       headers: CSRF_HEADERS,
-      payload: { email: 'newbie@coboard.local' },
+      payload: { email: 'admin@coboard.local' },
     });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as AuthUserResponse;
-    expect(body.user.email).toBe('newbie@coboard.local');
-    expect(body.user.role).toBe('super_admin');
-    const cookie = res.cookies.find((c) => c.name === SESSION_COOKIE);
+    expect(first.statusCode).toBe(200);
+    const firstBody = first.json() as AuthUserResponse;
+    expect(firstBody.user.email).toBe('admin@coboard.local');
+    expect(firstBody.user.role).toBe('super_admin');
+    const cookie = first.cookies.find((c) => c.name === SESSION_COOKIE);
     expect(cookie).toBeDefined();
 
     const me = await ctx.app.inject({
@@ -317,5 +317,26 @@ describe('dev fake-login (DEV_LOGIN enabled)', () => {
       headers: { cookie: `${SESSION_COOKIE}=${cookie!.value}` },
     });
     expect(me.statusCode).toBe(200);
+
+    const second = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/auth/dev-login',
+      headers: CSRF_HEADERS,
+      payload: { email: 'member@coboard.local' },
+    });
+    expect(second.statusCode).toBe(200);
+    const secondBody = second.json() as AuthUserResponse;
+    expect(secondBody.user.email).toBe('member@coboard.local');
+    expect(secondBody.user.role).toBe('member');
+    expect(secondBody.user.id).not.toBe(firstBody.user.id);
+
+    const secondAgain = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/auth/dev-login',
+      headers: CSRF_HEADERS,
+      payload: { email: 'MEMBER@coboard.local' },
+    });
+    expect(secondAgain.statusCode).toBe(200);
+    expect((secondAgain.json() as AuthUserResponse).user.id).toBe(secondBody.user.id);
   });
 });

@@ -17,7 +17,13 @@ export function OrgAddNodeButton({
   onSelectKind,
   kind = 'group',
   label,
-  title = kind === 'department' ? '新增部门' : kind === 'position' ? '新增岗位' : '新增小组',
+  title = kind === 'department'
+    ? '新增部门'
+    : kind === 'track'
+      ? '新增赛道'
+      : kind === 'position'
+        ? '新增岗位'
+        : '新增小组',
   variant = label ? 'primary' : 'ghost',
   size = label ? 'sm' : 'icon',
   className,

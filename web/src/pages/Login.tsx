@@ -41,12 +41,8 @@ export default function LoginPage(): JSX.Element {
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <SynapseMark className="h-7 w-7" />
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              登录 Coboard
-            </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              使用 Syna 账号继续你的团队协作
-            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">登录 Coboard</h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">使用 Syna 账号继续你的团队协作</p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -84,8 +80,8 @@ export default function LoginPage(): JSX.Element {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            登录即表示同意由{' '}
-            <span className="font-medium text-foreground">Syna 账号</span> 统一管理你的身份
+            登录即表示同意由 <span className="font-medium text-foreground">Syna 账号</span>{' '}
+            统一管理你的身份
           </p>
         </div>
       </main>
@@ -100,7 +96,7 @@ export default function LoginPage(): JSX.Element {
 function DevLoginBox({ redirectTo }: { redirectTo: string }): JSX.Element {
   const navigate = useNavigate();
   const { devLogin } = useAuth();
-  const [email, setEmail] = useState('admin@coboard.local');
+  const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -131,14 +127,18 @@ function DevLoginBox({ redirectTo }: { redirectTo: string }): JSX.Element {
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="邮箱"
+          placeholder="任意邮箱，例如 member@coboard.local"
         />
+        <p className="text-xs text-muted-foreground">
+          不同邮箱对应不同开发账号；首个账号为超级管理员。
+        </p>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <Button
           type="button"
           variant="outline"
           size="sm"
           loading={busy}
+          disabled={email.trim().length === 0}
           onClick={() => void submit()}
         >
           以此邮箱进入
