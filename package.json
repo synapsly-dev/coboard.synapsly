@@ -12,7 +12,7 @@
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
     "test": "pnpm -r test",
-    "dev": "pnpm --filter shared build && pnpm --parallel --filter server --filter web dev",
+    "dev": "pnpm --parallel --filter server --filter web dev",
     "format": "prettier --write . --ignore-unknown",
     "format:check": "prettier --check . --ignore-unknown",
     "db:generate": "drizzle-kit generate",

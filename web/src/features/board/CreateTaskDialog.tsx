@@ -264,7 +264,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
           {/* 结构化发布字段 (P2 §1): 交什么 + 什么算合格. */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="task-deliverable-spec">提交物要求（选填）</Label>
+              <Label htmlFor="task-deliverable-spec">提交物要求</Label>
               <Textarea
                 id="task-deliverable-spec"
                 rows={3}
@@ -273,7 +273,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="task-acceptance-criteria">验收标准（选填）</Label>
+              <Label htmlFor="task-acceptance-criteria">验收标准</Label>
               <Textarea
                 id="task-acceptance-criteria"
                 rows={3}
@@ -285,7 +285,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="grid gap-1.5">
-              <Label>任务类型（选填）</Label>
+              <Label>任务类型</Label>
               <Select value={taskType} onValueChange={(v) => setValue('taskType', v)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -302,7 +302,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
             </div>
 
             <div className="grid gap-1.5">
-              <Label>优先级</Label>
+              <Label required>优先级</Label>
               <Select value={priority} onValueChange={(v) => setValue('priority', v as Priority)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -318,7 +318,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="task-points">点数（选填）</Label>
+              <Label htmlFor="task-points">点数（可稍后确定）</Label>
               <Input
                 id="task-points"
                 type="number"
@@ -332,7 +332,9 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="task-min-claimants">认领人数下限</Label>
+              <Label htmlFor="task-min-claimants" required>
+                认领人数下限
+              </Label>
               <Input
                 id="task-min-claimants"
                 type="number"
@@ -342,13 +344,12 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
                 invalid={!!errors.minClaimants}
                 {...register('minClaimants')}
               />
-              <p className="text-xs text-muted-foreground">达到该人数才进入「进行中」，否则停留在「待认领」。</p>
               {errors.minClaimants && (
                 <p className="text-xs text-destructive">{errors.minClaimants.message}</p>
               )}
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="task-max-claimants">认领人数上限（选填）</Label>
+              <Label htmlFor="task-max-claimants">认领人数上限</Label>
               <Input
                 id="task-max-claimants"
                 type="number"
@@ -358,7 +359,6 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
                 invalid={!!errors.maxClaimants}
                 {...register('maxClaimants')}
               />
-              <p className="text-xs text-muted-foreground">达到上限后不再接受新的认领。</p>
               {errors.maxClaimants && (
                 <p className="text-xs text-destructive">{errors.maxClaimants.message}</p>
               )}
@@ -367,14 +367,14 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="task-due">截止日期（选填）</Label>
+              <Label htmlFor="task-due">截止日期</Label>
               <Input id="task-due" type="date" {...register('dueDate')} />
             </div>
 
             {/* Assignment requires a project (pool tasks have no members, §8). */}
             {!isPoolTask && (
               <div className="grid gap-1.5">
-                <Label>负责人（选填）</Label>
+                <Label>负责人</Label>
                 <Select value={assigneeId} onValueChange={(v) => setValue('assigneeId', v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="不指派" />
@@ -393,7 +393,7 @@ export function CreateTaskDialog({ projectId }: CreateTaskDialogProps): JSX.Elem
           </div>
 
           <div className="grid gap-1.5">
-            <Label>标签（选填）</Label>
+            <Label>标签</Label>
             <LabelPicker value={labelIds} onChange={setLabelIds} />
           </div>
 

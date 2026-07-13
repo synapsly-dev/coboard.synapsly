@@ -42,6 +42,12 @@ export interface UseCanvasOptions {
    * canvas (星系模式) uses this for "up one level"; omit for the default fit.
    */
   onDoubleClick?: () => void;
+  /**
+   * Optional settled scale grid. When set, fit/button zooms and the end of a
+   * gesture snap scale to this step and translation to integer CSS pixels.
+   * Free gestures remain continuous while moving.
+   */
+  pixelSnapStep?: number;
 }
 
 export interface UseCanvasResult {
@@ -92,8 +98,11 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
   // Ref so a changing callback identity never re-wires the gesture listeners.
   const onDoubleClickRef = useRef(options?.onDoubleClick);
   onDoubleClickRef.current = options?.onDoubleClick;
+  const pixelSnapStepRef = useRef(options?.pixelSnapStep);
+  pixelSnapStepRef.current = options?.pixelSnapStep;
   const didFitRef = useRef(false);
   const animationTimerRef = useRef<number | null>(null);
+  const pixelSnapTimerRef = useRef<number | null>(null);
 
   const apply = useCallback((next: CanvasTransform, animate: boolean): void => {
     if (animationTimerRef.current != null) {
@@ -111,25 +120,69 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
   useEffect(() => {
     return () => {
       if (animationTimerRef.current != null) window.clearTimeout(animationTimerRef.current);
+      if (pixelSnapTimerRef.current != null) window.clearTimeout(pixelSnapTimerRef.current);
     };
   }, []);
+
+  const snapScale = useCallback((scale: number, mode: 'nearest' | 'floor'): number => {
+    const step = pixelSnapStepRef.current;
+    if (step == null || step <= 0) return scale;
+    const units =
+      mode === 'floor' ? Math.floor((scale + Number.EPSILON) / step) : Math.round(scale / step);
+    return clampScale(Math.max(step, units * step));
+  }, []);
+
+  /** Settle the current transform without changing the viewport's center point. */
+  const settleToPixelGrid = useCallback(
+    (animate: boolean): void => {
+      const step = pixelSnapStepRef.current;
+      const viewport = viewportRef.current;
+      if (step == null || step <= 0 || !viewport) return;
+      const current = transformRef.current;
+      const nextScale = snapScale(current.scale, 'nearest');
+      const cx = viewport.clientWidth / 2;
+      const cy = viewport.clientHeight / 2;
+      apply(
+        {
+          scale: nextScale,
+          x: Math.round(cx - ((cx - current.x) * nextScale) / current.scale),
+          y: Math.round(cy - ((cy - current.y) * nextScale) / current.scale),
+        },
+        animate,
+      );
+    },
+    [apply, snapScale],
+  );
+
+  const queuePixelSnap = useCallback((): void => {
+    if (pixelSnapStepRef.current == null) return;
+    if (pixelSnapTimerRef.current != null) window.clearTimeout(pixelSnapTimerRef.current);
+    pixelSnapTimerRef.current = window.setTimeout(() => {
+      pixelSnapTimerRef.current = null;
+      settleToPixelGrid(true);
+    }, 140);
+  }, [settleToPixelGrid]);
 
   /** Zoom by `factor` keeping the viewport point (px,py) fixed over the world. */
   const zoomAt = useCallback(
     (px: number, py: number, factor: number, animate: boolean): void => {
       const { x, y, scale } = transformRef.current;
-      const next = clampScale(scale * factor);
+      let next = clampScale(scale * factor);
+      if (animate) next = snapScale(next, 'nearest');
       if (next === scale) return;
+      const nextX = px - ((px - x) * next) / scale;
+      const nextY = py - ((py - y) * next) / scale;
+      const shouldSnapTranslation = animate && pixelSnapStepRef.current != null;
       apply(
         {
           scale: next,
-          x: px - ((px - x) * next) / scale,
-          y: py - ((py - y) * next) / scale,
+          x: shouldSnapTranslation ? Math.round(nextX) : nextX,
+          y: shouldSnapTranslation ? Math.round(nextY) : nextY,
         },
         animate,
       );
     },
-    [apply],
+    [apply, snapScale],
   );
 
   const zoomStep = useCallback(
@@ -150,21 +203,27 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
       if (!viewport || target.width <= 0 || target.height <= 0) return null;
       const vw = viewport.clientWidth;
       const vh = viewport.clientHeight;
-      const scale = Math.max(
+      let scale = Math.max(
         0.05, // never collapse to zero on degenerate viewports
         Math.min((vw - padding * 2) / target.width, (vh - padding * 2) / target.height, maxScale),
       );
+      const shouldSnap = pixelSnapStepRef.current != null;
+      if (shouldSnap) scale = snapScale(scale, 'floor');
       // Frame the target RECT (its origin may be non-zero, e.g. the planet
       // canvas's core scene excluding ghost arcs) centered in the viewport.
       const tx = target.x ?? 0;
       const ty = target.y ?? 0;
       return {
         scale,
-        x: (vw - target.width * scale) / 2 - tx * scale,
-        y: (vh - target.height * scale) / 2 - ty * scale,
+        x: shouldSnap
+          ? Math.round((vw - target.width * scale) / 2 - tx * scale)
+          : (vw - target.width * scale) / 2 - tx * scale,
+        y: shouldSnap
+          ? Math.round((vh - target.height * scale) / 2 - ty * scale)
+          : (vh - target.height * scale) / 2 - ty * scale,
       };
     },
-    [],
+    [snapScale],
   );
 
   const fitTo = useCallback(
@@ -186,8 +245,14 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
     apply(
       {
         scale: 1,
-        x: (viewport.clientWidth - width) / 2,
-        y: (viewport.clientHeight - height) / 2,
+        x:
+          pixelSnapStepRef.current != null
+            ? Math.round((viewport.clientWidth - width) / 2)
+            : (viewport.clientWidth - width) / 2,
+        y:
+          pixelSnapStepRef.current != null
+            ? Math.round((viewport.clientHeight - height) / 2)
+            : (viewport.clientHeight - height) / 2,
       },
       true,
     );
@@ -223,6 +288,7 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
         const dx = event.deltaMode === 1 ? event.deltaX * 16 : event.deltaX;
         const current = transformRef.current;
         apply({ ...current, x: current.x - dx, y: current.y - dy }, false);
+        queuePixelSnap();
         return;
       }
 
@@ -230,17 +296,17 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
       // exp() keeps trackpad pinch (small deltas) silky; clamp per event so a
       // full mouse-wheel notch (±100) stays a sane step.
       const factor = Math.min(1.6, Math.max(1 / 1.6, Math.exp(-dy * 0.01)));
-      zoomAt(
-        event.clientX - rect.left,
-        event.clientY - rect.top,
-        factor,
-        false,
-      );
+      zoomAt(event.clientX - rect.left, event.clientY - rect.top, factor, false);
+      queuePixelSnap();
     };
 
     const onPointerDown = (event: PointerEvent): void => {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       if (isInteractiveTarget(event.target)) return;
+      if (pixelSnapTimerRef.current != null) {
+        window.clearTimeout(pixelSnapTimerRef.current);
+        pixelSnapTimerRef.current = null;
+      }
       viewport.setPointerCapture(event.pointerId);
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pointers.size === 1) setDragging(true);
@@ -287,7 +353,10 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
       if (viewport.hasPointerCapture(event.pointerId)) {
         viewport.releasePointerCapture(event.pointerId);
       }
-      if (pointers.size === 0) setDragging(false);
+      if (pointers.size === 0) {
+        setDragging(false);
+        settleToPixelGrid(true);
+      }
     };
 
     const onDoubleClick = (event: MouseEvent): void => {
@@ -328,7 +397,7 @@ export function useCanvas(bounds: CanvasBounds, options?: UseCanvasOptions): Use
       viewport.removeEventListener('dblclick', onDoubleClick);
       viewport.removeEventListener('keydown', onKeyDown);
     };
-  }, [apply, fitTo, zoomAt, zoomIn, zoomOut]);
+  }, [apply, fitTo, queuePixelSnap, settleToPixelGrid, zoomAt, zoomIn, zoomOut]);
 
   return { viewportRef, transform, dragging, animated, zoomIn, zoomOut, fitTo, reset };
 }

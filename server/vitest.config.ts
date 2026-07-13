@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath, URL } from 'node:url';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
 
@@ -26,6 +27,11 @@ function resolveTsFromJs(): Plugin {
 
 export default defineConfig({
   plugins: [resolveTsFromJs()],
+  resolve: {
+    alias: {
+      shared: fileURLToPath(new URL('../packages/shared/src/index.ts', import.meta.url)),
+    },
+  },
   test: {
     environment: 'node',
     include: ['test/**/*.test.ts'],

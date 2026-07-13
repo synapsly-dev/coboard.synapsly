@@ -93,9 +93,7 @@ export function LabelPicker({ value, onChange, className }: LabelPickerProps): J
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner /> 加载标签…
         </div>
-      ) : (labels ?? []).length === 0 ? (
-        <p className="text-xs text-muted-foreground">还没有标签，点击下方新建。</p>
-      ) : (
+      ) : (labels ?? []).length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {(labels ?? []).map((label) => {
             const isOn = selected.has(label.id);
@@ -143,7 +141,7 @@ export function LabelPicker({ value, onChange, className }: LabelPickerProps): J
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {/* Inline create */}
       {creating ? (

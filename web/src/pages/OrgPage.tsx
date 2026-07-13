@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BriefcaseBusiness, GitBranch, List, Network } from 'lucide-react';
+import { BriefcaseBusiness, GitBranch, List, Network, Workflow } from 'lucide-react';
 import type { MoveOrgNodeInput, OrgNode, OrgNodeKind, OrgScope } from 'shared';
 import {
   Button,
@@ -21,6 +21,7 @@ import { useDeleteOrgNode, useMoveOrgNode, useOrgTree } from '../api/org';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
 import { canEditOrgScope } from '../features/org/permissions';
 import { OrgChartView } from '../features/org/chart/OrgChartView';
+import { OrgRoleChartCanvas } from '../features/org/chart/OrgRoleChartCanvas';
 import { OrgAddNodeButton } from '../features/org/OrgAddNodeButton';
 import { OrgNodeRow } from '../features/org/OrgNodeRow';
 import { OrgNodeDialog } from '../features/org/OrgNodeDialog';
@@ -46,7 +47,7 @@ type NodeDialogState =
 export default function OrgPage(): JSX.Element {
   const { user } = useAuth();
   // Default to the org chart (图谱); admins can edit in place.
-  const [view, setView] = useState<'list' | 'chart' | 'recruit'>('chart');
+  const [view, setView] = useState<'list' | 'chart' | 'role' | 'recruit'>('chart');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [nodeDialog, setNodeDialog] = useState<NodeDialogState>(null);
   const [membersNode, setMembersNode] = useState<OrgNode | null>(null);
@@ -119,6 +120,7 @@ export default function OrgPage(): JSX.Element {
                 {(
                   [
                     { key: 'chart', label: '图谱', icon: GitBranch },
+                    { key: 'role', label: '岗位图', icon: Workflow },
                     { key: 'list', label: '列表', icon: List },
                     { key: 'recruit', label: '招募', icon: BriefcaseBusiness },
                   ] as const
@@ -160,7 +162,9 @@ export default function OrgPage(): JSX.Element {
       <div
         className={cn(
           'min-h-0 flex-1',
-          view === 'chart' ? 'overflow-hidden' : 'overflow-y-auto scrollbar-thin',
+          view === 'chart' || view === 'role'
+            ? 'overflow-hidden'
+            : 'overflow-y-auto scrollbar-thin',
         )}
       >
         {isLoading ? (
@@ -201,6 +205,16 @@ export default function OrgPage(): JSX.Element {
               }
             />
           </div>
+        ) : view === 'role' ? (
+          <OrgRoleChartCanvas
+            roots={roots}
+            editable={editable}
+            onAddChild={(node, kind) =>
+              setNodeDialog({ mode: 'create', parentId: node.id, defaultKind: kind })
+            }
+            onEdit={(node) => setNodeDialog({ mode: 'edit', node })}
+            onMembers={(node) => setMembersNode(node)}
+          />
         ) : view === 'chart' ? (
           <OrgChartView
             roots={roots}

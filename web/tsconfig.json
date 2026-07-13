@@ -9,7 +9,12 @@
     "noEmit": true,
     "allowJs": false,
     "useDefineForClassFields": true,
-    "types": ["vite/client", "vitest/globals"]
+    "types": ["vite/client", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "shared": ["../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src", "vite.config.ts", "tailwind.config.ts", "playwright.config.ts"],
   "exclude": ["dist", "node_modules"]

@@ -86,9 +86,9 @@ export default function WorkbenchPage(): JSX.Element {
               待办审核、进行中的任务与可认领的机会，一页看清。
             </p>
           </div>
-          {/* 本周我的点数 — compact stat strip (same week window as 统计). */}
+          {/* 本周统计 — compact stat strip (same week window as 统计). */}
           <div className="flex items-center gap-4 rounded-lg border border-border bg-card px-4 py-2.5 text-sm shadow-sm">
-            <span className="text-muted-foreground">本周我的点数</span>
+            <span className="text-muted-foreground">本周</span>
             {myStats.isLoading ? (
               <Spinner />
             ) : (

@@ -8,9 +8,8 @@ import { OrgPlanetCanvas } from './OrgPlanetCanvas';
 
 /**
  * 图谱 mode switcher: 星系 (planet/orbital, the default) vs 树形 (tidy-tree).
- * Same outer contract as both canvases; the chosen mode persists in
- * localStorage. The toggle button itself is injected INTO each canvas's
- * bottom-right zoom cluster via the `modeToggle` slot.
+ * The role-oriented chart is a separate top-level view on OrgPage rather than a
+ * mode inside this original chart surface.
  */
 export type OrgChartMode = 'galaxy' | 'tree';
 
@@ -20,7 +19,7 @@ function loadMode(): OrgChartMode {
   try {
     return window.localStorage.getItem(MODE_STORAGE_KEY) === 'tree' ? 'tree' : 'galaxy';
   } catch {
-    return 'galaxy'; // storage blocked (private mode etc.) — default 星系
+    return 'galaxy';
   }
 }
 
@@ -36,12 +35,12 @@ export function OrgChartView(props: OrgChartViewProps): JSX.Element {
   const [mode, setMode] = useState<OrgChartMode>(loadMode);
 
   const toggleMode = (): void =>
-    setMode((prev) => {
-      const next: OrgChartMode = prev === 'galaxy' ? 'tree' : 'galaxy';
+    setMode((previous) => {
+      const next: OrgChartMode = previous === 'galaxy' ? 'tree' : 'galaxy';
       try {
         window.localStorage.setItem(MODE_STORAGE_KEY, next);
       } catch {
-        // non-persistent is fine
+        // Non-persistent mode selection is fine when storage is unavailable.
       }
       return next;
     });
