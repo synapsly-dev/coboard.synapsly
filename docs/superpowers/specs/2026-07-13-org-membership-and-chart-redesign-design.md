@@ -46,6 +46,9 @@ Date: 2026-07-13 · Status: approved (user: 完成所有任务)
 - 大纲树 `OrgOutlineTree`：可折叠、连接引导线、kind 徽章、负责人✦、人数、展开显示成员、成员按钮。
 - 招募视图：新增顶部「待处理的加入申请」区（部门/小组 pending，岗位仍用卡片内审批面板），
   招募 tab 增加待处理数量角标。
+- 移除「岗位图」视图（2026-07-13 追加）：其把岗位画成中间层级、误导层级，且大半画布空置，并与新
+  大纲树高度重复。删除 OrgRoleChartCanvas / role-layout / org-role-selectors（及随之失效的
+  ExpandablePeople.PeopleHoverCard）。架构页视图精简为 图谱(星系/大纲树) · 列表 · 招募。
 
 ## 验证 & 部署
 

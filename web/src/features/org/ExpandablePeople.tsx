@@ -1,6 +1,6 @@
 import { Crown } from 'lucide-react';
 import type { OrgNodeMember } from 'shared';
-import { Avatar, Tooltip } from '../../components/ui';
+import { Avatar } from '../../components/ui';
 import { avatarUrl, cn } from '../../lib/utils';
 
 interface PeopleProps {
@@ -59,70 +59,6 @@ export function InlineExpandablePeople({ people, max = 8, className }: PeoplePro
         >
           +{overflow}
         </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * Tree-view people: the node keeps a compact stack, while a portal-rendered hover
- * card reveals the complete roster without resizing the node or moving connectors.
- */
-export function PeopleHoverCard({ people, max = 3, className }: PeopleProps): JSX.Element {
-  const shown = people.slice(0, max);
-  const overflow = people.length - shown.length;
-
-  const roster = (
-    <div className="max-h-64 min-w-44 space-y-1 overflow-y-auto scrollbar-thin">
-      {people.map((person) => (
-        <div key={person.userId} className="flex items-center gap-2 rounded-md px-1.5 py-1">
-          <PersonAvatar person={person} />
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
-            {person.displayName}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-
-  return (
-    <Tooltip
-      content={roster}
-      side="bottom"
-      align="start"
-      delayDuration={120}
-      contentClassName="max-w-72 rounded-xl border border-border bg-card p-2 text-foreground shadow-lg"
-      arrowClassName="fill-card"
-    >
-      <span
-        className={cn('inline-flex h-7 shrink-0 items-center -space-x-1.5', className)}
-        aria-label={people.map((person) => person.displayName).join('、')}
-      >
-        {shown.map((person) => (
-          <PersonAvatar key={person.userId} person={person} />
-        ))}
-        {overflow > 0 && (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-medium tabular-nums text-muted-foreground ring-2 ring-card">
-            +{overflow}
-          </span>
-        )}
-      </span>
-    </Tooltip>
-  );
-}
-
-function PersonAvatar({ person }: { person: OrgNodeMember }): JSX.Element {
-  return (
-    <span className="relative inline-flex shrink-0">
-      <Avatar
-        name={person.displayName}
-        color={person.avatarColor}
-        imageUrl={person.hasAvatar ? avatarUrl(person.userId) : undefined}
-        size="xs"
-        className="ring-2 ring-card"
-      />
-      {person.role === 'lead' && (
-        <Crown className="absolute -right-1 -top-1 h-2.5 w-2.5 fill-amber-400 text-amber-500" />
       )}
     </span>
   );
