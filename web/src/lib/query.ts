@@ -90,4 +90,8 @@ export const queryKeys = {
   reviewQueue: () => ['workbench', 'review-queue'] as const,
   /** 工作台 (P2 §4): the caller's recently rejected tasks. */
   rejectedTasks: () => ['workbench', 'rejected-tasks'] as const,
+  notificationCounts: () => ['notifications', 'counts'] as const,
+  notificationPreferences: () => ['notifications', 'preferences'] as const,
+  notifications: (filter: 'all' | 'unread' | 'action' = 'all') =>
+    ['notifications', 'list', filter] as const,
 };

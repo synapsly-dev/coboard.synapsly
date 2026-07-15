@@ -1,27 +1,30 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
+  Bell,
   CalendarClock,
   ClipboardCheck,
   FolderKanban,
   Hand,
   ListTodo,
-  Undo2,
 } from 'lucide-react';
-import type { Task } from 'shared';
+import type { Notification, Task } from 'shared';
 import type { LucideIcon } from 'lucide-react';
 import { Badge, EmptyState, Spinner } from '../components/ui';
 import { useAuth } from '../lib/auth-context';
 import { cn } from '../lib/utils';
 import { useAllTasks } from '../api/tasks';
+import { useMarkNotificationRead, useNotifications } from '../api/notifications';
 import { useRejectedTasks, useReviewQueue } from '../api/workbench';
 import { useMyStats } from '../api/stats';
 import { DEFAULT_FILTERS, resolveStatsQuery } from '../features/stats';
-import { selectMyActiveTasks } from '../features/workbench/my-tasks';
+import { isDueUrgent, selectMyActiveTasks } from '../features/workbench/my-tasks';
 import { dueInfo, relativeTime } from '../features/board/format';
 import { TaskTypeBadge } from '../features/board/TaskTypeBadge';
 import { isClaimFull } from '../features/board/permissions';
 import { FINAL_REVIEW_CHIP_CLASS, STATUS_LABELS } from '../features/board/labels';
+import { NotificationRows, notificationHref } from '../features/notifications/NotificationCenter';
 
 /**
  * 个人工作台 (P2 §4, 运营需求 §3 层级 3) — one page answering 「我现在该干什么」:
@@ -41,6 +44,8 @@ export default function WorkbenchPage(): JSX.Element {
   const reviewQueue = useReviewQueue();
   const allTasks = useAllTasks();
   const rejected = useRejectedTasks();
+  const notifications = useNotifications('unread', 6);
+  const markNotificationRead = useMarkNotificationRead();
 
   // 本周 window — identical computation to the stats page (Monday-based).
   const week = useMemo(() => resolveStatsQuery(DEFAULT_FILTERS), []);
@@ -54,10 +59,7 @@ export default function WorkbenchPage(): JSX.Element {
   const myId = user?.id;
   // Shared with the nav badge (P3 §3, features/workbench/my-tasks) so the page
   // list and the reminder count can't drift.
-  const mine = useMemo(
-    () => selectMyActiveTasks(allTasks.data ?? [], myId),
-    [allTasks.data, myId],
-  );
+  const mine = useMemo(() => selectMyActiveTasks(allTasks.data ?? [], myId), [allTasks.data, myId]);
 
   const claimable = useMemo(() => {
     const tasks = allTasks.data ?? [];
@@ -71,9 +73,24 @@ export default function WorkbenchPage(): JSX.Element {
   }, [allTasks.data, myId]);
 
   const rejectedTasks = rejected.data ?? [];
+  const rejectedIds = useMemo(() => new Set(rejectedTasks.map((task) => task.id)), [rejectedTasks]);
+  const urgentMine = useMemo(
+    () => mine.filter((task) => isDueUrgent(task) && !rejectedIds.has(task.id)),
+    [mine, rejectedIds],
+  );
+  const progressing = useMemo(
+    () => mine.filter((task) => !isDueUrgent(task) && !rejectedIds.has(task.id)),
+    [mine, rejectedIds],
+  );
+  const immediateCount = queue.length + rejectedTasks.length + urgentMine.length;
 
   function openTask(task: Task): void {
     navigate(`/board/${task.projectId ?? 'all'}?task=${task.id}`);
+  }
+
+  function openNotification(notification: Notification): void {
+    if (notification.readAt === null) markNotificationRead.mutate(notification.id);
+    navigate(notificationHref(notification));
   }
 
   return (
@@ -83,7 +100,7 @@ export default function WorkbenchPage(): JSX.Element {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">工作台</h1>
             <p className="text-sm text-muted-foreground">
-              待办审核、进行中的任务与可认领的机会，一页看清。
+              先处理紧急事项，再持续推进任务，并掌握与你相关的变化。
             </p>
           </div>
           {/* 本周统计 — compact stat strip (same week window as 统计). */}
@@ -105,67 +122,127 @@ export default function WorkbenchPage(): JSX.Element {
           </div>
         </header>
 
-        {/* 1. 待我审核 — hidden entirely when the queue is empty. */}
-        {queue.length > 0 && (
-          <Section icon={ClipboardCheck} title="待我审核" count={queue.length}>
-            {awaitingFirst.length > 0 && (
-              <TaskGroup label="待初审" count={awaitingFirst.length}>
-                {awaitingFirst.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    onOpen={openTask}
-                    meta={
-                      t.deliverer
-                        ? `提交人 ${t.deliverer.displayName}${
-                            t.deliveredAt ? ` · ${relativeTime(t.deliveredAt)}` : ''
-                          }`
-                        : undefined
-                    }
-                  />
-                ))}
-              </TaskGroup>
-            )}
-            {awaitingFinal.length > 0 && (
-              <TaskGroup label="待复核" count={awaitingFinal.length} finalStage>
-                {awaitingFinal.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    onOpen={openTask}
-                    meta={
-                      t.firstApprover ? `初审人 ${t.firstApprover.displayName}` : undefined
-                    }
-                  />
-                ))}
-              </TaskGroup>
-            )}
-          </Section>
-        )}
+        {/* 1. Immediate actions are derived from current task state, not notification history. */}
+        <Section icon={AlertTriangle} title="立即处理" count={immediateCount}>
+          {reviewQueue.isLoading || rejected.isLoading || allTasks.isLoading ? (
+            <div className="rounded-lg border border-border bg-card py-7 text-center shadow-sm">
+              <Spinner label="加载待处理事项" />
+            </div>
+          ) : immediateCount === 0 ? (
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 shadow-sm">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success/10 text-success">
+                <ClipboardCheck className="h-4 w-4" aria-hidden />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-foreground">当前没有紧急事项</p>
+                <p className="text-xs text-muted-foreground">
+                  新的审核、退回或截止提醒会集中在这里。
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {awaitingFirst.length > 0 && (
+                <TaskGroup label="待初审" count={awaitingFirst.length}>
+                  {awaitingFirst.map((t) => (
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      onOpen={openTask}
+                      meta={
+                        t.deliverer
+                          ? `提交人 ${t.deliverer.displayName}${
+                              t.deliveredAt ? ` · ${relativeTime(t.deliveredAt)}` : ''
+                            }`
+                          : undefined
+                      }
+                    />
+                  ))}
+                </TaskGroup>
+              )}
+              {awaitingFinal.length > 0 && (
+                <TaskGroup label="待复核" count={awaitingFinal.length} finalStage>
+                  {awaitingFinal.map((t) => (
+                    <TaskRow
+                      key={t.id}
+                      task={t}
+                      onOpen={openTask}
+                      meta={t.firstApprover ? `初审人 ${t.firstApprover.displayName}` : undefined}
+                    />
+                  ))}
+                </TaskGroup>
+              )}
+              {rejectedTasks.length > 0 && (
+                <TaskGroup label="被退回" count={rejectedTasks.length} destructive>
+                  {rejectedTasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      onOpen={openTask}
+                      showDue
+                      meta={`已退回 · 当前「${STATUS_LABELS[task.status]}」`}
+                      metaTone="destructive"
+                    />
+                  ))}
+                </TaskGroup>
+              )}
+              {urgentMine.length > 0 && (
+                <TaskGroup label="临近截止" count={urgentMine.length} warning>
+                  {urgentMine.map((task) => (
+                    <TaskRow key={task.id} task={task} onOpen={openTask} showDue />
+                  ))}
+                </TaskGroup>
+              )}
+            </div>
+          )}
+        </Section>
 
-        {/* 2. 我的进行中 — always visible; empty state when nothing claimed. */}
-        <Section icon={ListTodo} title="我的进行中" count={mine.length}>
+        {/* 2. Non-urgent active work; urgent/rejected tasks live above. */}
+        <Section icon={ListTodo} title="正在推进" count={progressing.length}>
           {allTasks.isLoading ? (
             <div className="py-6 text-center">
               <Spinner label="加载任务" />
             </div>
-          ) : mine.length === 0 ? (
+          ) : progressing.length === 0 ? (
             <EmptyState
               icon={ListTodo}
-              title="暂无进行中的任务"
-              description="去看板认领一个任务，或从下方「可认领」直接开始。"
+              title={mine.length > 0 ? '进行中的任务都需要优先处理' : '暂无进行中的任务'}
+              description={
+                mine.length > 0
+                  ? '这些任务已集中到上方「立即处理」。'
+                  : '去看板认领一个任务，或从下方「可认领」直接开始。'
+              }
               className="py-8"
             />
           ) : (
             <div className="flex flex-col gap-1.5">
-              {mine.map((t) => (
+              {progressing.map((t) => (
                 <TaskRow key={t.id} task={t} onOpen={openTask} showDue />
               ))}
             </div>
           )}
         </Section>
 
-        {/* 3. 可认领 — hidden when empty. */}
+        {/* 3. Unread context. Task state remains the source of truth for actions above. */}
+        <Section icon={Bell} title="与你相关" count={notifications.data?.counts.unread ?? 0}>
+          {notifications.isLoading ? (
+            <div className="rounded-lg border border-border bg-card py-7 text-center shadow-sm">
+              <Spinner label="加载通知" />
+            </div>
+          ) : (notifications.data?.notifications.length ?? 0) === 0 ? (
+            <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center text-sm text-muted-foreground">
+              暂无未读通知
+            </div>
+          ) : (
+            <NotificationRows
+              notifications={notifications.data?.notifications ?? []}
+              onOpen={openNotification}
+              compact
+            />
+          )}
+        </Section>
+
+        {/* 4. Claimable work is deliberately lower priority than personal obligations. */}
         {claimable.length > 0 && (
           <Section icon={Hand} title="可认领" count={claimable.length}>
             <div className="flex flex-col gap-1.5">
@@ -178,24 +255,6 @@ export default function WorkbenchPage(): JSX.Element {
                   meta={`已认领 ${t.claimants.length}/${
                     t.maxClaimants != null ? t.maxClaimants : '不限'
                   }`}
-                />
-              ))}
-            </div>
-          </Section>
-        )}
-
-        {/* 4. 最近被退回 — hidden when empty. */}
-        {rejectedTasks.length > 0 && (
-          <Section icon={Undo2} title="最近被退回" count={rejectedTasks.length}>
-            <div className="flex flex-col gap-1.5">
-              {rejectedTasks.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  onOpen={openTask}
-                  showDue
-                  meta={`已退回 · 当前「${STATUS_LABELS[t.status]}」`}
-                  metaTone="destructive"
                 />
               ))}
             </div>
@@ -242,12 +301,16 @@ function TaskGroup({
   label,
   count,
   finalStage = false,
+  destructive = false,
+  warning = false,
   children,
 }: {
   label: string;
   count: number;
   /** 待复核 group gets the violet stage hue (P2 §3). */
   finalStage?: boolean;
+  destructive?: boolean;
+  warning?: boolean;
   children: React.ReactNode;
 }): JSX.Element {
   return (
@@ -256,7 +319,13 @@ function TaskGroup({
         <span
           className={cn(
             'inline-flex items-center gap-1 rounded-full px-2 py-0.5 leading-none',
-            finalStage ? FINAL_REVIEW_CHIP_CLASS : 'bg-warning/15 text-warning-foreground',
+            finalStage
+              ? FINAL_REVIEW_CHIP_CLASS
+              : destructive
+                ? 'bg-destructive/10 text-destructive'
+                : warning
+                  ? 'bg-warning/15 text-warning-foreground'
+                  : 'bg-secondary text-secondary-foreground',
           )}
         >
           {label}

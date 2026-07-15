@@ -1,11 +1,5 @@
 import { type ReactNode } from 'react';
-import {
-  BrowserRouter,
-  Navigate,
-  Route,
-  Routes,
-  useLocation,
-} from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import { queryClient } from './lib/query';
@@ -19,6 +13,7 @@ import LoginPage from './pages/Login';
 import JoinPage from './pages/Join';
 import BoardPage from './pages/BoardPage';
 import WorkbenchPage from './pages/WorkbenchPage';
+import NotificationsPage from './pages/NotificationsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import IdeasPage from './pages/IdeasPage';
 import AssetsPage from './pages/AssetsPage';
@@ -92,6 +87,7 @@ function AuthedRoutes(): JSX.Element {
         <Route path="/board/:projectId" element={<BoardPage />} />
         {/* 个人工作台 (P2 §4): review queue + my work + claimable + weekly points. */}
         <Route path="/workbench" element={<WorkbenchPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/ideas" element={<IdeasPage />} />
         {/* 资产库 (P3 §1): 内容库/反馈库/资源库/问题清单. */}
@@ -109,10 +105,7 @@ function AuthedRoutes(): JSX.Element {
         />
         {/* Account self-service (avatar / name / password) lives under the shell. */}
         {/* Old bookmark: 修改密码 now lives inside the profile page. */}
-        <Route
-          path="/account/password"
-          element={<Navigate to="/account/profile" replace />}
-        />
+        <Route path="/account/password" element={<Navigate to="/account/profile" replace />} />
         <Route path="/account/profile" element={<AccountProfilePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

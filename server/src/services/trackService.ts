@@ -21,6 +21,7 @@ import { conflict, notFound, validationError } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
 import { rankBetween } from './taskService.js';
+import { createNotifications } from './notificationService.js';
 
 /**
  * 赛道 (Track) service — the top operational grouping above projects (P0 §2). Owns
@@ -357,8 +358,9 @@ export async function setTrackMembers(
   trackId: string,
   input: SetTrackMembersInput,
   realtimeBus: RealtimeBus = bus,
+  actorUserId?: string,
 ): Promise<Track> {
-  await loadTrackOrThrow(db, trackId);
+  const track = await loadTrackOrThrow(db, trackId);
 
   const allIds = [...input.managers, ...input.members];
   if (new Set(allIds).size !== allIds.length) {
@@ -370,6 +372,11 @@ export async function setTrackMembers(
       throw validationError('存在无效的用户');
     }
   }
+
+  const previousRows = await db
+    .select({ userId: trackMembers.userId, role: trackMembers.role })
+    .from(trackMembers)
+    .where(eq(trackMembers.trackId, trackId));
 
   const rows = [
     ...input.managers.map((userId, i) => ({
@@ -391,6 +398,30 @@ export async function setTrackMembers(
   await db.delete(trackMembers).where(eq(trackMembers.trackId, trackId));
   if (rows.length > 0) {
     await db.insert(trackMembers).values(rows);
+  }
+
+  const previous = new Map(previousRows.map((row) => [row.userId, row.role]));
+  const next = new Map(rows.map((row) => [row.userId, row.role]));
+  for (const userId of new Set([...previous.keys(), ...next.keys()])) {
+    const before = previous.get(userId);
+    const after = next.get(userId);
+    if (before === after) continue;
+    const roleChanged = before !== undefined && after !== undefined;
+    await createNotifications(db, realtimeBus, {
+      recipientUserIds: [userId],
+      actorUserId,
+      type: roleChanged ? 'role_changed' : 'membership_changed',
+      entityType: 'track',
+      entityId: trackId,
+      title: roleChanged
+        ? `你在「${track.name}」赛道中的角色已调整`
+        : after
+          ? `你已加入「${track.name}」赛道`
+          : `你已离开「${track.name}」赛道`,
+      body: roleChanged ? `当前角色：${after === 'manager' ? '赛道经理' : '成员'}` : null,
+      groupKey: `track:${trackId}:membership`,
+      payload: { trackId },
+    });
   }
 
   publishTrackChange(realtimeBus, 'track_members_set', trackId);

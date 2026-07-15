@@ -147,7 +147,7 @@ export function OrgNodeRow({
       />
 
       {(editable || canManageMembers) && (
-        <div className="flex shrink-0 items-center gap-1 opacity-100 transition-[opacity,transform] duration-base ease-standard sm:pointer-events-none sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
+        <div className="flex max-w-16 shrink-0 items-center gap-1 overflow-hidden opacity-100 transition-[max-width,margin,opacity,transform] duration-base ease-standard motion-reduce:transition-none sm:pointer-events-none sm:-ml-2 sm:max-w-0 sm:translate-x-1 sm:opacity-0 sm:group-hover/node:pointer-events-auto sm:group-hover/node:ml-0 sm:group-hover/node:max-w-16 sm:group-hover/node:translate-x-0 sm:group-hover/node:opacity-100 sm:group-focus-within/node:pointer-events-auto sm:group-focus-within/node:ml-0 sm:group-focus-within/node:max-w-16 sm:group-focus-within/node:translate-x-0 sm:group-focus-within/node:opacity-100">
           {canManageMembers && (
             <Button
               variant="ghost"

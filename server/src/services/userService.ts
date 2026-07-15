@@ -12,6 +12,8 @@ import { projectMembers, projects, userAvatars, users, type UserRow } from '../d
 import { deleteUserSessions } from '../auth/session.js';
 import { conflict, notFound, validationError } from '../lib/errors.js';
 import { pickAvatarColor } from '../lib/avatarPalette.js';
+import { bus, type RealtimeBus } from '../realtime/bus.js';
+import { createNotifications } from './notificationService.js';
 
 /**
  * User domain service (§7 users-admin, §8). Owns account creation, listing, and
@@ -237,6 +239,8 @@ export async function updateUser(
   db: Database,
   id: string,
   input: UpdateUserInput,
+  realtimeBus: RealtimeBus = bus,
+  actorUserId?: string,
 ): Promise<UserRow> {
   const target = await findUserById(db, id);
   if (!target) {
@@ -270,6 +274,36 @@ export async function updateUser(
   // Revoke sessions when an account is deactivated so access ends immediately.
   if (input.isActive === false) {
     await deleteUserSessions(db, id);
+  }
+
+  if (input.role !== undefined && input.role !== target.role) {
+    const roleLabel =
+      input.role === 'super_admin' ? '超级管理员' : input.role === 'admin' ? '管理员' : '成员';
+    await createNotifications(db, realtimeBus, {
+      recipientUserIds: [id],
+      actorUserId,
+      type: 'role_changed',
+      entityType: 'user',
+      entityId: id,
+      title: '你的全局角色已调整',
+      body: `当前角色：${roleLabel}`,
+      priority: 'high',
+      groupKey: `user:${id}:security`,
+      payload: { role: input.role },
+    });
+  }
+  if (input.isActive === true && target.isActive === false) {
+    await createNotifications(db, realtimeBus, {
+      recipientUserIds: [id],
+      actorUserId,
+      type: 'account_status_changed',
+      entityType: 'user',
+      entityId: id,
+      title: '你的账号已恢复使用',
+      priority: 'high',
+      groupKey: `user:${id}:security`,
+      payload: { isActive: true },
+    });
   }
 
   return row;

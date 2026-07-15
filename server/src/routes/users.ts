@@ -57,7 +57,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         throw validationError('超级管理员唯一，不能通过用户管理转移');
       }
     }
-    const user = await updateUser(fastify.db, id, input);
+    const user = await updateUser(fastify.db, id, input, fastify.bus, actor.id);
     return { user: serializeUser(user) };
   });
 

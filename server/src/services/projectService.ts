@@ -21,6 +21,8 @@ import {
 } from '../db/schema.js';
 import { conflict, forbidden, notFound } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
+import { bus, type RealtimeBus } from '../realtime/bus.js';
+import { createNotifications } from './notificationService.js';
 
 /**
  * Project & membership business logic (§6.3, §7). Routes stay thin: they run the
@@ -90,10 +92,7 @@ async function assertTrackExists(db: Database, trackId: string | null): Promise<
   }
 }
 
-function presentMember(
-  member: ProjectMemberRow,
-  user: UserRow,
-): ProjectMemberWithUser {
+function presentMember(member: ProjectMemberRow, user: UserRow): ProjectMemberWithUser {
   return {
     id: member.id,
     projectId: member.projectId,
@@ -104,6 +103,40 @@ function presentMember(
   };
 }
 
+async function notifyProjectMembershipChange(
+  db: Database,
+  realtimeBus: RealtimeBus,
+  projectId: string,
+  userId: string,
+  actorUserId: string | undefined,
+  before: ProjectRole | undefined,
+  after: ProjectRole | undefined,
+): Promise<void> {
+  if (before === after) return;
+  const [project] = await db
+    .select({ name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!project) return;
+  const roleChanged = before !== undefined && after !== undefined;
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: [userId],
+    actorUserId,
+    type: roleChanged ? 'role_changed' : 'membership_changed',
+    entityType: 'project',
+    entityId: projectId,
+    title: roleChanged
+      ? `你在项目「${project.name}」中的角色已调整`
+      : after
+        ? `你已加入项目「${project.name}」`
+        : `你已离开项目「${project.name}」`,
+    body: roleChanged ? `当前角色：${after === 'lead' ? '负责人' : '成员'}` : null,
+    groupKey: `project:${projectId}:membership`,
+    payload: { projectId },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -112,15 +145,9 @@ function presentMember(
  * Projects visible to a user (§6.3): admins see every project; everyone else sees
  * only the projects they are a member of. Ordered by creation time for stability.
  */
-export async function listVisibleProjects(
-  db: Database,
-  user: UserRow,
-): Promise<Project[]> {
+export async function listVisibleProjects(db: Database, user: UserRow): Promise<Project[]> {
   if (isAdminRole(user.role)) {
-    const rows = await db
-      .select()
-      .from(projects)
-      .orderBy(asc(projects.createdAt));
+    const rows = await db.select().from(projects).orderBy(asc(projects.createdAt));
     return rows.map(presentProject);
   }
 
@@ -175,12 +202,7 @@ export async function listProjectDirectory(
   const myMemberships = await db
     .select({ projectId: projectMembers.projectId })
     .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.userId, userId),
-        inArray(projectMembers.projectId, projectIds),
-      ),
-    );
+    .where(and(eq(projectMembers.userId, userId), inArray(projectMembers.projectId, projectIds)));
   const memberOf = new Set(myMemberships.map((m) => m.projectId));
 
   // Total member count per project, grouped in a single query.
@@ -274,11 +296,7 @@ export async function updateProject(
     patch.trackId = input.trackId;
   }
 
-  const [row] = await db
-    .update(projects)
-    .set(patch)
-    .where(eq(projects.id, projectId))
-    .returning();
+  const [row] = await db.update(projects).set(patch).where(eq(projects.id, projectId)).returning();
 
   if (!row) {
     throw notFound('项目不存在');
@@ -305,13 +323,11 @@ export async function addProjectMember(
   // Accepts an optional `role` so the call site is independent of zod's
   // optional-vs-required default inference; defaults to 'member' (schema/DB default).
   input: { userId: string; role?: ProjectRole },
+  realtimeBus: RealtimeBus = bus,
+  actorUserId?: string,
 ): Promise<ProjectMemberWithUser> {
   const role: ProjectRole = input.role ?? 'member';
-  const [targetUser] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, input.userId))
-    .limit(1);
+  const [targetUser] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1);
   if (!targetUser) {
     throw notFound('用户不存在');
   }
@@ -347,12 +363,24 @@ export async function addProjectMember(
     throw new Error('添加成员失败：未返回插入行');
   }
 
-  publishChange({
-    type: 'updated',
+  publishChange(
+    {
+      type: 'updated',
+      projectId,
+      entity: 'project',
+      payload: { projectId, userId: input.userId },
+    },
+    realtimeBus,
+  );
+  await notifyProjectMembershipChange(
+    db,
+    realtimeBus,
     projectId,
-    entity: 'project',
-    payload: { projectId, userId: input.userId },
-  });
+    input.userId,
+    actorUserId,
+    existing?.role,
+    role,
+  );
   return presentMember(member, targetUser);
 }
 
@@ -372,12 +400,7 @@ async function assertNotLastLead(
   const leads = await db
     .select({ id: projectMembers.id })
     .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.role, 'lead'),
-      ),
-    );
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.role, 'lead')));
   if (leads.length <= 1) {
     throw error;
   }
@@ -391,16 +414,13 @@ export async function removeProjectMember(
   db: Database,
   projectId: string,
   userId: string,
+  realtimeBus: RealtimeBus = bus,
+  actorUserId?: string,
 ): Promise<void> {
   const [member] = await db
     .select()
     .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, userId),
-      ),
-    )
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
     .limit(1);
   if (!member) {
     throw notFound('该用户不是项目成员');
@@ -410,19 +430,26 @@ export async function removeProjectMember(
 
   await db
     .delete(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, userId),
-      ),
-    );
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
 
-  publishChange({
-    type: 'updated',
+  publishChange(
+    {
+      type: 'updated',
+      projectId,
+      entity: 'project',
+      payload: { projectId, userId },
+    },
+    realtimeBus,
+  );
+  await notifyProjectMembershipChange(
+    db,
+    realtimeBus,
     projectId,
-    entity: 'project',
-    payload: { projectId, userId },
-  });
+    userId,
+    actorUserId,
+    member.role,
+    undefined,
+  );
 }
 
 /**
@@ -431,16 +458,8 @@ export async function removeProjectMember(
  * is left UNCHANGED (an existing `lead` is never downgraded). A missing or
  * archived project yields a 404.
  */
-export async function joinProject(
-  db: Database,
-  userId: string,
-  projectId: string,
-): Promise<void> {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
+export async function joinProject(db: Database, userId: string, projectId: string): Promise<void> {
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project || project.archived) {
     throw notFound('项目不存在');
   }
@@ -448,12 +467,7 @@ export async function joinProject(
   const [existing] = await db
     .select({ id: projectMembers.id })
     .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, userId),
-      ),
-    )
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
     .limit(1);
   if (existing) {
     // Already a member — leave their role untouched and return idempotently.
@@ -461,9 +475,7 @@ export async function joinProject(
   }
 
   try {
-    await db
-      .insert(projectMembers)
-      .values({ projectId, userId, role: 'member' });
+    await db.insert(projectMembers).values({ projectId, userId, role: 'member' });
   } catch (error) {
     // A concurrent join can race past the existence check; treat the unique
     // violation as the same idempotent success.
@@ -486,40 +498,21 @@ export async function joinProject(
  * yields a 404; if they are the project's only remaining lead the leave is refused
  * with a 409 (they must hand off the lead role first).
  */
-export async function leaveProject(
-  db: Database,
-  userId: string,
-  projectId: string,
-): Promise<void> {
+export async function leaveProject(db: Database, userId: string, projectId: string): Promise<void> {
   const [member] = await db
     .select()
     .from(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, userId),
-      ),
-    )
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
     .limit(1);
   if (!member) {
     throw notFound('你不是该项目成员');
   }
 
-  await assertNotLastLead(
-    db,
-    projectId,
-    member,
-    conflict('项目至少需要一名负责人，请先指派他人'),
-  );
+  await assertNotLastLead(db, projectId, member, conflict('项目至少需要一名负责人，请先指派他人'));
 
   await db
     .delete(projectMembers)
-    .where(
-      and(
-        eq(projectMembers.projectId, projectId),
-        eq(projectMembers.userId, userId),
-      ),
-    );
+    .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
 
   publishChange({
     type: 'updated',

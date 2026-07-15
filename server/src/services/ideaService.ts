@@ -1,17 +1,11 @@
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm';
 import type { Attachment, Idea, IdeaStatus, IdeaWithContext, UserSummary } from 'shared';
 import type { Database } from '../db/index.js';
-import {
-  ideas,
-  projects,
-  tasks,
-  users,
-  type IdeaRow,
-  type UserRow,
-} from '../db/schema.js';
+import { ideas, projects, tasks, users, type IdeaRow, type UserRow } from '../db/schema.js';
 import { notFound } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
 import { listIdeaFilesByIdea } from './attachmentService.js';
+import { createNotifications } from './notificationService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
 
 /**
@@ -81,7 +75,10 @@ export async function listTaskIdeas(db: Database, taskId: string): Promise<Idea[
     .innerJoin(users, eq(ideas.authorId, users.id))
     .where(eq(ideas.taskId, taskId))
     .orderBy(desc(ideas.createdAt));
-  const filesByIdea = await listIdeaFilesByIdea(db, rows.map((r) => r.idea.id));
+  const filesByIdea = await listIdeaFilesByIdea(
+    db,
+    rows.map((r) => r.idea.id),
+  );
   return rows.map((r) => toIdea(r.idea, r.author, filesByIdea.get(r.idea.id) ?? []));
 }
 
@@ -90,9 +87,7 @@ export async function listTaskIdeas(db: Database, taskId: string): Promise<Idea[
  * - `{ kind: 'all' }`                  — every project (global admin).
  * - `{ kind: 'projects', projectIds }` — the explicit set the caller belongs to.
  */
-export type IdeaScope =
-  | { kind: 'all' }
-  | { kind: 'projects'; projectIds: string[] };
+export type IdeaScope = { kind: 'all' } | { kind: 'projects'; projectIds: string[] };
 
 /**
  * List the ideas the caller may see in the 灵感区 (§7.1), newest first, each
@@ -119,9 +114,7 @@ export async function listVisibleIdeas(
     const standalone = isNull(ideas.taskId);
     const poolTaskIdeas = isNull(tasks.projectId);
     const visibleTaskIdeas =
-      scope.projectIds.length === 0
-        ? undefined
-        : inArray(tasks.projectId, scope.projectIds);
+      scope.projectIds.length === 0 ? undefined : inArray(tasks.projectId, scope.projectIds);
     const predicate = visibleTaskIdeas
       ? or(standalone, poolTaskIdeas, visibleTaskIdeas)
       : or(standalone, poolTaskIdeas);
@@ -146,7 +139,10 @@ export async function listVisibleIdeas(
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(ideas.createdAt));
 
-  const filesByIdea = await listIdeaFilesByIdea(db, rows.map((r) => r.idea.id));
+  const filesByIdea = await listIdeaFilesByIdea(
+    db,
+    rows.map((r) => r.idea.id),
+  );
   return rows.map((r) => ({
     ...toIdea(r.idea, r.author, filesByIdea.get(r.idea.id) ?? []),
     taskTitle: r.taskTitle,
@@ -280,6 +276,19 @@ export async function adoptIdea(
 
   const author = await loadUserOrThrow(db, updated.authorId);
   publishIdeaChange(realtimeBus, 'idea_adopted', updated, projectId);
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: [updated.authorId],
+    actorUserId: adopterId,
+    includeActor: true,
+    type: 'idea_adopted',
+    entityType: 'idea',
+    entityId: updated.id,
+    title: `灵感被采纳，获得 ${rewardPoints} 点`,
+    body: updated.body.slice(0, 180),
+    dedupeKey: `idea:${updated.id}:adopted:${updated.updatedAt.getTime()}`,
+    groupKey: `idea:${updated.id}`,
+    payload: { projectId, taskId: updated.taskId, points: rewardPoints },
+  });
   const files = (await listIdeaFilesByIdea(db, [updated.id])).get(updated.id) ?? [];
   return toIdea(updated, author, files);
 }
@@ -313,6 +322,20 @@ export async function rejectIdea(
 
   const author = await loadUserOrThrow(db, updated.authorId);
   publishIdeaChange(realtimeBus, 'idea_rejected', updated, projectId);
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: [updated.authorId],
+    actorUserId: reviewerId,
+    includeActor: true,
+    type: 'idea_rejected',
+    entityType: 'idea',
+    entityId: updated.id,
+    title: '灵感未被采纳',
+    body: reason || updated.body.slice(0, 180),
+    priority: 'high',
+    dedupeKey: `idea:${updated.id}:rejected:${updated.updatedAt.getTime()}`,
+    groupKey: `idea:${updated.id}`,
+    payload: { projectId, taskId: updated.taskId },
+  });
   const rejectedFiles = (await listIdeaFilesByIdea(db, [updated.id])).get(updated.id) ?? [];
   return toIdea(updated, author, rejectedFiles);
 }

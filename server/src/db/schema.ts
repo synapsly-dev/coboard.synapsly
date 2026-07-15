@@ -31,6 +31,14 @@ import {
   taskTypes,
   trackMemberRoles,
   userRoles,
+  type EntitySubscriptionMode,
+  type NotificationChannel,
+  type NotificationDelivery,
+  type NotificationEntityType,
+  type NotificationPriority,
+  type NotificationTopic,
+  type NotificationType,
+  type SubscriptionEntityType,
 } from 'shared';
 
 /**
@@ -773,6 +781,113 @@ export const orgApplications = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// notifications — durable per-recipient messages. Business entities remain the
+// source of truth for action state; read/resolved/archive timestamps only drive
+// the notification centre and workbench presentation. `entity_type/entity_id`
+// is deliberately polymorphic, while recipient/actor retain real user FKs.
+// ---------------------------------------------------------------------------
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: primaryId,
+    recipientUserId: uuid('recipient_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    actorUserId: uuid('actor_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    type: text('type').$type<NotificationType>().notNull(),
+    entityType: text('entity_type').$type<NotificationEntityType>(),
+    entityId: uuid('entity_id'),
+    // Immutable display snapshot: notifications remain understandable after an
+    // entity is renamed or deleted. `payload` carries render/deep-link details.
+    title: text('title').notNull(),
+    body: text('body'),
+    payload: jsonb('payload')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    priority: text('priority').$type<NotificationPriority>().notNull().default('normal'),
+    actionRequired: boolean('action_required').notNull().default(false),
+    // `dedupe_key` makes event handling idempotent; `group_key` lets the UI fold
+    // a burst of updates about the same object into one visual thread.
+    dedupeKey: text('dedupe_key'),
+    groupKey: text('group_key'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('notifications_recipient_created_idx').on(table.recipientUserId, table.createdAt),
+    index('notifications_recipient_unread_idx')
+      .on(table.recipientUserId, table.createdAt)
+      .where(sql`read_at IS NULL AND archived_at IS NULL`),
+    index('notifications_recipient_action_idx')
+      .on(table.recipientUserId, table.createdAt)
+      .where(sql`action_required = true AND resolved_at IS NULL AND archived_at IS NULL`),
+    index('notifications_entity_idx').on(table.entityType, table.entityId),
+    index('notifications_recipient_group_idx').on(
+      table.recipientUserId,
+      table.groupKey,
+      table.createdAt,
+    ),
+    uniqueIndex('notifications_recipient_dedupe_uniq')
+      .on(table.recipientUserId, table.dedupeKey)
+      .where(sql`dedupe_key IS NOT NULL`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// entity_subscriptions — explicit per-object watch/mute overrides. Absence means
+// normal rule-based delivery. Muting suppresses optional watched updates only;
+// direct assignments, mentions, reviews and security events remain mandatory.
+// ---------------------------------------------------------------------------
+
+export const entitySubscriptions = pgTable(
+  'entity_subscriptions',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type').$type<SubscriptionEntityType>().notNull(),
+    entityId: uuid('entity_id').notNull(),
+    mode: text('mode').$type<EntitySubscriptionMode>().notNull().default('watching'),
+    // NULL while muted means indefinite; a future timestamp means temporary mute.
+    mutedUntil: timestamp('muted_until', { withTimezone: true }),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.entityType, table.entityId] }),
+    index('entity_subscriptions_entity_idx').on(table.entityType, table.entityId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// notification_preferences — sparse user overrides per topic and channel. If a
+// row is absent, the application default applies. Mandatory in-app topics are
+// enforced by the service layer rather than encoded into this storage table.
+// ---------------------------------------------------------------------------
+
+export const notificationPreferences = pgTable(
+  'notification_preferences',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    topic: text('topic').$type<NotificationTopic>().notNull(),
+    channel: text('channel').$type<NotificationChannel>().notNull(),
+    delivery: text('delivery').$type<NotificationDelivery>().notNull().default('immediate'),
+    createdAt,
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.topic, table.channel] })],
+);
+
+// ---------------------------------------------------------------------------
 // settings — key/value store for admin-settable instance config (§8)
 // ---------------------------------------------------------------------------
 
@@ -836,6 +951,12 @@ export type OrgApplicationRow = typeof orgApplications.$inferSelect;
 export type NewOrgApplicationRow = typeof orgApplications.$inferInsert;
 export type AssetRow = typeof assets.$inferSelect;
 export type NewAssetRow = typeof assets.$inferInsert;
+export type NotificationRow = typeof notifications.$inferSelect;
+export type NewNotificationRow = typeof notifications.$inferInsert;
+export type EntitySubscriptionRow = typeof entitySubscriptions.$inferSelect;
+export type NewEntitySubscriptionRow = typeof entitySubscriptions.$inferInsert;
+export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
+export type NewNotificationPreferenceRow = typeof notificationPreferences.$inferInsert;
 
 /** Convenience bundle so tests / db factory can pass the whole schema. */
 export const schema = {
@@ -862,6 +983,9 @@ export const schema = {
   orgNodeMembers,
   orgApplications,
   assets,
+  notifications,
+  entitySubscriptions,
+  notificationPreferences,
   userRoleEnum,
   projectRoleEnum,
   taskStatusEnum,

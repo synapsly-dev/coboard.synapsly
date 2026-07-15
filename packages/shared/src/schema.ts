@@ -2,7 +2,14 @@ import { z } from 'zod';
 import {
   activityTypeSchema,
   applicationStatusSchema,
+  entitySubscriptionModeSchema,
   ideaStatusSchema,
+  notificationChannelSchema,
+  notificationDeliverySchema,
+  notificationEntityTypeSchema,
+  notificationPrioritySchema,
+  notificationTopicSchema,
+  notificationTypeSchema,
   orgMemberRoleSchema,
   orgNodeKindSchema,
   prioritySchema,
@@ -14,6 +21,7 @@ import {
   taskStatusSchema,
   taskTypeSchema,
   trackMemberRoleSchema,
+  subscriptionEntityTypeSchema,
   userRoleSchema,
 } from './enums.js';
 
@@ -452,6 +460,111 @@ export const announcementResponseSchema = z.object({
   announcement: announcementSchema,
 });
 export type AnnouncementResponse = z.infer<typeof announcementResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Notifications / subscriptions / delivery preferences
+// ---------------------------------------------------------------------------
+
+/** A durable, per-recipient in-app notification. */
+export const notificationSchema = z.object({
+  id: uuidSchema,
+  recipientUserId: uuidSchema,
+  actor: userSummarySchema.nullable(),
+  type: notificationTypeSchema,
+  entityType: notificationEntityTypeSchema.nullable(),
+  entityId: uuidSchema.nullable(),
+  title: z.string(),
+  body: z.string().nullable(),
+  payload: z.record(z.string(), z.unknown()),
+  priority: notificationPrioritySchema,
+  actionRequired: z.boolean(),
+  readAt: isoDateTimeSchema.nullable(),
+  resolvedAt: isoDateTimeSchema.nullable(),
+  archivedAt: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type Notification = z.infer<typeof notificationSchema>;
+
+/** GET /notifications filters. Cursor is the final notification id from a page. */
+export const notificationsQuerySchema = z.object({
+  filter: z.enum(['all', 'unread', 'action']).default('all'),
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  cursor: uuidSchema.optional(),
+});
+export type NotificationsQuery = z.infer<typeof notificationsQuerySchema>;
+
+export const notificationCountsSchema = z.object({
+  unread: z.number().int().nonnegative(),
+  unresolvedActions: z.number().int().nonnegative(),
+});
+export type NotificationCounts = z.infer<typeof notificationCountsSchema>;
+
+export const notificationsResponseSchema = z.object({
+  notifications: z.array(notificationSchema),
+  counts: notificationCountsSchema,
+  nextCursor: uuidSchema.nullable(),
+});
+export type NotificationsResponse = z.infer<typeof notificationsResponseSchema>;
+
+export const notificationCountsResponseSchema = z.object({
+  counts: notificationCountsSchema,
+});
+export type NotificationCountsResponse = z.infer<typeof notificationCountsResponseSchema>;
+
+/** One explicit per-entity watch/mute override. */
+export const entitySubscriptionSchema = z.object({
+  userId: uuidSchema,
+  entityType: subscriptionEntityTypeSchema,
+  entityId: uuidSchema,
+  mode: entitySubscriptionModeSchema,
+  mutedUntil: isoDateTimeSchema.nullable(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type EntitySubscription = z.infer<typeof entitySubscriptionSchema>;
+
+export const setEntitySubscriptionInputSchema = z.object({
+  entityType: subscriptionEntityTypeSchema,
+  entityId: uuidSchema,
+  mode: entitySubscriptionModeSchema,
+  mutedUntil: isoDateTimeSchema.nullable().optional(),
+});
+export type SetEntitySubscriptionInput = z.infer<typeof setEntitySubscriptionInputSchema>;
+
+export const entitySubscriptionParamsSchema = z.object({
+  entityType: subscriptionEntityTypeSchema,
+  entityId: uuidSchema,
+});
+export type EntitySubscriptionParams = z.infer<typeof entitySubscriptionParamsSchema>;
+
+export const entitySubscriptionsResponseSchema = z.object({
+  subscriptions: z.array(entitySubscriptionSchema),
+});
+export type EntitySubscriptionsResponse = z.infer<typeof entitySubscriptionsResponseSchema>;
+
+/** One sparse topic/channel delivery override. */
+export const notificationPreferenceSchema = z.object({
+  userId: uuidSchema,
+  topic: notificationTopicSchema,
+  channel: notificationChannelSchema,
+  delivery: notificationDeliverySchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type NotificationPreference = z.infer<typeof notificationPreferenceSchema>;
+
+export const setNotificationPreferenceInputSchema = z.object({
+  topic: notificationTopicSchema,
+  channel: notificationChannelSchema,
+  delivery: notificationDeliverySchema,
+});
+export type SetNotificationPreferenceInput = z.infer<typeof setNotificationPreferenceInputSchema>;
+
+export const notificationPreferencesResponseSchema = z.object({
+  preferences: z.array(notificationPreferenceSchema),
+});
+export type NotificationPreferencesResponse = z.infer<typeof notificationPreferencesResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Org tree / 团队架构 (division-of-labor & positions page)
@@ -1489,6 +1602,7 @@ export const realtimeEntitySchema = z.enum([
   'org',
   'track',
   'asset',
+  'notification',
 ]);
 export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 
@@ -1503,6 +1617,8 @@ export type RealtimeEntity = z.infer<typeof realtimeEntitySchema>;
 export const realtimeEventSchema = z.object({
   type: z.string(),
   projectId: uuidSchema.nullable(),
+  /** Present for private events; the SSE endpoint only sends them to this user. */
+  recipientUserId: uuidSchema.optional(),
   entity: realtimeEntitySchema,
   payload: z.record(z.string(), z.unknown()),
 });

@@ -89,8 +89,9 @@ const tracksRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put('/tracks/:id/members', async (request) => {
     const { id } = parseParams(idParamSchema, request.params);
     await requireTrackManagerOrAdmin(db, request, id);
+    const actor = requireAuth(request);
     const input = parseBody(setTrackMembersInputSchema, request.body);
-    const track = await setTrackMembers(db, id, input);
+    const track = await setTrackMembers(db, id, input, fastify.bus, actor.id);
     return { track };
   });
 

@@ -277,11 +277,11 @@ function OutlineRowView({
       </div>
 
       {/* Trailing controls */}
-      <div className="flex shrink-0 items-center gap-1 self-center pl-1">
+      <div className="flex shrink-0 items-center gap-1 self-center pl-1 transition-[gap] duration-base ease-standard motion-reduce:transition-none sm:gap-0 sm:group-hover/row:gap-1 sm:group-focus-within/row:gap-1">
         <NodeMembershipAction node={node} canManage={canManageThis} compact />
 
         {nodeOnAddMembers && (
-          <div className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover/row:opacity-100 sm:group-focus-within/row:opacity-100">
+          <div className="max-w-7 overflow-hidden opacity-100 transition-[max-width,opacity,transform] duration-base ease-standard motion-reduce:transition-none sm:pointer-events-none sm:max-w-0 sm:translate-x-1 sm:opacity-0 sm:group-hover/row:pointer-events-auto sm:group-hover/row:max-w-7 sm:group-hover/row:translate-x-0 sm:group-hover/row:opacity-100 sm:group-focus-within/row:pointer-events-auto sm:group-focus-within/row:max-w-7 sm:group-focus-within/row:translate-x-0 sm:group-focus-within/row:opacity-100">
             <Tooltip content={node.trackId ? '加入赛道成员' : '加入成员'}>
               <Button
                 variant="ghost"
@@ -300,7 +300,7 @@ function OutlineRowView({
         )}
 
         {(editable || nodeOnMembers) && (
-          <div className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover/row:opacity-100 sm:group-focus-within/row:opacity-100">
+          <div className="max-w-7 overflow-hidden opacity-100 transition-[max-width,opacity,transform] duration-base ease-standard motion-reduce:transition-none sm:pointer-events-none sm:max-w-0 sm:translate-x-1 sm:opacity-0 sm:group-hover/row:pointer-events-auto sm:group-hover/row:max-w-7 sm:group-hover/row:translate-x-0 sm:group-hover/row:opacity-100 sm:group-focus-within/row:pointer-events-auto sm:group-focus-within/row:max-w-7 sm:group-focus-within/row:translate-x-0 sm:group-focus-within/row:opacity-100">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-7 w-7" title="更多操作">

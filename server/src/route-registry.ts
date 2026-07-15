@@ -19,6 +19,7 @@ import orgRoutes from './routes/org.js';
 import workbenchRoutes from './routes/workbench.js';
 import assetsRoutes from './routes/assets.js';
 import exportRoutes from './routes/export.js';
+import notificationRoutes from './routes/notifications.js';
 
 /**
  * Explicit route registration. In production `@fastify/autoload` scans the
@@ -48,4 +49,5 @@ export const registerRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(workbenchRoutes);
   await fastify.register(assetsRoutes);
   await fastify.register(exportRoutes);
+  await fastify.register(notificationRoutes);
 };

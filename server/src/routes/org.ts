@@ -153,7 +153,8 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     const input = parseBody(setOrgMembersInputSchema, request.body);
     const existing = await loadOrgNodeOrThrow(db, id);
     await assertCanEditScope(db, request, scopeOfNode(existing));
-    const node = await setMembers(db, existing, input, bus);
+    const actor = requireAuth(request);
+    const node = await setMembers(db, existing, input, bus, actor.id);
     return { node };
   });
 

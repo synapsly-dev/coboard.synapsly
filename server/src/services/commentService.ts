@@ -1,14 +1,10 @@
-import { asc, eq } from 'drizzle-orm';
-import type {
-  ActivityWithActor,
-  Attachment,
-  CommentWithAuthor,
-  User,
-} from 'shared';
+import { and, asc, eq, inArray, or } from 'drizzle-orm';
+import type { ActivityWithActor, Attachment, CommentWithAuthor, User } from 'shared';
 import type { Database } from '../db/index.js';
 import {
   activities,
   comments,
+  projectMembers,
   tasks,
   users,
   type ActivityRow,
@@ -21,6 +17,7 @@ import { publishChange, recordActivity } from './activityService.js';
 import { listCommentFilesByComment } from './attachmentService.js';
 import type { RealtimeBus } from '../realtime/bus.js';
 import { bus } from '../realtime/bus.js';
+import { createNotifications } from './notificationService.js';
 
 /**
  * Comments & activity-feed service (§5, §6.5, §7). Handles listing/creating/
@@ -37,7 +34,7 @@ import { bus } from '../realtime/bus.js';
 /**
  * Match `@<uuid>` mention tokens embedded in a comment body. The composer encodes
  * a mention as `@<userId>` (a v4-style uuid). We accept any uuid shape here and
- * intersect against real project members downstream so unknown ids are dropped.
+ * intersect against active workspace users downstream so unknown ids are dropped.
  */
 const MENTION_PATTERN =
   /@([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
@@ -45,7 +42,7 @@ const MENTION_PATTERN =
 /**
  * Extract mentioned user ids from a markdown body and merge them with any
  * explicit `mentions` supplied by the client. Returns a de-duplicated,
- * lower-cased list. The route validates membership of the resulting ids.
+ * lower-cased list. Notification delivery separately applies task visibility.
  */
 export function parseMentions(body: string, explicit: readonly string[] = []): string[] {
   const found = new Set<string>();
@@ -70,12 +67,42 @@ export async function filterValidMentions(
 ): Promise<string[]> {
   if (candidateIds.length === 0) return [];
   const unique = [...new Set(candidateIds.map((id) => id.toLowerCase()))];
+  const rows = await db.select({ id: users.id }).from(users).where(eq(users.isActive, true));
+  const existing = new Set(rows.map((r) => r.id.toLowerCase()));
+  return unique.filter((id) => existing.has(id));
+}
+
+/**
+ * Keep the stored mention semantics backwards-compatible, but only notify people
+ * who may open the task. This avoids leaking a private task title to an unrelated
+ * workspace user through their notification centre.
+ */
+async function filterNotifiableMentions(
+  db: Database,
+  candidateIds: readonly string[],
+  projectId: string | null,
+): Promise<string[]> {
+  if (candidateIds.length === 0 || projectId === null) return [...candidateIds];
   const rows = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.isActive, true));
-  const existing = new Set(rows.map((r) => r.id.toLowerCase()));
-  return unique.filter((id) => existing.has(id));
+    .leftJoin(
+      projectMembers,
+      and(eq(projectMembers.userId, users.id), eq(projectMembers.projectId, projectId)),
+    )
+    .where(
+      and(
+        inArray(users.id, [...candidateIds]),
+        eq(users.isActive, true),
+        or(
+          eq(projectMembers.projectId, projectId),
+          eq(users.role, 'admin'),
+          eq(users.role, 'super_admin'),
+        ),
+      ),
+    );
+  const visible = new Set(rows.map((row) => row.id));
+  return candidateIds.filter((id) => visible.has(id));
 }
 
 // ---------------------------------------------------------------------------
@@ -144,15 +171,8 @@ export async function loadTaskOrThrow(db: Database, taskId: string): Promise<Tas
 }
 
 /** Load a comment by id or throw 404. */
-export async function loadCommentOrThrow(
-  db: Database,
-  commentId: string,
-): Promise<CommentRow> {
-  const rows = await db
-    .select()
-    .from(comments)
-    .where(eq(comments.id, commentId))
-    .limit(1);
+export async function loadCommentOrThrow(db: Database, commentId: string): Promise<CommentRow> {
+  const rows = await db.select().from(comments).where(eq(comments.id, commentId)).limit(1);
   const comment = rows[0];
   if (!comment) {
     throw notFound('评论不存在');
@@ -165,27 +185,24 @@ export async function loadCommentOrThrow(
 // ---------------------------------------------------------------------------
 
 /** List a task's comments (oldest first) joined with their authors (§7). */
-export async function listComments(
-  db: Database,
-  taskId: string,
-): Promise<CommentWithAuthor[]> {
+export async function listComments(db: Database, taskId: string): Promise<CommentWithAuthor[]> {
   const rows = await db
     .select({ comment: comments, author: users })
     .from(comments)
     .innerJoin(users, eq(comments.authorId, users.id))
     .where(eq(comments.taskId, taskId))
     .orderBy(asc(comments.createdAt));
-  const filesByComment = await listCommentFilesByComment(db, rows.map((r) => r.comment.id));
+  const filesByComment = await listCommentFilesByComment(
+    db,
+    rows.map((r) => r.comment.id),
+  );
   return rows.map((r) =>
     toCommentWithAuthor(r.comment, r.author, filesByComment.get(r.comment.id) ?? []),
   );
 }
 
 /** List a task's activity timeline (oldest first) joined with actors (§7). */
-export async function listActivities(
-  db: Database,
-  taskId: string,
-): Promise<ActivityWithActor[]> {
+export async function listActivities(db: Database, taskId: string): Promise<ActivityWithActor[]> {
   const rows = await db
     .select({ activity: activities, actor: users })
     .from(activities)
@@ -266,6 +283,20 @@ export async function createComment(
     realtimeBus,
   );
 
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: await filterNotifiableMentions(db, mentions, task.projectId),
+    actorUserId: authorId,
+    type: 'user_mentioned',
+    entityType: 'comment',
+    entityId: inserted.id,
+    title: `你在任务「${task.title}」中被提及`,
+    body: body.length > 140 ? `${body.slice(0, 140)}…` : body,
+    priority: 'high',
+    dedupeKey: `comment:${inserted.id}:mentioned`,
+    groupKey: `task:${task.id}`,
+    payload: { taskId: task.id, projectId: task.projectId },
+  });
+
   return toCommentWithAuthor(inserted, author);
 }
 
@@ -314,6 +345,21 @@ export async function updateComment(
     },
     realtimeBus,
   );
+
+  const newlyMentioned = mentions.filter((userId) => !comment.mentions.includes(userId));
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: await filterNotifiableMentions(db, newlyMentioned, task.projectId),
+    actorUserId: updated.authorId,
+    type: 'user_mentioned',
+    entityType: 'comment',
+    entityId: updated.id,
+    title: `你在任务「${task.title}」中被提及`,
+    body: body.length > 140 ? `${body.slice(0, 140)}…` : body,
+    priority: 'high',
+    dedupeKey: `comment:${updated.id}:mentioned:${updated.editedAt?.getTime() ?? 0}`,
+    groupKey: `task:${task.id}`,
+    payload: { taskId: task.id, projectId: task.projectId },
+  });
 
   const files = (await listCommentFilesByComment(db, [updated.id])).get(updated.id) ?? [];
   return toCommentWithAuthor(updated, author, files);

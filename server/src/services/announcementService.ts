@@ -6,15 +6,11 @@ import type {
   UserSummary,
 } from 'shared';
 import type { Database } from '../db/index.js';
-import {
-  announcements,
-  users,
-  type AnnouncementRow,
-  type UserRow,
-} from '../db/schema.js';
+import { announcements, users, type AnnouncementRow, type UserRow } from '../db/schema.js';
 import { notFound } from '../lib/errors.js';
 import { publishChange } from './activityService.js';
 import type { RealtimeBus } from '../realtime/bus.js';
+import { createNotifications, listActiveUserIds } from './notificationService.js';
 
 /**
  * Announcement / 信息 service. Admin-published notices readable by every logged-in
@@ -78,10 +74,7 @@ export async function listAnnouncements(db: Database): Promise<Announcement[]> {
 }
 
 /** Load a raw announcement row or throw 404. */
-export async function loadAnnouncementOrThrow(
-  db: Database,
-  id: string,
-): Promise<AnnouncementRow> {
+export async function loadAnnouncementOrThrow(db: Database, id: string): Promise<AnnouncementRow> {
   const rows = await db.select().from(announcements).where(eq(announcements.id, id)).limit(1);
   const row = rows[0];
   if (!row) throw notFound('信息不存在');
@@ -103,6 +96,18 @@ export async function createAnnouncement(
     throw new Error('创建信息失败：未返回插入行');
   }
   publishAnnouncementChange(bus, 'created', created.id);
+  await createNotifications(db, bus, {
+    recipientUserIds: await listActiveUserIds(db),
+    actorUserId: authorId,
+    type: 'announcement_published',
+    entityType: 'announcement',
+    entityId: created.id,
+    title: `新公告：${created.title}`,
+    body: created.body.slice(0, 180),
+    dedupeKey: `announcement:${created.id}:published`,
+    groupKey: `announcement:${created.id}`,
+    payload: { announcementId: created.id },
+  });
   return serializeById(db, created.id);
 }
 

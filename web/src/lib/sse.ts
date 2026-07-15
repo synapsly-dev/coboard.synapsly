@@ -28,6 +28,7 @@ const ENTITY_CHANNELS: readonly RealtimeEntity[] = [
   'org',
   'track',
   'asset',
+  'notification',
 ];
 
 function safeParse(raw: string): RealtimeEvent | null {
@@ -132,6 +133,12 @@ function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): voi
       void queryClient.invalidateQueries({ queryKey: ['projects'] });
       void queryClient.invalidateQueries({ queryKey: ['stats', 'tracks'] });
       void queryClient.invalidateQueries({ queryKey: ['org'] });
+      break;
+    }
+    case 'notification': {
+      // Private notification events have already been recipient-filtered by the
+      // SSE endpoint. Refresh both the bell badge and every open list/filter.
+      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
       break;
     }
     default: {

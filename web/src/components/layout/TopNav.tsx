@@ -18,6 +18,7 @@ import { useTheme } from '../../lib/theme';
 import { avatarUrl, cn } from '../../lib/utils';
 import { useHoverMenu } from '../../lib/use-hover-menu';
 import { SynapseMark } from '../brand/SynapseMark';
+import { NotificationBell } from '../../features/notifications/NotificationCenter';
 
 /**
  * Top navigation bar (§4). Shows the logo, project switcher, and — on md+ — the
@@ -103,6 +104,7 @@ export function TopNav(): JSX.Element {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          {user && <NotificationBell />}
           {user && (
             <DropdownMenu
               open={userMenu.open}

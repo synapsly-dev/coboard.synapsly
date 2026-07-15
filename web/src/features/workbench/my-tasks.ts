@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Task } from 'shared';
 import { useAllTasks } from '../../api/tasks';
-import { useReviewQueue } from '../../api/workbench';
+import { useRejectedTasks, useReviewQueue } from '../../api/workbench';
 import { useAuth } from '../../lib/auth-context';
 import { dueInfo } from '../board/format';
 
@@ -56,10 +56,16 @@ export function isDueUrgent(task: Task): boolean {
 export function useWorkbenchBadgeCount(): number {
   const { user } = useAuth();
   const { data: reviewQueue } = useReviewQueue();
+  const { data: rejectedTasks } = useRejectedTasks();
   const { data: allTasks } = useAllTasks();
   const myId = user?.id;
   return useMemo(() => {
-    const urgent = selectMyActiveTasks(allTasks ?? [], myId).filter(isDueUrgent).length;
-    return (reviewQueue?.length ?? 0) + urgent;
-  }, [reviewQueue, allTasks, myId]);
+    const ids = new Set<string>();
+    for (const task of reviewQueue ?? []) ids.add(task.id);
+    for (const task of rejectedTasks ?? []) ids.add(task.id);
+    for (const task of selectMyActiveTasks(allTasks ?? [], myId)) {
+      if (isDueUrgent(task)) ids.add(task.id);
+    }
+    return ids.size;
+  }, [reviewQueue, rejectedTasks, allTasks, myId]);
 }

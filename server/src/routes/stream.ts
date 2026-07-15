@@ -68,12 +68,16 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     // Initial comment so the client knows the stream is open immediately.
     raw.write(': connected\n\n');
 
-    const unsubscribe = fastify.bus.subscribe(projectIds, (event) => {
-      // Guard against writes after the socket closed.
-      if (!raw.writableEnded) {
-        raw.write(formatEvent(event));
-      }
-    });
+    const unsubscribe = fastify.bus.subscribe(
+      projectIds,
+      (event) => {
+        // Guard against writes after the socket closed.
+        if (!raw.writableEnded) {
+          raw.write(formatEvent(event));
+        }
+      },
+      user.id,
+    );
 
     const heartbeat = setInterval(() => {
       if (!raw.writableEnded) {

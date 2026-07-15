@@ -68,10 +68,7 @@ export async function recordActivity(
  * Publish a realtime event without recording an activity (e.g. comment edits,
  * project membership changes) so clients can invalidate the right queries (§6.5).
  */
-export function publishEvent(
-  event: RealtimeEvent,
-  realtimeBus: RealtimeBus = bus,
-): void {
+export function publishEvent(event: RealtimeEvent, realtimeBus: RealtimeBus = bus): void {
   realtimeBus.publish(event);
 }
 
@@ -82,6 +79,8 @@ export function publishChange(
     /** Owning project, or null for a no-project (global) event (§8). */
     projectId: string | null;
     entity: RealtimeEntity;
+    /** Restrict a private event (notifications) to one SSE user. */
+    recipientUserId?: string;
     payload?: Record<string, unknown>;
   },
   realtimeBus: RealtimeBus = bus,
@@ -90,6 +89,7 @@ export function publishChange(
     {
       type: args.type,
       projectId: args.projectId,
+      ...(args.recipientUserId ? { recipientUserId: args.recipientUserId } : {}),
       entity: args.entity,
       payload: args.payload ?? {},
     },

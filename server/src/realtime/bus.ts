@@ -31,9 +31,14 @@ export class RealtimeBus {
    * `projectId === null` event is on the global channel that all connected users
    * receive. Returns an unsubscribe function.
    */
-  subscribe(projectIds: readonly string[], handler: RealtimeHandler): () => void {
+  subscribe(projectIds: readonly string[], handler: RealtimeHandler, userId?: string): () => void {
     const allowed = new Set(projectIds);
     const listener = (event: RealtimeEvent): void => {
+      // Private notification events are delivered only to their recipient. Older
+      // internal/test subscribers that omit userId continue to see public events.
+      if (event.recipientUserId !== undefined && event.recipientUserId !== userId) {
+        return;
+      }
       // No-project events (§8) reach every subscriber; project events are filtered
       // to the subscriber's membership set.
       if (event.projectId === null || allowed.has(event.projectId)) {

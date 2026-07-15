@@ -43,6 +43,11 @@ import {
 import type { FastifyRequest } from 'fastify';
 import { publishChange, recordActivity } from './activityService.js';
 import type { RealtimeBus } from '../realtime/bus.js';
+import {
+  createNotifications,
+  listTaskReviewerIds,
+  resolveEntityNotifications,
+} from './notificationService.js';
 
 /**
  * Task / board domain service (§6.1, §6.2, §6.5). Owns all task mutations: create,
@@ -278,10 +283,7 @@ async function loadProjectContext(
  * Batch-load `{ userId → UserSummary }` for a set of user ids (e.g. task reviewers),
  * deduped. Used to embed the 审阅人 summary without an N+1 per task.
  */
-async function loadUserSummaries(
-  db: Database,
-  ids: string[],
-): Promise<Map<string, UserSummary>> {
+async function loadUserSummaries(db: Database, ids: string[]): Promise<Map<string, UserSummary>> {
   const map = new Map<string, UserSummary>();
   const unique = [...new Set(ids)];
   if (unique.length === 0) return map;
@@ -310,7 +312,7 @@ function reviewerFor(
   row: Pick<TaskRow, 'reviewedBy'>,
   byId: Map<string, UserSummary>,
 ): UserSummary | null {
-  return row.reviewedBy ? byId.get(row.reviewedBy) ?? null : null;
+  return row.reviewedBy ? (byId.get(row.reviewedBy) ?? null) : null;
 }
 
 /** Resolve a task row's deliverer (交付人) summary from `deliveredBy`, or null. */
@@ -318,7 +320,7 @@ function delivererFor(
   row: Pick<TaskRow, 'deliveredBy'>,
   byId: Map<string, UserSummary>,
 ): UserSummary | null {
-  return row.deliveredBy ? byId.get(row.deliveredBy) ?? null : null;
+  return row.deliveredBy ? (byId.get(row.deliveredBy) ?? null) : null;
 }
 
 /** Resolve a task row's 初审人 summary from `firstApprovedBy` (P2 §3), or null. */
@@ -326,7 +328,7 @@ function firstApproverFor(
   row: Pick<TaskRow, 'firstApprovedBy'>,
   byId: Map<string, UserSummary>,
 ): UserSummary | null {
-  return row.firstApprovedBy ? byId.get(row.firstApprovedBy) ?? null : null;
+  return row.firstApprovedBy ? (byId.get(row.firstApprovedBy) ?? null) : null;
 }
 
 /** Resolve a task row's creator (发布者) summary from `createdBy`, or null if gone. */
@@ -409,7 +411,7 @@ async function serializeTaskRows(db: Database, rows: TaskRow[]): Promise<Task[]>
     serializeTask(
       row,
       byTask.get(row.id) ?? [],
-      row.projectId === null ? null : projectById.get(row.projectId) ?? null,
+      row.projectId === null ? null : (projectById.get(row.projectId) ?? null),
       labelsByTask.get(row.id) ?? [],
       reviewerFor(row, people),
       delivererFor(row, people),
@@ -464,11 +466,7 @@ async function loadTaskAccess(
  * task's project, or null for a no-project (pool) task — a null fans out to every
  * connected user via the global channel (§8).
  */
-function publishTaskChange(
-  bus: RealtimeBus,
-  type: string,
-  task: TaskRow,
-): void {
+function publishTaskChange(bus: RealtimeBus, type: string, task: TaskRow): void {
   publishChange(
     {
       type,
@@ -530,10 +528,7 @@ export async function listBoardTasks(db: Database, projectId: string): Promise<T
  * Ordered by rank then creation, like the per-project board. Avoids N+1 by batching
  * the claimant and project lookups.
  */
-export async function listAllVisibleTasks(
-  db: Database,
-  user: UserRow,
-): Promise<Task[]> {
+export async function listAllVisibleTasks(db: Database, user: UserRow): Promise<Task[]> {
   // Visible project set: every project for an admin, else the caller's memberships.
   let visibleProjectIds: string[];
   if (isAdminRole(user.role)) {
@@ -633,22 +628,43 @@ export async function createTask(
     await setTaskLabels(db, created.id, input.labelIds);
   }
 
-  await recordActivity(db, {
-    taskId: created.id,
-    projectId,
-    actorId: actor.id,
-    type: 'created',
-    meta: { title: created.title },
-  }, bus);
-
-  if (dispatched) {
-    await recordActivity(db, {
+  await recordActivity(
+    db,
+    {
       taskId: created.id,
       projectId,
       actorId: actor.id,
-      type: 'assigned',
-      meta: { assigneeId: input.assigneeId },
-    }, bus);
+      type: 'created',
+      meta: { title: created.title },
+    },
+    bus,
+  );
+
+  if (dispatched && input.assigneeId) {
+    const activity = await recordActivity(
+      db,
+      {
+        taskId: created.id,
+        projectId,
+        actorId: actor.id,
+        type: 'assigned',
+        meta: { assigneeId: input.assigneeId },
+      },
+      bus,
+    );
+    await createNotifications(db, bus, {
+      recipientUserIds: [input.assigneeId],
+      actorUserId: actor.id,
+      type: 'task_assigned',
+      entityType: 'task',
+      entityId: created.id,
+      title: '有一项新任务指派给你',
+      body: created.title,
+      priority: created.priority === 'urgent' ? 'urgent' : 'normal',
+      dedupeKey: `activity:${activity.id}:task_assigned`,
+      groupKey: `task:${created.id}`,
+      payload: { projectId },
+    });
   }
 
   publishTaskChange(bus, 'created', created);
@@ -688,9 +704,7 @@ export async function updateTask(
 ): Promise<Task> {
   const { task, user, membership } = await loadTaskAccess(db, request, taskId);
   // Project task → creator/lead/admin; no-project task → creator or admin (§8).
-  const canEdit = membership
-    ? canEditTask(membership, task)
-    : canEditNoProjectTask(user, task);
+  const canEdit = membership ? canEditTask(membership, task) : canEditNoProjectTask(user, task);
   if (!canEdit) {
     throw forbidden('只能编辑自己创建或负责的任务');
   }
@@ -761,9 +775,7 @@ export async function updateTask(
   // A patch may carry only `labelIds` (no scalar fields); skip the empty UPDATE then.
   const updated =
     Object.keys(patch).length > 0
-      ? (
-          await db.update(tasks).set(patch).where(eq(tasks.id, taskId)).returning()
-        )[0]
+      ? (await db.update(tasks).set(patch).where(eq(tasks.id, taskId)).returning())[0]
       : task;
 
   if (!updated) {
@@ -771,24 +783,32 @@ export async function updateTask(
   }
 
   if (statusChanged) {
-    await recordActivity(db, {
-      taskId,
-      projectId: updated.projectId,
-      actorId: actor.id,
-      type: 'status_changed',
-      meta: { from: task.status, to: targetStatus },
-    }, bus);
+    await recordActivity(
+      db,
+      {
+        taskId,
+        projectId: updated.projectId,
+        actorId: actor.id,
+        type: 'status_changed',
+        meta: { from: task.status, to: targetStatus },
+      },
+      bus,
+    );
   } else {
     // Field-only edit (incl. rank reorder and/or a label set change).
     const fields = Object.keys(patch);
     if (input.labelIds !== undefined) fields.push('labelIds');
-    await recordActivity(db, {
-      taskId,
-      projectId: updated.projectId,
-      actorId: actor.id,
-      type: 'updated',
-      meta: { fields },
-    }, bus);
+    await recordActivity(
+      db,
+      {
+        taskId,
+        projectId: updated.projectId,
+        actorId: actor.id,
+        type: 'updated',
+        meta: { fields },
+      },
+      bus,
+    );
   }
 
   // 改期 (P2 §5): when the DDL actually changed AND a reason was supplied, record a
@@ -800,13 +820,23 @@ export async function updateTask(
     typeof input.dueChangeReason === 'string' &&
     input.dueChangeReason.length > 0
   ) {
-    await recordActivity(db, {
-      taskId,
-      projectId: updated.projectId,
-      actorId: actor.id,
-      type: 'due_changed',
-      meta: { from: task.dueDate, to: input.dueDate, reason: input.dueChangeReason },
-    }, bus);
+    const dueActivity = await recordActivity(
+      db,
+      {
+        taskId,
+        projectId: updated.projectId,
+        actorId: actor.id,
+        type: 'due_changed',
+        meta: { from: task.dueDate, to: input.dueDate, reason: input.dueChangeReason },
+      },
+      bus,
+    );
+    await notifyTaskClaimants(db, bus, updated, actor.id, {
+      type: 'deadline_changed',
+      title: '任务截止日期已调整',
+      body: `${updated.title} · ${task.dueDate ?? '未设置'} → ${input.dueDate ?? '未设置'}`,
+      dedupeKey: `activity:${dueActivity.id}:deadline_changed`,
+    });
   }
 
   publishTaskChange(bus, statusChanged ? 'status_changed' : 'updated', updated);
@@ -824,6 +854,88 @@ async function loadClaimantIds(db: Database, taskId: string): Promise<string[]> 
     .from(taskClaimants)
     .where(eq(taskClaimants.taskId, taskId));
   return rows.map((r) => r.userId);
+}
+
+async function notifyTaskClaimants(
+  db: Database,
+  bus: RealtimeBus,
+  task: TaskRow,
+  actorUserId: string,
+  input: {
+    type: 'review_approved' | 'review_rejected' | 'deadline_changed';
+    title: string;
+    body?: string | null;
+    priority?: 'normal' | 'high';
+    dedupeKey: string;
+  },
+): Promise<void> {
+  await createNotifications(db, bus, {
+    recipientUserIds: await loadClaimantIds(db, task.id),
+    actorUserId,
+    type: input.type,
+    entityType: 'task',
+    entityId: task.id,
+    title: input.title,
+    body: input.body ?? task.title,
+    priority: input.priority,
+    dedupeKey: input.dedupeKey,
+    groupKey: `task:${task.id}`,
+    payload: { projectId: task.projectId },
+  });
+}
+
+async function notifyTaskReviewers(
+  db: Database,
+  bus: RealtimeBus,
+  task: TaskRow,
+  actorUserId: string,
+  dedupeKey: string,
+): Promise<void> {
+  await createNotifications(db, bus, {
+    recipientUserIds: await listTaskReviewerIds(db, task),
+    actorUserId,
+    type: 'review_requested',
+    entityType: 'task',
+    entityId: task.id,
+    title: task.firstApprovedAt ? '任务等待最终复核' : '任务等待你审核',
+    body: task.title,
+    priority: 'high',
+    actionRequired: true,
+    dedupeKey,
+    groupKey: `task:${task.id}`,
+    payload: { projectId: task.projectId },
+  });
+}
+
+/** Notify each claimant of the points that become effective after final approval. */
+async function notifyTaskPointsAwarded(
+  db: Database,
+  bus: RealtimeBus,
+  task: TaskRow,
+  actorUserId: string,
+  activityId: string,
+): Promise<void> {
+  const allocations = await db
+    .select({ userId: taskClaimants.userId, points: taskClaimants.points })
+    .from(taskClaimants)
+    .where(eq(taskClaimants.taskId, task.id));
+
+  for (const allocation of allocations) {
+    if (allocation.points === null || allocation.points <= 0) continue;
+    await createNotifications(db, bus, {
+      recipientUserIds: [allocation.userId],
+      actorUserId,
+      includeActor: true,
+      type: 'points_awarded',
+      entityType: 'task',
+      entityId: task.id,
+      title: `获得 ${allocation.points} 点`,
+      body: task.title,
+      dedupeKey: `activity:${activityId}:points:${allocation.userId}`,
+      groupKey: `task:${task.id}`,
+      payload: { projectId: task.projectId, points: allocation.points },
+    });
+  }
 }
 
 /**
@@ -887,13 +999,17 @@ export async function claimTask(
 
   // Only record activity / fan out when the caller was newly added.
   if (inserted.length > 0) {
-    await recordActivity(db, {
-      taskId,
-      projectId: task.projectId,
-      actorId: actor.id,
-      type: 'claimed',
-      meta: {},
-    }, bus);
+    await recordActivity(
+      db,
+      {
+        taskId,
+        projectId: task.projectId,
+        actorId: actor.id,
+        type: 'claimed',
+        meta: {},
+      },
+      bus,
+    );
     publishTaskChange(bus, 'claimed', updated);
   }
 
@@ -965,13 +1081,32 @@ export async function releaseTask(
     if (row) updated = row;
   }
 
-  await recordActivity(db, {
-    taskId,
-    projectId: task.projectId,
-    actorId: actor.id,
-    type: 'released',
-    meta: { userId },
-  }, bus);
+  const activity = await recordActivity(
+    db,
+    {
+      taskId,
+      projectId: task.projectId,
+      actorId: actor.id,
+      type: 'released',
+      meta: { userId },
+    },
+    bus,
+  );
+  if (userId !== actor.id) {
+    await createNotifications(db, bus, {
+      recipientUserIds: [userId],
+      actorUserId: actor.id,
+      type: 'task_unassigned',
+      entityType: 'task',
+      entityId: task.id,
+      title: '你已不再负责这项任务',
+      body: task.title,
+      priority: 'high',
+      dedupeKey: `activity:${activity.id}:task_unassigned`,
+      groupKey: `task:${task.id}`,
+      payload: { projectId: task.projectId },
+    });
+  }
 
   publishTaskChange(bus, 'released', updated);
   return serializeTaskById(db, updated);
@@ -1041,13 +1176,30 @@ export async function assignTask(
   }
 
   if (inserted.length > 0) {
-    await recordActivity(db, {
-      taskId,
-      projectId: task.projectId,
-      actorId: actor.id,
-      type: 'assigned',
-      meta: { assigneeId: input.assigneeId },
-    }, bus);
+    const activity = await recordActivity(
+      db,
+      {
+        taskId,
+        projectId: task.projectId,
+        actorId: actor.id,
+        type: 'assigned',
+        meta: { assigneeId: input.assigneeId },
+      },
+      bus,
+    );
+    await createNotifications(db, bus, {
+      recipientUserIds: [input.assigneeId],
+      actorUserId: actor.id,
+      type: 'task_assigned',
+      entityType: 'task',
+      entityId: task.id,
+      title: '有一项新任务指派给你',
+      body: task.title,
+      priority: task.priority === 'urgent' ? 'urgent' : 'normal',
+      dedupeKey: `activity:${activity.id}:task_assigned`,
+      groupKey: `task:${task.id}`,
+      payload: { projectId: task.projectId },
+    });
     publishTaskChange(bus, 'assigned', updated);
   }
 
@@ -1131,18 +1283,13 @@ export async function deliverTask(
     status: 'pending_review',
     deliveredAt: new Date(),
     deliveredBy: actor.id,
-    needsFinalReview:
-      task.taskType === 'critical' || total >= FINAL_REVIEW_POINTS_THRESHOLD,
+    needsFinalReview: task.taskType === 'critical' || total >= FINAL_REVIEW_POINTS_THRESHOLD,
     firstApprovedBy: null,
     firstApprovedAt: null,
   };
   if (task.points == null) taskPatch.points = total;
 
-  const [updated] = await db
-    .update(tasks)
-    .set(taskPatch)
-    .where(eq(tasks.id, taskId))
-    .returning();
+  const [updated] = await db.update(tasks).set(taskPatch).where(eq(tasks.id, taskId)).returning();
   if (!updated) {
     throw notFound('任务不存在');
   }
@@ -1155,13 +1302,20 @@ export async function deliverTask(
       .where(and(eq(taskClaimants.taskId, taskId), eq(taskClaimants.userId, a.userId)));
   }
 
-  await recordActivity(db, {
-    taskId,
-    projectId: task.projectId,
-    actorId: actor.id,
-    type: 'delivered',
-    meta: { totalPoints: total },
-  }, bus);
+  const activity = await recordActivity(
+    db,
+    {
+      taskId,
+      projectId: task.projectId,
+      actorId: actor.id,
+      type: 'delivered',
+      meta: { totalPoints: total },
+    },
+    bus,
+  );
+
+  await resolveEntityNotifications(db, bus, 'task', taskId, ['review_requested']);
+  await notifyTaskReviewers(db, bus, updated, actor.id, `activity:${activity.id}:review_requested`);
 
   publishTaskChange(bus, 'delivered', updated);
   return serializeTaskById(db, updated);
@@ -1252,13 +1406,32 @@ export async function reviewTask(
 
       await recordReview('first');
       // Not `completed` — the chain isn't done; flag the 初审 on the timeline.
-      await recordActivity(db, {
-        taskId,
-        projectId: task.projectId,
-        actorId: actor.id,
-        type: 'updated',
-        meta: { firstApproved: true },
-      }, bus);
+      const activity = await recordActivity(
+        db,
+        {
+          taskId,
+          projectId: task.projectId,
+          actorId: actor.id,
+          type: 'updated',
+          meta: { firstApproved: true },
+        },
+        bus,
+      );
+
+      await resolveEntityNotifications(db, bus, 'task', taskId, ['review_requested']);
+      await notifyTaskClaimants(db, bus, updated, actor.id, {
+        type: 'review_approved',
+        title: '任务初审已通过',
+        body: `${updated.title} · 等待最终复核`,
+        dedupeKey: `activity:${activity.id}:review_approved`,
+      });
+      await notifyTaskReviewers(
+        db,
+        bus,
+        updated,
+        actor.id,
+        `activity:${activity.id}:final_review_requested`,
+      );
 
       publishTaskChange(bus, 'updated', updated);
       return serializeTaskById(db, updated);
@@ -1275,13 +1448,26 @@ export async function reviewTask(
     if (!updated) throw notFound('任务不存在');
 
     await recordReview(stage);
-    await recordActivity(db, {
-      taskId,
-      projectId: task.projectId,
-      actorId: actor.id,
-      type: 'completed',
-      meta: {},
-    }, bus);
+    const activity = await recordActivity(
+      db,
+      {
+        taskId,
+        projectId: task.projectId,
+        actorId: actor.id,
+        type: 'completed',
+        meta: {},
+      },
+      bus,
+    );
+
+    await resolveEntityNotifications(db, bus, 'task', taskId, ['review_requested']);
+    await notifyTaskClaimants(db, bus, updated, actor.id, {
+      type: 'review_approved',
+      title: '任务交付已通过',
+      body: updated.title,
+      dedupeKey: `activity:${activity.id}:review_approved`,
+    });
+    await notifyTaskPointsAwarded(db, bus, updated, actor.id, activity.id);
 
     publishTaskChange(bus, 'completed', updated);
     return serializeTaskById(db, updated);
@@ -1309,19 +1495,29 @@ export async function reviewTask(
     .returning();
   if (!updated) throw notFound('任务不存在');
 
-  await db
-    .update(taskClaimants)
-    .set({ points: null })
-    .where(eq(taskClaimants.taskId, taskId));
+  await db.update(taskClaimants).set({ points: null }).where(eq(taskClaimants.taskId, taskId));
 
   await recordReview(rejectStage);
-  await recordActivity(db, {
-    taskId,
-    projectId: task.projectId,
-    actorId: actor.id,
-    type: 'rejected',
-    meta: input.comment ? { comment: input.comment } : {},
-  }, bus);
+  const activity = await recordActivity(
+    db,
+    {
+      taskId,
+      projectId: task.projectId,
+      actorId: actor.id,
+      type: 'rejected',
+      meta: input.comment ? { comment: input.comment } : {},
+    },
+    bus,
+  );
+
+  await resolveEntityNotifications(db, bus, 'task', taskId, ['review_requested']);
+  await notifyTaskClaimants(db, bus, updated, actor.id, {
+    type: 'review_rejected',
+    title: '任务交付被退回',
+    body: input.comment || updated.title,
+    priority: 'high',
+    dedupeKey: `activity:${activity.id}:review_rejected`,
+  });
 
   publishTaskChange(bus, 'rejected', updated);
   return serializeTaskById(db, updated);
@@ -1378,7 +1574,7 @@ export async function revokeApproval(
     .returning();
   if (!updated) throw notFound('任务不存在');
 
-  await recordActivity(
+  const activity = await recordActivity(
     db,
     {
       taskId,
@@ -1389,6 +1585,9 @@ export async function revokeApproval(
     },
     bus,
   );
+
+  await resolveEntityNotifications(db, bus, 'task', taskId, ['review_requested']);
+  await notifyTaskReviewers(db, bus, updated, actor.id, `activity:${activity.id}:review_requested`);
 
   publishTaskChange(bus, 'reopened', updated);
   return serializeTaskById(db, updated);
@@ -1454,24 +1653,53 @@ export async function transferTask(
   // Swap the claimant rows: count unchanged → status unchanged.
   await db
     .delete(taskClaimants)
-    .where(
-      and(eq(taskClaimants.taskId, taskId), eq(taskClaimants.userId, input.fromUserId)),
-    );
+    .where(and(eq(taskClaimants.taskId, taskId), eq(taskClaimants.userId, input.fromUserId)));
   await db
     .insert(taskClaimants)
     .values({ taskId, userId: input.toUserId, points: null, claimedAt: new Date() });
 
-  await recordActivity(db, {
-    taskId,
-    projectId: task.projectId,
-    actorId: actor.id,
-    type: 'transferred',
-    meta: {
-      from: input.fromUserId,
-      to: input.toUserId,
-      ...(input.reason ? { reason: input.reason } : {}),
+  const activity = await recordActivity(
+    db,
+    {
+      taskId,
+      projectId: task.projectId,
+      actorId: actor.id,
+      type: 'transferred',
+      meta: {
+        from: input.fromUserId,
+        to: input.toUserId,
+        ...(input.reason ? { reason: input.reason } : {}),
+      },
     },
-  }, bus);
+    bus,
+  );
+
+  await createNotifications(db, bus, {
+    recipientUserIds: [input.fromUserId],
+    actorUserId: actor.id,
+    type: 'task_transferred',
+    entityType: 'task',
+    entityId: task.id,
+    title: '任务责任已转交',
+    body: input.reason || task.title,
+    priority: 'high',
+    dedupeKey: `activity:${activity.id}:transferred_from`,
+    groupKey: `task:${task.id}`,
+    payload: { projectId: task.projectId },
+  });
+  await createNotifications(db, bus, {
+    recipientUserIds: [input.toUserId],
+    actorUserId: actor.id,
+    type: 'task_transferred',
+    entityType: 'task',
+    entityId: task.id,
+    title: '一项任务已转交给你',
+    body: task.title,
+    priority: 'high',
+    dedupeKey: `activity:${activity.id}:transferred_to`,
+    groupKey: `task:${task.id}`,
+    payload: { projectId: task.projectId },
+  });
 
   publishTaskChange(bus, 'transferred', task);
   return serializeTaskById(db, task);
@@ -1543,9 +1771,7 @@ export async function listReviewQueue(db: Database, user: UserRow): Promise<Task
     const leadRows = await db
       .select({ projectId: projectMembers.projectId })
       .from(projectMembers)
-      .where(
-        and(eq(projectMembers.userId, user.id), eq(projectMembers.role, 'lead')),
-      );
+      .where(and(eq(projectMembers.userId, user.id), eq(projectMembers.role, 'lead')));
     const managedTrackRows = await db
       .select({ trackId: trackMembers.trackId })
       .from(trackMembers)
@@ -1559,10 +1785,7 @@ export async function listReviewQueue(db: Database, user: UserRow): Promise<Task
             .from(projects)
             .where(inArray(projects.trackId, trackIds));
     const projectIds = [
-      ...new Set([
-        ...leadRows.map((r) => r.projectId),
-        ...trackProjectRows.map((r) => r.id),
-      ]),
+      ...new Set([...leadRows.map((r) => r.projectId), ...trackProjectRows.map((r) => r.id)]),
     ];
     if (projectIds.length === 0) return [];
     where = and(
@@ -1620,9 +1843,7 @@ export async function listRejectedTasks(db: Database, user: UserRow): Promise<Ta
     .filter((t) => {
       const latest = latestByTask.get(t.id);
       return (
-        latest !== undefined &&
-        latest.decision === 'reject' &&
-        latest.createdAt.getTime() >= cutoff
+        latest !== undefined && latest.decision === 'reject' && latest.createdAt.getTime() >= cutoff
       );
     });
   return serializeTaskRows(db, rows);
@@ -1645,9 +1866,7 @@ export async function deleteTask(
   taskId: string,
 ): Promise<void> {
   const { task, user, membership } = await loadTaskAccess(db, request, taskId);
-  const canDelete = membership
-    ? canEditTask(membership, task)
-    : canEditNoProjectTask(user, task);
+  const canDelete = membership ? canEditTask(membership, task) : canEditNoProjectTask(user, task);
   if (!canDelete) {
     throw forbidden('只能删除自己创建或负责的任务');
   }

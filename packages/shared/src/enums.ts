@@ -165,6 +165,102 @@ export const orgMemberRoleSchema = z.enum(orgMemberRoles);
 export type OrgMemberRole = (typeof orgMemberRoles)[number];
 
 /**
+ * Durable per-recipient notification kinds. These remain application-level text
+ * values rather than PostgreSQL enums: notification producers will grow over time,
+ * and adding a new producer must not require altering a database enum.
+ */
+export const notificationTypes = [
+  'task_assigned',
+  'task_unassigned',
+  'task_transferred',
+  'user_mentioned',
+  'comment_replied',
+  'task_delivered',
+  'review_requested',
+  'review_approved',
+  'review_rejected',
+  'task_reopened',
+  'deadline_changed',
+  'deadline_due_soon',
+  'deadline_overdue',
+  'application_submitted',
+  'application_approved',
+  'application_rejected',
+  'membership_changed',
+  'role_changed',
+  'account_status_changed',
+  'points_awarded',
+  'idea_adopted',
+  'idea_rejected',
+  'announcement_published',
+  'watched_entity_updated',
+] as const;
+export const notificationTypeSchema = z.enum(notificationTypes);
+export type NotificationType = (typeof notificationTypes)[number];
+
+/** Objects a notification may deep-link to. `actor` and `recipient` stay users. */
+export const notificationEntityTypes = [
+  'task',
+  'comment',
+  'project',
+  'track',
+  'org_application',
+  'org_node',
+  'announcement',
+  'user',
+  'idea',
+  'asset',
+] as const;
+export const notificationEntityTypeSchema = z.enum(notificationEntityTypes);
+export type NotificationEntityType = (typeof notificationEntityTypes)[number];
+
+/** Entity kinds users may explicitly watch or mute. */
+export const subscriptionEntityTypes = [
+  'task',
+  'project',
+  'track',
+  'org_node',
+  'idea',
+  'asset',
+] as const;
+export const subscriptionEntityTypeSchema = z.enum(subscriptionEntityTypes);
+export type SubscriptionEntityType = (typeof subscriptionEntityTypes)[number];
+
+export const notificationPriorities = ['normal', 'high', 'urgent'] as const;
+export const notificationPrioritySchema = z.enum(notificationPriorities);
+export type NotificationPriority = (typeof notificationPriorities)[number];
+
+/** Explicit per-entity override. Absence means normal rule-based delivery. */
+export const entitySubscriptionModes = ['watching', 'muted'] as const;
+export const entitySubscriptionModeSchema = z.enum(entitySubscriptionModes);
+export type EntitySubscriptionMode = (typeof entitySubscriptionModes)[number];
+
+/** Stable preference groups shown in notification settings. */
+export const notificationTopics = [
+  'assignments',
+  'mentions',
+  'reviews',
+  'deadlines',
+  'applications',
+  'membership',
+  'announcements',
+  'watched_updates',
+  'points',
+  'security',
+] as const;
+export const notificationTopicSchema = z.enum(notificationTopics);
+export type NotificationTopic = (typeof notificationTopics)[number];
+
+export const notificationChannels = ['in_app', 'browser', 'email'] as const;
+export const notificationChannelSchema = z.enum(notificationChannels);
+export type NotificationChannel = (typeof notificationChannels)[number];
+
+/** Missing preference rows inherit the system default for the topic/channel. */
+export const notificationDeliveries = ['immediate', 'daily_digest', 'off'] as const;
+export const notificationDeliverySchema = z.enum(notificationDeliveries);
+export type NotificationDelivery = (typeof notificationDeliveries)[number];
+
+/**
  * Attachment mimes Coboard will serve INLINE for in-app preview (image lightbox +
  * embedded PDF). Anything else is always sent as a download. The list is the single
  * source of truth shared by the server (which only honours `?inline=1` for these,

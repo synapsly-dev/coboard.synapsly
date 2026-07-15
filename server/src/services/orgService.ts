@@ -30,6 +30,11 @@ import { publishChange } from './activityService.js';
 import { bus, type RealtimeBus } from '../realtime/bus.js';
 import { rankBetween } from './taskService.js';
 import { setTrackMembers } from './trackService.js';
+import {
+  createNotifications,
+  listActiveAdminIds,
+  resolveEntityNotifications,
+} from './notificationService.js';
 
 /**
  * Org-tree service (团队架构 / division-of-labor page). Owns the data access for the
@@ -470,6 +475,7 @@ export async function setMembers(
   node: OrgNodeRow,
   input: SetOrgMembersInput,
   realtimeBus: RealtimeBus = bus,
+  actorUserId?: string,
 ): Promise<OrgNode> {
   if (node.trackId !== null) {
     await setTrackMembers(
@@ -477,6 +483,7 @@ export async function setMembers(
       node.trackId,
       { managers: input.leads, members: input.members },
       realtimeBus,
+      actorUserId,
     );
     return serializeNode(db, node.id);
   }
@@ -496,6 +503,11 @@ export async function setMembers(
       throw validationError('存在无效的用户');
     }
   }
+
+  const previousRows = await db
+    .select({ userId: orgNodeMembers.userId, role: orgNodeMembers.role })
+    .from(orgNodeMembers)
+    .where(eq(orgNodeMembers.nodeId, node.id));
 
   const rows = [
     ...input.leads.map((userId, i) => ({
@@ -518,6 +530,30 @@ export async function setMembers(
   await db.delete(orgNodeMembers).where(eq(orgNodeMembers.nodeId, node.id));
   if (rows.length > 0) {
     await db.insert(orgNodeMembers).values(rows);
+  }
+
+  const previous = new Map(previousRows.map((row) => [row.userId, row.role]));
+  const next = new Map(rows.map((row) => [row.userId, row.role]));
+  for (const userId of new Set([...previous.keys(), ...next.keys()])) {
+    const before = previous.get(userId);
+    const after = next.get(userId);
+    if (before === after) continue;
+    const roleChanged = before !== undefined && after !== undefined;
+    await createNotifications(db, realtimeBus, {
+      recipientUserIds: [userId],
+      actorUserId,
+      type: roleChanged ? 'role_changed' : 'membership_changed',
+      entityType: 'org_node',
+      entityId: node.id,
+      title: roleChanged
+        ? `你在「${node.title}」中的角色已调整`
+        : after
+          ? `你已加入「${node.title}」`
+          : `你已离开「${node.title}」`,
+      body: roleChanged ? `当前角色：${after === 'lead' ? '负责人' : '成员'}` : null,
+      groupKey: `org-node:${node.id}:membership`,
+      payload: { nodeId: node.id, projectId: node.projectId, scope: scopeOfNode(node) },
+    });
   }
 
   publishOrgChange(realtimeBus, 'org_members_set', scopeOfNode(node), node.id);
@@ -620,6 +656,73 @@ async function memberCount(db: Database, nodeId: string): Promise<number> {
     .from(orgNodeMembers)
     .where(eq(orgNodeMembers.nodeId, nodeId));
   return rows[0]?.count ?? 0;
+}
+
+/** Every active user who can decide an application on this node. */
+async function applicationApproverIds(db: Database, node: OrgNodeRow): Promise<string[]> {
+  const ids = new Set(await listActiveAdminIds(db));
+
+  if (node.projectId !== null) {
+    const projectLeadRows = await db
+      .select({ userId: projectMembers.userId })
+      .from(projectMembers)
+      .innerJoin(users, eq(users.id, projectMembers.userId))
+      .where(
+        and(
+          eq(projectMembers.projectId, node.projectId),
+          eq(projectMembers.role, 'lead'),
+          eq(users.isActive, true),
+        ),
+      );
+    for (const row of projectLeadRows) ids.add(row.userId);
+    return [...ids];
+  }
+
+  // Whole-team applications may be decided by a lead/赛道经理 on the node or
+  // any ancestor. Resolve that authority directly rather than scanning every user.
+  const scopeNodes = await db
+    .select({ id: orgNodes.id, parentId: orgNodes.parentId, trackId: orgNodes.trackId })
+    .from(orgNodes)
+    .where(isNull(orgNodes.projectId));
+  const byId = new Map(scopeNodes.map((row) => [row.id, row]));
+  const ancestorIds: string[] = [];
+  let current: string | null = node.id;
+  while (current !== null) {
+    ancestorIds.push(current);
+    current = byId.get(current)?.parentId ?? null;
+  }
+
+  const leadRows = await db
+    .select({ userId: orgNodeMembers.userId })
+    .from(orgNodeMembers)
+    .innerJoin(users, eq(users.id, orgNodeMembers.userId))
+    .where(
+      and(
+        inArray(orgNodeMembers.nodeId, ancestorIds),
+        eq(orgNodeMembers.role, 'lead'),
+        eq(users.isActive, true),
+      ),
+    );
+  for (const row of leadRows) ids.add(row.userId);
+
+  const ancestorTrackIds = scopeNodes.flatMap((row) =>
+    ancestorIds.includes(row.id) && row.trackId !== null ? [row.trackId] : [],
+  );
+  if (ancestorTrackIds.length > 0) {
+    const managerRows = await db
+      .select({ userId: trackMembers.userId })
+      .from(trackMembers)
+      .innerJoin(users, eq(users.id, trackMembers.userId))
+      .where(
+        and(
+          inArray(trackMembers.trackId, ancestorTrackIds),
+          eq(trackMembers.role, 'manager'),
+          eq(users.isActive, true),
+        ),
+      );
+    for (const row of managerRows) ids.add(row.userId);
+  }
+  return [...ids];
 }
 
 /**
@@ -824,6 +927,20 @@ export async function applyToNode(
   }
 
   publishOrgChange(realtimeBus, 'org_application_created', scopeOfNode(node), node.id);
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: await applicationApproverIds(db, node),
+    actorUserId: user.id,
+    type: 'application_submitted',
+    entityType: 'org_application',
+    entityId: inserted.id,
+    title: '新的加入申请',
+    body: `${user.displayName} 申请加入「${node.title}」`,
+    priority: 'high',
+    actionRequired: true,
+    dedupeKey: `org-application:${inserted.id}:submitted`,
+    groupKey: `org-node:${node.id}:applications`,
+    payload: { nodeId: node.id, projectId: node.projectId, scope: scopeOfNode(node) },
+  });
   return toOrgApplication(inserted, user, node.title, node.projectId);
 }
 
@@ -850,6 +967,9 @@ export async function withdrawApplication(
     .returning();
   if (!updated) throw notFound('申报不存在');
 
+  await resolveEntityNotifications(db, realtimeBus, 'org_application', application.id, [
+    'application_submitted',
+  ]);
   publishOrgChange(realtimeBus, 'org_application_withdrawn', scopeOfNode(node), node.id);
   return toOrgApplication(updated, user, node.title, node.projectId);
 }
@@ -920,6 +1040,22 @@ export async function decideApplication(
     throw notFound('申报人不存在');
   }
 
+  await resolveEntityNotifications(db, realtimeBus, 'org_application', application.id, [
+    'application_submitted',
+  ]);
+  await createNotifications(db, realtimeBus, {
+    recipientUserIds: [application.userId],
+    actorUserId: user.id,
+    type: decision === 'approved' ? 'application_approved' : 'application_rejected',
+    entityType: 'org_application',
+    entityId: application.id,
+    title: decision === 'approved' ? '加入申请已通过' : '加入申请未通过',
+    body: input.note || node.title,
+    priority: decision === 'rejected' ? 'high' : 'normal',
+    dedupeKey: `org-application:${application.id}:${decision}`,
+    groupKey: `org-node:${node.id}:applications`,
+    payload: { nodeId: node.id, projectId: node.projectId, scope: scopeOfNode(node) },
+  });
   publishOrgChange(realtimeBus, 'org_application_decided', scopeOfNode(node), node.id);
   return toOrgApplication(updated, applicant, node.title, node.projectId);
 }

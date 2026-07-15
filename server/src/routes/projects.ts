@@ -60,14 +60,11 @@ const projectsRoutes: FastifyPluginAsync = async (fastify) => {
   // Browsable directory of all non-archived projects (any logged-in user).
   // Registered ahead of the `/projects/:id`-style routes; Fastify matches this
   // static path before the parametric ones, and there is no `GET /projects/:id`.
-  fastify.get(
-    '/projects/directory',
-    async (request): Promise<ProjectDirectoryResponse> => {
-      const user = requireAuth(request);
-      const projects = await listProjectDirectory(db, user.id);
-      return { projects };
-    },
-  );
+  fastify.get('/projects/directory', async (request): Promise<ProjectDirectoryResponse> => {
+    const user = requireAuth(request);
+    const projects = await listProjectDirectory(db, user.id);
+    return { projects };
+  });
 
   // Create a project. Admin: unrestricted (trackId optional). 赛道运营经理
   // (2026-07-11 spec): allowed, but the project MUST be created inside one of
@@ -134,30 +131,27 @@ const projectsRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // List a project's members; any member (or admin) may view.
-  fastify.get(
-    '/projects/:id/members',
-    async (request): Promise<ProjectMembersResponse> => {
-      const { id } = parseParams(idParamSchema, request.params);
-      await requireProjectMember(db, request, id);
-      const members = await listProjectMembers(db, id);
-      return { members };
-    },
-  );
+  fastify.get('/projects/:id/members', async (request): Promise<ProjectMembersResponse> => {
+    const { id } = parseParams(idParamSchema, request.params);
+    await requireProjectMember(db, request, id);
+    const members = await listProjectMembers(db, id);
+    return { members };
+  });
 
   // Add a member; lead or global admin only.
   fastify.post('/projects/:id/members', async (request, reply) => {
     const { id } = parseParams(idParamSchema, request.params);
-    await requireProjectLead(db, request, id);
+    const membership = await requireProjectLead(db, request, id);
     const input = parseBody(addProjectMemberInputSchema, request.body);
-    const member = await addProjectMember(db, id, input);
+    const member = await addProjectMember(db, id, input, fastify.bus, membership.user.id);
     return reply.code(201).send({ member });
   });
 
   // Remove a member; lead or global admin only.
   fastify.delete('/projects/:id/members/:userId', async (request, reply) => {
     const { id, userId } = parseParams(projectMemberParamsSchema, request.params);
-    await requireProjectLead(db, request, id);
-    await removeProjectMember(db, id, userId);
+    const membership = await requireProjectLead(db, request, id);
+    await removeProjectMember(db, id, userId, fastify.bus, membership.user.id);
     return reply.code(204).send();
   });
 };
