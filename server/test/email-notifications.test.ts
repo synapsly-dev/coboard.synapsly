@@ -243,6 +243,35 @@ describe('任务派发邮件', () => {
     });
     expect(ctx.outbox).toHaveLength(0);
   });
+
+  it('主动领取任务视同被分派:领取者本人收到邮件,重复领取不重发', async () => {
+    const creator = await seedUser('member');
+    const worker = await seedUser('member');
+    const projectId = await seedProject(creator.id);
+    await addMember(projectId, creator.id, 'member');
+    await addMember(projectId, worker.id, 'member');
+    const taskId = await seedTask({ projectId, createdBy: creator.id, dueDate: '2026-08-01' });
+    await enableEmail();
+
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/claim`,
+      headers: { cookie: worker.cookie, ...CSRF },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(ctx.outbox).toHaveLength(1);
+    expect(ctx.outbox[0]?.to).toBe(worker.email);
+    expect(ctx.outbox[0]?.text).toContain('你已领取任务');
+    expect(ctx.outbox[0]?.text).toContain('2026-08-01');
+
+    // Idempotent re-claim: no new claimant row → no second mail.
+    await ctx.app.inject({
+      method: 'POST',
+      url: `/api/tasks/${taskId}/claim`,
+      headers: { cookie: worker.cookie, ...CSRF },
+    });
+    expect(ctx.outbox).toHaveLength(1);
+  });
 });
 
 describe('任务提交/驳回/待复核邮件', () => {

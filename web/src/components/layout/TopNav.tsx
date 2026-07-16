@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Link, NavLink, useMatch, useNavigate } from 'react-router-dom';
-import { Check, LogOut, Moon, Sun, UserCog } from 'lucide-react';
+import { LogOut, Moon, Sun, UserCog } from 'lucide-react';
 import {
   Avatar,
   DropdownMenu,
@@ -9,6 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  useConfirm,
 } from '../ui';
 import { ProjectSwitcher } from './ProjectSwitcher';
 import { buildNavItems } from './nav-items';
@@ -35,7 +35,7 @@ export function TopNav(): JSX.Element {
   const projectId = useMatch('/board/:projectId')?.params.projectId;
   const boardTarget = projectId ?? 'all';
   const userMenu = useHoverMenu();
-  const [confirmLogout, setConfirmLogout] = useState(false);
+  const confirm = useConfirm();
 
   const navItems = buildNavItems(boardTarget).filter((item) => !item.adminOnly || isAdmin);
   // 工作台 reminder count (P2 §4 + P3 §3): 待我审核 plus my overdue/due-soon tasks —
@@ -44,10 +44,18 @@ export function TopNav(): JSX.Element {
   const reviewCount = useWorkbenchBadgeCount();
 
   const handleLogout = async (): Promise<void> => {
-    await logout();
-    // Full reload to /login guarantees a clean app boot (fresh, unauthenticated
-    // state) regardless of any in-flight SPA state.
-    window.location.assign('/login');
+    const ok = await confirm({
+      title: '退出登录',
+      description: '确定要退出当前账号吗？',
+      confirmText: '退出',
+      cancelText: '取消',
+    });
+    if (!ok) return;
+    // Exactly ONE navigation: the single-logout URL when the server provides it
+    // (ends the Synapsly session too, then bounces back), else a clean /login
+    // reload. Two racing assigns here previously left the SSO session alive.
+    const endSessionUrl = await logout();
+    window.location.assign(endSessionUrl ?? '/login');
   };
 
   return (
@@ -106,14 +114,7 @@ export function TopNav(): JSX.Element {
         <div className="ml-auto flex items-center gap-2">
           {user && <NotificationBell />}
           {user && (
-            <DropdownMenu
-              open={userMenu.open}
-              onOpenChange={(open) => {
-                if (!open) setConfirmLogout(false);
-                userMenu.onOpenChange(open);
-              }}
-              modal={false}
-            >
+            <DropdownMenu open={userMenu.open} onOpenChange={userMenu.onOpenChange} modal={false}>
               <DropdownMenuTrigger asChild {...userMenu.triggerProps}>
                 <button
                   type="button"
@@ -156,23 +157,10 @@ export function TopNav(): JSX.Element {
                   )}
                   {resolved === 'dark' ? '浅色模式' : '深色模式'}
                 </DropdownMenuItem>
-                {confirmLogout ? (
-                  <DropdownMenuItem destructive onSelect={() => void handleLogout()}>
-                    <Check className="h-4 w-4" aria-hidden />
-                    确认退出
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    destructive
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      setConfirmLogout(true);
-                    }}
-                  >
-                    <LogOut className="h-4 w-4" aria-hidden />
-                    退出登录
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem destructive onSelect={() => void handleLogout()}>
+                  <LogOut className="h-4 w-4" aria-hidden />
+                  退出登录
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

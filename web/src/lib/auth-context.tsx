@@ -1,10 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAdminRole } from 'shared';
 import type {
@@ -44,7 +38,12 @@ interface AuthContextValue {
   updateAvatar: (image: string) => Promise<User>;
   /** Remove the current user's avatar. */
   removeAvatar: () => Promise<User>;
-  logout: () => Promise<void>;
+  /**
+   * Clear the local session and caches. Returns the RP-initiated single-logout
+   * URL when the server wants the Synapsly session ended too — the CALLER must
+   * navigate to it (exactly one navigation, no racing assigns).
+   */
+  logout: () => Promise<string | null>;
   /** Convenience: is the current user a global admin (§6.3). */
   isAdmin: boolean;
 }
@@ -83,10 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
 
   const completeJoin = useCallback(
     async (input: CompleteJoinInput): Promise<User> => {
-      const res = await api.post<AuthUserResponse>(
-        '/auth/synapsly/complete-join',
-        input,
-      );
+      const res = await api.post<AuthUserResponse>('/auth/synapsly/complete-join', input);
       queryClient.setQueryData(queryKeys.me(), res.user);
       return res.user;
     },
@@ -126,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     return res.user;
   }, [queryClient]);
 
-  const logout = useCallback(async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<string | null> => {
     let endSessionUrl: string | undefined;
     // Never throw: a failed logout request must not block clearing local state.
     try {
@@ -137,11 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     }
     queryClient.setQueryData(queryKeys.me(), null);
     queryClient.removeQueries();
-    // If the server asked for RP-initiated single logout, follow it so the
-    // Synapsly session ends too; it redirects back to the app root.
-    if (endSessionUrl) {
-      window.location.assign(endSessionUrl);
-    }
+    // Navigation is the caller's job: assigning here AND in the caller raced two
+    // window.location.assign calls, and the /login one won — the Synapsly session
+    // never ended, so the next "登录" silently signed the user back in.
+    return endSessionUrl ?? null;
   }, [queryClient]);
 
   const user = meQuery.data ?? null;

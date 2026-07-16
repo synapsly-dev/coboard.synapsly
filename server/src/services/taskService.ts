@@ -1008,7 +1008,7 @@ export async function claimTask(
 
   // Only record activity / fan out when the caller was newly added.
   if (inserted.length > 0) {
-    await recordActivity(
+    const activity = await recordActivity(
       db,
       {
         taskId,
@@ -1019,6 +1019,23 @@ export async function claimTask(
       },
       bus,
     );
+    // 主动领取视同"被分派任务"(用户要求):给领取者本人一条 task_assigned
+    // 通知(+邮件),作为责任确认与截止提醒的锚点。includeActor 让自领可达。
+    await createNotifications(db, bus, {
+      recipientUserIds: [actor.id],
+      actorUserId: actor.id,
+      includeActor: true,
+      type: 'task_assigned',
+      entityType: 'task',
+      entityId: task.id,
+      title: '你已领取任务',
+      body: updated.dueDate ? `${updated.title} · 截止 ${updated.dueDate}` : updated.title,
+      priority: updated.priority === 'urgent' ? 'urgent' : 'normal',
+      dedupeKey: `activity:${activity.id}:task_claimed`,
+      groupKey: `task:${task.id}`,
+      payload: { projectId: task.projectId },
+      emailEvent: 'taskAssigned',
+    });
     publishTaskChange(bus, 'claimed', updated);
   }
 
