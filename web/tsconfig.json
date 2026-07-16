@@ -13,7 +13,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "shared": ["../packages/shared/src/index.ts"]
+      "shared": ["../packages/shared/src/index.ts"],
+      "client-core": ["../packages/client-core/src/index.ts"],
+      "design-tokens": ["../packages/design-tokens/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts", "tailwind.config.ts", "playwright.config.ts"],

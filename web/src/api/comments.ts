@@ -6,15 +6,13 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import type {
-  ActivitiesResponse,
   ActivityWithActor,
-  CommentsResponse,
   CommentWithAuthor,
   CreateCommentInput,
   UpdateCommentInput,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Comment + activity hooks (§7). Comments and the activity timeline are scoped to
@@ -32,27 +30,6 @@ import { queryKeys } from '../lib/query';
  * for create/update — a single-element array holding the affected comment. We
  * unwrap it to the lone `CommentWithAuthor` for ergonomic call sites.
  */
-async function unwrapComment(promise: Promise<CommentsResponse>): Promise<CommentWithAuthor> {
-  const res = await promise;
-  const comment = res.comments[0];
-  if (!comment) {
-    throw new Error('服务器未返回评论数据');
-  }
-  return comment;
-}
-
-export const commentsApi = {
-  list: (taskId: string, signal?: AbortSignal): Promise<CommentsResponse> =>
-    api.get<CommentsResponse>(`/tasks/${taskId}/comments`, { signal }),
-  create: (taskId: string, body: CreateCommentInput): Promise<CommentWithAuthor> =>
-    unwrapComment(api.post<CommentsResponse>(`/tasks/${taskId}/comments`, body)),
-  update: (commentId: string, body: UpdateCommentInput): Promise<CommentWithAuthor> =>
-    unwrapComment(api.patch<CommentsResponse>(`/comments/${commentId}`, body)),
-  remove: (commentId: string): Promise<void> => api.delete<void>(`/comments/${commentId}`),
-  activities: (taskId: string, signal?: AbortSignal): Promise<ActivitiesResponse> =>
-    api.get<ActivitiesResponse>(`/tasks/${taskId}/activities`, { signal }),
-};
-
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -62,7 +39,7 @@ export function useComments(taskId: string | undefined): UseQueryResult<CommentW
   return useQuery<CommentWithAuthor[]>({
     queryKey: taskId ? queryKeys.comments(taskId) : ['tasks', '__none__', 'comments'],
     queryFn: async ({ signal }) => {
-      const res = await commentsApi.list(taskId!, signal);
+      const res = await coboardClient.comments.list(taskId!, signal);
       return res.comments;
     },
     enabled: taskId !== undefined,
@@ -74,7 +51,7 @@ export function useActivities(taskId: string | undefined): UseQueryResult<Activi
   return useQuery<ActivityWithActor[]>({
     queryKey: taskId ? queryKeys.activities(taskId) : ['tasks', '__none__', 'activities'],
     queryFn: async ({ signal }) => {
-      const res = await commentsApi.activities(taskId!, signal);
+      const res = await coboardClient.comments.activities(taskId!, signal);
       return res.activities;
     },
     enabled: taskId !== undefined,
@@ -95,7 +72,7 @@ export function useCreateComment(
 ): UseMutationResult<CommentWithAuthor, Error, CreateCommentInput> {
   const queryClient = useQueryClient();
   return useMutation<CommentWithAuthor, Error, CreateCommentInput>({
-    mutationFn: (body) => commentsApi.create(taskId, body),
+    mutationFn: (body) => coboardClient.comments.create(taskId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.comments(taskId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.activities(taskId) });
@@ -114,7 +91,7 @@ export function useUpdateComment(
 ): UseMutationResult<CommentWithAuthor, Error, UpdateCommentVars> {
   const queryClient = useQueryClient();
   return useMutation<CommentWithAuthor, Error, UpdateCommentVars>({
-    mutationFn: ({ commentId, body }) => commentsApi.update(commentId, body),
+    mutationFn: ({ commentId, body }) => coboardClient.comments.update(commentId, body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.comments(taskId) });
     },
@@ -127,7 +104,7 @@ export function useDeleteComment(
 ): UseMutationResult<void, Error, string, { previous: CommentWithAuthor[] | undefined }> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string, { previous: CommentWithAuthor[] | undefined }>({
-    mutationFn: (commentId) => commentsApi.remove(commentId),
+    mutationFn: (commentId) => coboardClient.comments.remove(commentId),
     onMutate: async (commentId) => {
       const key = queryKeys.comments(taskId);
       await queryClient.cancelQueries({ queryKey: key });

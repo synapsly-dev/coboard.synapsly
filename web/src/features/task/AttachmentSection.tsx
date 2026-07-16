@@ -12,8 +12,7 @@ import {
   useTaskFiles,
   useUploadTaskFile,
 } from '../../api/task-files';
-import type { TaskPermissionContext } from '../board/permissions';
-import { isManager } from '../board/permissions';
+import { isManager, type TaskPermissionContext } from 'shared';
 import { FilePreviewDialog } from '../attachments/FilePreviewDialog';
 
 /**
@@ -69,8 +68,7 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
     }
 
     uploadFile.mutate(file, {
-      onError: (err) =>
-        setError(isApiClientError(err) ? err.message : '上传失败，请稍后重试'),
+      onError: (err) => setError(isApiClientError(err) ? err.message : '上传失败，请稍后重试'),
     });
   }
 
@@ -98,13 +96,7 @@ export function AttachmentSection({ task, permCtx }: AttachmentSectionProps): JS
             上传文件
           </Button>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          aria-hidden
-          onChange={handlePick}
-        />
+        <input ref={inputRef} type="file" className="hidden" aria-hidden onChange={handlePick} />
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}
@@ -243,7 +235,12 @@ function FileRow({
           title="删除"
           loading={deleteFile.isPending}
           onClick={async () => {
-            if (await confirm({ title: '删除附件', description: `确定删除附件「${file.filename}」？` })) {
+            if (
+              await confirm({
+                title: '删除附件',
+                description: `确定删除附件「${file.filename}」？`,
+              })
+            ) {
               deleteFile.mutate(file.id);
             }
           }}

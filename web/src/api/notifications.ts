@@ -8,37 +8,14 @@ import {
 } from '@tanstack/react-query';
 import type {
   NotificationCounts,
-  NotificationCountsResponse,
   NotificationPreferencesResponse,
   NotificationsResponse,
   SetNotificationPreferenceInput,
 } from 'shared';
-import { queryKeys } from '../lib/query';
-import { api } from './client';
+import { queryKeys, type NotificationFilter } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
-export type NotificationFilter = 'all' | 'unread' | 'action';
-
-export const notificationsApi = {
-  list: (
-    filter: NotificationFilter,
-    limit: number,
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<NotificationsResponse> =>
-    api.get<NotificationsResponse>('/notifications', {
-      query: { filter, limit, ...(cursor ? { cursor } : {}) },
-      signal,
-    }),
-  counts: (signal?: AbortSignal): Promise<NotificationCountsResponse> =>
-    api.get<NotificationCountsResponse>('/notifications/counts', { signal }),
-  preferences: (signal?: AbortSignal): Promise<NotificationPreferencesResponse> =>
-    api.get<NotificationPreferencesResponse>('/notifications/preferences', { signal }),
-  setPreference: (input: SetNotificationPreferenceInput): Promise<void> =>
-    api.put<void>('/notifications/preferences', input),
-  read: (id: string): Promise<void> => api.post<void>(`/notifications/${id}/read`),
-  readAll: (): Promise<void> => api.post<void>('/notifications/read-all'),
-  archive: (id: string): Promise<void> => api.delete<void>(`/notifications/${id}`),
-};
+export type { NotificationFilter } from 'client-core';
 
 export function useNotifications(
   filter: NotificationFilter = 'all',
@@ -46,14 +23,15 @@ export function useNotifications(
 ): UseQueryResult<NotificationsResponse> {
   return useQuery({
     queryKey: queryKeys.notifications(filter),
-    queryFn: ({ signal }) => notificationsApi.list(filter, limit, undefined, signal),
+    queryFn: ({ signal }) => coboardClient.notifications.list(filter, limit, undefined, signal),
   });
 }
 
 export function useInfiniteNotifications(filter: NotificationFilter = 'all', limit = 30) {
   return useInfiniteQuery({
     queryKey: [...queryKeys.notifications(filter), 'infinite'],
-    queryFn: ({ pageParam, signal }) => notificationsApi.list(filter, limit, pageParam, signal),
+    queryFn: ({ pageParam, signal }) =>
+      coboardClient.notifications.list(filter, limit, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
@@ -62,14 +40,14 @@ export function useInfiniteNotifications(filter: NotificationFilter = 'all', lim
 export function useNotificationCounts(): UseQueryResult<NotificationCounts> {
   return useQuery({
     queryKey: queryKeys.notificationCounts(),
-    queryFn: async ({ signal }) => (await notificationsApi.counts(signal)).counts,
+    queryFn: async ({ signal }) => (await coboardClient.notifications.counts(signal)).counts,
   });
 }
 
 export function useNotificationPreferences(): UseQueryResult<NotificationPreferencesResponse> {
   return useQuery({
     queryKey: queryKeys.notificationPreferences(),
-    queryFn: ({ signal }) => notificationsApi.preferences(signal),
+    queryFn: ({ signal }) => coboardClient.notifications.preferences(signal),
   });
 }
 
@@ -86,15 +64,15 @@ function useNotificationMutation<TVariables>(
 }
 
 export function useMarkNotificationRead(): UseMutationResult<void, Error, string> {
-  return useNotificationMutation((id) => notificationsApi.read(id));
+  return useNotificationMutation((id) => coboardClient.notifications.read(id));
 }
 
 export function useMarkAllNotificationsRead(): UseMutationResult<void, Error, void> {
-  return useNotificationMutation(() => notificationsApi.readAll());
+  return useNotificationMutation(() => coboardClient.notifications.readAll());
 }
 
 export function useArchiveNotification(): UseMutationResult<void, Error, string> {
-  return useNotificationMutation((id) => notificationsApi.archive(id));
+  return useNotificationMutation((id) => coboardClient.notifications.archive(id));
 }
 
 export function useSetNotificationPreference(): UseMutationResult<
@@ -102,5 +80,5 @@ export function useSetNotificationPreference(): UseMutationResult<
   Error,
   SetNotificationPreferenceInput
 > {
-  return useNotificationMutation((input) => notificationsApi.setPreference(input));
+  return useNotificationMutation((input) => coboardClient.notifications.setPreference(input));
 }

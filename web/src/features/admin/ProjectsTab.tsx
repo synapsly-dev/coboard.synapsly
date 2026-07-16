@@ -28,7 +28,7 @@ import {
 import { isApiClientError } from '../../api/client';
 import { useProjects, useUpdateProject } from '../../api/projects';
 import { useTracks } from '../../api/tracks';
-import { queryKeys } from '../../lib/query';
+import { queryKeys } from 'client-core';
 import { ProjectFormDialog } from './ProjectFormDialog';
 import { ProjectMembersDialog } from './ProjectMembersDialog';
 
@@ -118,7 +118,9 @@ export function ProjectsTab(): JSX.Element {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold">项目</h2>
-          <p className="text-sm text-muted-foreground">共 {list.length} 个项目。管理项目设置与成员。</p>
+          <p className="text-sm text-muted-foreground">
+            共 {list.length} 个项目。管理项目设置与成员。
+          </p>
         </div>
         <ProjectFormDialog mode="create" onCreated={(p) => setManagingMembers(p)} />
       </div>
@@ -150,7 +152,11 @@ export function ProjectsTab(): JSX.Element {
                     <Badge variant="outline" className="shrink-0 font-mono">
                       {project.key}
                     </Badge>
-                    {project.archived && <Badge variant="warning" className="shrink-0">已归档</Badge>}
+                    {project.archived && (
+                      <Badge variant="warning" className="shrink-0">
+                        已归档
+                      </Badge>
+                    )}
                   </div>
                   {project.description ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">
@@ -232,11 +238,7 @@ export function ProjectsTab(): JSX.Element {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setManagingMembers(project)}
-                >
+                <Button variant="outline" size="sm" onClick={() => setManagingMembers(project)}>
                   <UsersIcon className="h-4 w-4" aria-hidden />
                   成员
                 </Button>

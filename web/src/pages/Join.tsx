@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { isApiClientError } from '../api/client';
 import { useAuth } from '../lib/auth-context';
@@ -15,6 +15,12 @@ import { SynapseMark } from '../components/brand/SynapseMark';
  */
 export default function JoinPage(): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedReturnTo = new URLSearchParams(location.search).get('returnTo');
+  const returnTo =
+    requestedReturnTo?.startsWith('/') && !requestedReturnTo.startsWith('//')
+      ? requestedReturnTo
+      : '/';
   const { completeJoin, loginWithSynapsly } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +32,11 @@ export default function JoinPage(): JSX.Element {
     setBusy(true);
     try {
       await completeJoin({ code: code.trim() });
-      navigate('/', { replace: true });
+      if (returnTo.startsWith('/api/')) {
+        window.location.replace(returnTo);
+      } else {
+        navigate(returnTo, { replace: true });
+      }
     } catch (err) {
       if (isApiClientError(err) && err.isUnauthorized) {
         setExpired(true);
@@ -47,9 +57,7 @@ export default function JoinPage(): JSX.Element {
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <SynapseMark className="h-7 w-7" />
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-              加入 Coboard
-            </h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">加入 Coboard</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               你的 Syna 账号尚未加入本团队，请输入管理员提供的邀请码
             </p>
@@ -70,7 +78,7 @@ export default function JoinPage(): JSX.Element {
                 type="button"
                 size="lg"
                 className="w-full"
-                onClick={() => loginWithSynapsly('/')}
+                onClick={() => loginWithSynapsly(returnTo)}
               >
                 重新登录
               </Button>

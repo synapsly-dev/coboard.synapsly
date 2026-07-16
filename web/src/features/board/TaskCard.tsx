@@ -26,7 +26,7 @@ import {
   canReview,
   canRevokeApproval,
   type TaskPermissionContext,
-} from './permissions';
+} from 'shared';
 
 /**
  * Board task card (lifecycle v2 §5). Presents title, stacked claimant avatars,
@@ -119,9 +119,7 @@ export function TaskCard({
           title={task.projectName ?? '无项目（任务池）'}
         >
           <FolderKanban className="h-3 w-3 shrink-0" aria-hidden />
-          <span className="max-w-[10rem] truncate">
-            {task.projectName ?? '无项目'}
-          </span>
+          <span className="max-w-[10rem] truncate">{task.projectName ?? '无项目'}</span>
         </Badge>
       )}
 
@@ -194,7 +192,10 @@ export function TaskCard({
           )}
           {due.label && (
             <span
-              className={cn('inline-flex items-center gap-1', verdict && DUE_TONE[verdict].className)}
+              className={cn(
+                'inline-flex items-center gap-1',
+                verdict && DUE_TONE[verdict].className,
+              )}
               title={verdict ? DUE_TONE[verdict].title : undefined}
             >
               <CalendarClock className="h-3.5 w-3.5" aria-hidden />
@@ -231,17 +232,17 @@ export function TaskCard({
 
           {showReview && <ReviewActions task={task} projectId={projectId} size="sm" />}
 
-          {pendingReview && !showReview && (
+          {pendingReview &&
+            !showReview &&
             // Two-stage chain (P2 §3): once first-approved the card reads 待复核
             // (violet, 初审人 in the tooltip); before that, 待审阅 as before.
-            task.firstApprovedAt != null ? (
+            (task.firstApprovedAt != null ? (
               <FirstApprovedChip task={task} />
             ) : (
               <Badge variant="warning" aria-label="待审阅">
                 待审阅
               </Badge>
-            )
-          )}
+            ))}
         </div>
       )}
 

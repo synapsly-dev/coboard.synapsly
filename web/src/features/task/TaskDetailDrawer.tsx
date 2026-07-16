@@ -86,7 +86,7 @@ import {
   isClaimant,
   isManager,
   resolveProjectRole,
-} from '../board/permissions';
+} from 'shared';
 import { LabelChip } from '../board/LabelChip';
 import { LabelPicker } from '../board/LabelPicker';
 import { renderMarkdown } from './markdown';
@@ -139,7 +139,12 @@ export function TaskDetailDrawer({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {taskId ? (
-          <DrawerInner taskId={taskId} projectId={projectId} initialTab={initialTab} onClose={() => onOpenChange(false)} />
+          <DrawerInner
+            taskId={taskId}
+            projectId={projectId}
+            initialTab={initialTab}
+            onClose={() => onOpenChange(false)}
+          />
         ) : (
           <div className="flex h-full items-center justify-center">
             <Spinner />
@@ -174,7 +179,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
 
   const patchTask = usePatchTask(projectId);
   const assignTask = useAssignTask(projectId);
-  const releaseTask = useReleaseTask(projectId, user?.id);
+  const releaseTask = useReleaseTask(projectId);
   const deleteTask = useDeleteTask(projectId);
   const confirm = useConfirm();
 
@@ -277,13 +282,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               <Pencil className="h-4 w-4" aria-hidden />
             </Button>
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="关闭"
-            onClick={onClose}
-          >
+          <Button type="button" variant="ghost" size="icon" aria-label="关闭" onClick={onClose}>
             <X className="h-4 w-4" aria-hidden />
           </Button>
         </div>
@@ -295,10 +294,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             task={task}
             onCancel={() => setEditing(false)}
             onSave={(patch) =>
-              patchTask.mutate(
-                { taskId: task.id, patch },
-                { onSuccess: () => setEditing(false) },
-              )
+              patchTask.mutate({ taskId: task.id, patch }, { onSuccess: () => setEditing(false) })
             }
             saving={patchTask.isPending}
           />
@@ -387,10 +383,20 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
               </Button>
             )}
             {showReview && (
-              <ReviewActions task={task} projectId={projectId} size="md" className="w-full sm:w-auto" />
+              <ReviewActions
+                task={task}
+                projectId={projectId}
+                size="md"
+                className="w-full sm:w-auto"
+              />
             )}
             {showRevoke && (
-              <RevokeApprovalButton task={task} projectId={projectId} size="md" className="w-full sm:w-auto" />
+              <RevokeApprovalButton
+                task={task}
+                projectId={projectId}
+                size="md"
+                className="w-full sm:w-auto"
+              />
             )}
             {/* 沉淀为资产 (P3 §1): distill a DONE task into the 资产库 — pre-fills
                 title / 溯源 taskId / the project's 赛道. Any member may create. */}
@@ -422,7 +428,10 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                 size="xs"
               />
               <span className="min-w-0 truncate text-foreground">{task.creator.displayName}</span>
-              <span className="ml-auto shrink-0 text-muted-foreground" title={`发布于 ${task.createdAt}`}>
+              <span
+                className="ml-auto shrink-0 text-muted-foreground"
+                title={`发布于 ${task.createdAt}`}
+              >
                 {relativeTime(task.createdAt)}
               </span>
             </div>
@@ -461,7 +470,9 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                         imageUrl={c.hasAvatar ? avatarUrl(c.userId) : undefined}
                         size="xs"
                       />
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{c.displayName}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                        {c.displayName}
+                      </span>
                       {c.points != null && (
                         <Badge variant="primary" className="ml-1 shrink-0">
                           {c.points} 点
@@ -611,9 +622,7 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
                           ? `未达领取人数下限（${task.claimants.length}/${task.minClaimants}）`
                           : undefined
                       }
-                      onClick={() =>
-                        patchTask.mutate({ taskId: task.id, patch: { status } })
-                      }
+                      onClick={() => patchTask.mutate({ taskId: task.id, patch: { status } })}
                     >
                       {task.status === status && <Check className="h-3.5 w-3.5" aria-hidden />}
                       {STATUS_LABELS[status]}
@@ -737,7 +746,12 @@ function DrawerInner({ taskId, projectId, initialTab, onClose }: DrawerInnerProp
             className="text-muted-foreground hover:text-destructive"
             loading={deleteTask.isPending}
             onClick={async () => {
-              if (await confirm({ title: '删除任务', description: '确定删除这个任务？此操作不可撤销。' })) {
+              if (
+                await confirm({
+                  title: '删除任务',
+                  description: '确定删除这个任务？此操作不可撤销。',
+                })
+              ) {
                 deleteTask.mutate(task.id, { onSuccess: onClose });
               }
             }}
@@ -813,10 +827,7 @@ function TabButton({
 }
 
 /** Verdict → text color + suffix note; mirrors the board card's DDL chip. */
-const DUE_LABEL_TONE: Record<
-  NonNullable<DueVerdict>,
-  { className: string; note?: string }
-> = {
+const DUE_LABEL_TONE: Record<NonNullable<DueVerdict>, { className: string; note?: string }> = {
   on_time: { className: 'font-medium text-success', note: '（按期完成）' },
   late: { className: 'font-medium text-destructive', note: '（逾期完成）' },
   overdue: { className: 'font-medium text-destructive', note: '（已逾期）' },
@@ -829,7 +840,9 @@ function DueLabel({ task }: { task: Task }): JSX.Element {
   const verdict = dueVerdict(task);
   const tone = verdict ? DUE_LABEL_TONE[verdict] : null;
   return (
-    <span className={`inline-flex items-center gap-1 text-sm ${tone?.className ?? 'text-foreground'}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-sm ${tone?.className ?? 'text-foreground'}`}
+    >
       <CalendarClock className="h-3.5 w-3.5" aria-hidden />
       {task.dueDate}
       {tone?.note && <span className="text-xs">{tone.note}</span>}
@@ -1156,12 +1169,7 @@ function TransferDialog({
           <Button type="button" variant="outline" onClick={close}>
             取消
           </Button>
-          <Button
-            type="button"
-            loading={transfer.isPending}
-            disabled={!toUserId}
-            onClick={submit}
-          >
+          <Button type="button" loading={transfer.isPending} disabled={!toUserId} onClick={submit}>
             <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden />
             确认转让
           </Button>

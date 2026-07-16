@@ -22,7 +22,7 @@ import { DEFAULT_FILTERS, resolveStatsQuery } from '../features/stats';
 import { isDueUrgent, selectMyActiveTasks } from '../features/workbench/my-tasks';
 import { dueInfo, relativeTime } from '../features/board/format';
 import { TaskTypeBadge } from '../features/board/TaskTypeBadge';
-import { isClaimFull } from '../features/board/permissions';
+import { isClaimFull } from 'shared';
 import { FINAL_REVIEW_CHIP_CLASS, STATUS_LABELS } from '../features/board/labels';
 import { NotificationRows, notificationHref } from '../features/notifications/NotificationCenter';
 

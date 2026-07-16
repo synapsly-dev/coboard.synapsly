@@ -6,6 +6,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import staticPlugin from '@fastify/static';
 import autoload from '@fastify/autoload';
+import { MAX_UPLOAD_BYTES } from 'shared';
 import { registerRoutes as registerRoutesExplicit } from './route-registry.js';
 import type { Database } from './db/index.js';
 import { loadAuthRuntime, type AuthRuntime } from './auth/config.js';
@@ -102,7 +103,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // JSON bodyLimit stays at 1MB — only multipart bodies may exceed it.
   await app.register(multipart, {
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5 MB per file
+      fileSize: MAX_UPLOAD_BYTES,
       files: 1, // single file per upload
       fields: 8,
     },
@@ -120,13 +121,21 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     timeWindow: '1 minute',
   });
 
-  // --- Auth pre-handler: resolve session cookie into request.user ----------
+  // --- Auth pre-handler: resolve Web cookie or native-client Bearer token ---
   app.addHook('preHandler', async (request) => {
-    const raw = request.cookies[SESSION_COOKIE];
-    if (!raw) return;
-    const unsigned = request.unsignCookie(raw);
-    if (!unsigned.valid || unsigned.value === null) return;
-    const token = unsigned.value;
+    let token: string | null = null;
+    const authorization = request.headers.authorization;
+    if (authorization) {
+      const match = /^Bearer ([A-Za-z0-9_-]{20,})$/.exec(authorization);
+      if (match) token = match[1] ?? null;
+    }
+    if (!token) {
+      const raw = request.cookies[SESSION_COOKIE];
+      if (!raw) return;
+      const unsigned = request.unsignCookie(raw);
+      if (!unsigned.valid || unsigned.value === null) return;
+      token = unsigned.value;
+    }
     const found = await lookupSession(app.db, token);
     if (found) {
       request.user = found.user;

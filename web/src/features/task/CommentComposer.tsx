@@ -14,7 +14,7 @@ import {
   Textarea,
 } from '../../components/ui';
 import { useCreateComment } from '../../api/comments';
-import { queryKeys } from '../../lib/query';
+import { queryKeys } from 'client-core';
 import { AttachmentPicker } from '../attachments/AttachmentPicker';
 import { useAttachmentSubmit } from '../attachments/useAttachmentSubmit';
 import { extractMentions } from './mentions';
@@ -111,10 +111,7 @@ export function CommentComposer({ taskId, members }: CommentComposerProps): JSX.
               <DropdownMenuLabel>提及成员</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {members.map((m) => (
-                <DropdownMenuItem
-                  key={m.userId}
-                  onSelect={() => insertMention(m.user.displayName)}
-                >
+                <DropdownMenuItem key={m.userId} onSelect={() => insertMention(m.user.displayName)}>
                   {m.user.displayName}
                 </DropdownMenuItem>
               ))}

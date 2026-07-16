@@ -14,9 +14,9 @@ import {
   Spinner,
 } from '../components/ui';
 import { cn } from '../lib/utils';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
 import { useAuth } from '../lib/auth-context';
-import { usersApi } from '../api/users';
+import { coboardClient } from '../platform/coboard-client';
 import { useDeleteOrgNode, useMoveOrgNode, useOrgApplications, useOrgTree } from '../api/org';
 import { useTrackMemberCandidates } from '../api/tracks';
 import { buildTree, descendantCount, type OrgTreeNode } from '../features/org/tree';
@@ -78,7 +78,7 @@ export default function OrgPage(): JSX.Element {
   // track-scoped candidate directory exposed specifically for roster editing.
   const allUsersQuery = useQuery({
     queryKey: queryKeys.users(),
-    queryFn: async ({ signal }) => (await usersApi.list(signal)).users,
+    queryFn: async ({ signal }) => (await coboardClient.users.list(signal)).users,
     enabled: editable,
   });
   const candidates: OrgCandidate[] = useMemo(() => {

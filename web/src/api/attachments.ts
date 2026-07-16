@@ -1,5 +1,7 @@
-import type { Attachment, AttachmentsResponse } from 'shared';
-import { ApiClientError, api, isApiClientError } from './client';
+import { MAX_UPLOAD_BYTES, type Attachment } from 'shared';
+import { type AttachmentOwner } from 'client-core';
+import { isApiClientError } from './client';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Idea / comment attachment helpers. Mirrors the task-file conventions (§7.2):
@@ -11,14 +13,14 @@ import { ApiClientError, api, isApiClientError } from './client';
  */
 
 /** Which entity a file hangs off — maps 1:1 onto the API path prefix. */
-export type AttachmentOwner = 'ideas' | 'comments';
+export type { AttachmentOwner } from 'client-core';
 
 /** Single-file upload cap mirrored on the client for a friendly pre-flight guard. */
-export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = MAX_UPLOAD_BYTES;
 
 /** URL of an attachment's download stream. */
 export function attachmentUrl(owner: AttachmentOwner, ownerId: string, fileId: string): string {
-  return `/api/${owner}/${ownerId}/files/${fileId}`;
+  return coboardClient.files.attachment.url(owner, ownerId, fileId);
 }
 
 /** URL that asks the server to serve the file INLINE (whitelisted mimes only). */
@@ -27,7 +29,7 @@ export function attachmentPreviewUrl(
   ownerId: string,
   fileId: string,
 ): string {
-  return `${attachmentUrl(owner, ownerId, fileId)}?inline=1`;
+  return coboardClient.files.attachment.url(owner, ownerId, fileId, true);
 }
 
 /** Delete one attachment (uploader / lead — enforced server-side). */
@@ -36,7 +38,7 @@ export function deleteAttachment(
   ownerId: string,
   fileId: string,
 ): Promise<void> {
-  return api.delete<void>(`/${owner}/${ownerId}/files/${fileId}`);
+  return coboardClient.files.attachment.remove(owner, ownerId, fileId);
 }
 
 /**
@@ -48,48 +50,7 @@ export async function uploadAttachment(
   ownerId: string,
   file: File,
 ): Promise<Attachment> {
-  const form = new FormData();
-  form.append('file', file, file.name);
-
-  let response: Response;
-  try {
-    response = await fetch(`/api/${owner}/${ownerId}/files`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        // CSRF guard (§8); the browser sets the multipart Content-Type itself.
-        'X-Requested-With': 'XMLHttpRequest',
-        Accept: 'application/json',
-      },
-      body: form,
-    });
-  } catch {
-    throw new ApiClientError(0, 'network_error', '网络连接失败，请检查网络后重试');
-  }
-
-  const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const err =
-      payload && typeof payload === 'object' && 'error' in payload
-        ? (payload as { error: { code: string; message: string } }).error
-        : null;
-    throw new ApiClientError(
-      response.status,
-      err?.code ?? 'unexpected_error',
-      err?.message ?? '上传失败，请稍后重试',
-    );
-  }
-
-  // Guard the happy-path shape too: a 2xx with a mangled/empty body must fail
-  // controlled (the server may still have stored the file — the refetch shows it).
-  const created =
-    payload && typeof payload === 'object' && Array.isArray((payload as AttachmentsResponse).files)
-      ? (payload as AttachmentsResponse).files[0]
-      : undefined;
-  if (!created) {
-    throw new Error('服务器未返回文件数据');
-  }
-  return created;
+  return coboardClient.files.attachment.upload(owner, ownerId, file);
 }
 
 export interface UploadAttachmentsResult {

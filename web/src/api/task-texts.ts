@@ -5,9 +5,9 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type { CreateTaskTextInput, TaskText, TaskTextsResponse } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import type { CreateTaskTextInput, TaskText } from 'shared';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Task text-deliverable hooks (交付内容 §7.2). Text deliverables are listed in the
@@ -16,20 +16,11 @@ import { queryKeys } from '../lib/query';
  * the list, and SSE refreshes peers via the `task` channel (§6.5).
  */
 
-export const taskTextsApi = {
-  list: (taskId: string, signal?: AbortSignal): Promise<TaskTextsResponse> =>
-    api.get<TaskTextsResponse>(`/tasks/${taskId}/texts`, { signal }),
-  create: (taskId: string, input: CreateTaskTextInput): Promise<TaskTextsResponse> =>
-    api.post<TaskTextsResponse>(`/tasks/${taskId}/texts`, input),
-  remove: (taskId: string, textId: string): Promise<void> =>
-    api.delete<void>(`/tasks/${taskId}/texts/${textId}`),
-};
-
 /** A task's text deliverables (oldest first). */
 export function useTaskTexts(taskId: string | undefined): UseQueryResult<TaskText[]> {
   return useQuery<TaskText[]>({
     queryKey: taskId ? queryKeys.taskTexts(taskId) : ['tasks', '__none__', 'texts'],
-    queryFn: async ({ signal }) => (await taskTextsApi.list(taskId!, signal)).texts,
+    queryFn: async ({ signal }) => (await coboardClient.taskTexts.list(taskId!, signal)).texts,
     enabled: taskId !== undefined,
   });
 }
@@ -41,7 +32,7 @@ export function useCreateTaskText(
   const queryClient = useQueryClient();
   return useMutation<TaskText, Error, CreateTaskTextInput>({
     mutationFn: async (input) => {
-      const res = await taskTextsApi.create(taskId, input);
+      const res = await coboardClient.taskTexts.create(taskId, input);
       const created = res.texts[0];
       if (!created) throw new Error('服务器未返回交付内容');
       return created;
@@ -56,7 +47,7 @@ export function useCreateTaskText(
 export function useDeleteTaskText(taskId: string): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
-    mutationFn: (textId) => taskTextsApi.remove(taskId, textId),
+    mutationFn: (textId) => coboardClient.taskTexts.remove(taskId, textId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.taskTexts(taskId) });
     },

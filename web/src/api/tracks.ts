@@ -10,15 +10,12 @@ import type {
   CreateTrackInput,
   SetTrackMembersInput,
   Track,
-  TrackMemberCandidatesResponse,
-  TrackResponse,
-  TracksResponse,
   UpdateTrackInput,
   UserSummary,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
 import { useAuth } from '../lib/auth-context';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Track (赛道, P0 §2) data + mutation hooks. A 赛道 is the top operational grouping
@@ -34,28 +31,12 @@ import { useAuth } from '../lib/auth-context';
  */
 
 /** Low-level fetchers — shared by hooks and mutation onSuccess refetches. */
-export const tracksApi = {
-  list: (signal?: AbortSignal): Promise<TracksResponse> =>
-    api.get<TracksResponse>('/tracks', { signal }),
-  create: (input: CreateTrackInput): Promise<TrackResponse> =>
-    api.post<TrackResponse>('/tracks', input),
-  update: (id: string, input: UpdateTrackInput): Promise<TrackResponse> =>
-    api.patch<TrackResponse>(`/tracks/${id}`, input),
-  remove: (id: string): Promise<void> => api.delete<void>(`/tracks/${id}`),
-  memberCandidates: (id: string, signal?: AbortSignal): Promise<TrackMemberCandidatesResponse> =>
-    api.get<TrackMemberCandidatesResponse>(`/tracks/${id}/member-candidates`, { signal }),
-  setMembers: (id: string, input: SetTrackMembersInput): Promise<TrackResponse> =>
-    api.put<TrackResponse>(`/tracks/${id}/members`, input),
-  join: (id: string): Promise<TrackResponse> => api.post<TrackResponse>(`/tracks/${id}/join`),
-  leave: (id: string): Promise<TrackResponse> => api.post<TrackResponse>(`/tracks/${id}/leave`),
-};
-
 /** All tracks visible to the current user (§7 GET /tracks). */
 export function useTracks(): UseQueryResult<Track[]> {
   return useQuery<Track[]>({
     queryKey: queryKeys.tracks(),
     queryFn: async ({ signal }) => {
-      const res = await tracksApi.list(signal);
+      const res = await coboardClient.tracks.list(signal);
       return res.tracks;
     },
   });
@@ -70,7 +51,7 @@ export function useTrackMemberCandidates(
     queryKey: queryKeys.trackMemberCandidates(trackId ?? 'none'),
     queryFn: async ({ signal }) => {
       if (trackId === null) return [];
-      return (await tracksApi.memberCandidates(trackId, signal)).users;
+      return (await coboardClient.tracks.memberCandidates(trackId, signal)).users;
     },
     enabled: enabled && trackId !== null,
   });
@@ -113,7 +94,7 @@ export function useCreateTrack(): UseMutationResult<Track, Error, CreateTrackInp
   const queryClient = useQueryClient();
   return useMutation<Track, Error, CreateTrackInput>({
     mutationFn: async (input) => {
-      const res = await tracksApi.create(input);
+      const res = await coboardClient.tracks.create(input);
       return res.track;
     },
     onSuccess: () => {
@@ -133,7 +114,7 @@ export function useUpdateTrack(): UseMutationResult<Track, Error, UpdateTrackVar
   const queryClient = useQueryClient();
   return useMutation<Track, Error, UpdateTrackVariables>({
     mutationFn: async ({ id, input }) => {
-      const res = await tracksApi.update(id, input);
+      const res = await coboardClient.tracks.update(id, input);
       return res.track;
     },
     onSuccess: () => {
@@ -147,7 +128,7 @@ export function useUpdateTrack(): UseMutationResult<Track, Error, UpdateTrackVar
 export function useDeleteTrack(): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
-    mutationFn: (id) => tracksApi.remove(id),
+    mutationFn: (id) => coboardClient.tracks.remove(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
@@ -167,7 +148,7 @@ export function useSetTrackMembers(): UseMutationResult<Track, Error, SetTrackMe
   const queryClient = useQueryClient();
   return useMutation<Track, Error, SetTrackMembersVariables>({
     mutationFn: async ({ id, input }) => {
-      const res = await tracksApi.setMembers(id, input);
+      const res = await coboardClient.tracks.setMembers(id, input);
       return res.track;
     },
     onSuccess: () => {
@@ -181,7 +162,7 @@ export function useSetTrackMembers(): UseMutationResult<Track, Error, SetTrackMe
 export function useJoinTrack(): UseMutationResult<Track, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<Track, Error, string>({
-    mutationFn: async (id) => (await tracksApi.join(id)).track,
+    mutationFn: async (id) => (await coboardClient.tracks.join(id)).track,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });
@@ -193,7 +174,7 @@ export function useJoinTrack(): UseMutationResult<Track, Error, string> {
 export function useLeaveTrack(): UseMutationResult<Track, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<Track, Error, string>({
-    mutationFn: async (id) => (await tracksApi.leave(id)).track,
+    mutationFn: async (id) => (await coboardClient.tracks.leave(id)).track,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tracks() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.orgTree('all') });

@@ -10,15 +10,11 @@ import type {
   CreateIdeaInput,
   CreateStandaloneIdeaInput,
   Idea,
-  IdeaResponse,
-  IdeasResponse,
   IdeaStatus,
-  IdeasWithContextResponse,
   IdeaWithContext,
-  RejectIdeaInput,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Idea / inspiration hooks (§7.1). Two listing surfaces:
@@ -38,37 +34,6 @@ import { queryKeys } from '../lib/query';
  * Unwrap the single-element `{ ideas: [...] }` create response to the lone Idea
  * (mirrors the comments hook's unwrap convention).
  */
-async function unwrapIdea(promise: Promise<IdeasResponse>): Promise<Idea> {
-  const res = await promise;
-  const idea = res.ideas[0];
-  if (!idea) {
-    throw new Error('服务器未返回想法数据');
-  }
-  return idea;
-}
-
-export const ideasApi = {
-  forTask: (taskId: string, signal?: AbortSignal): Promise<IdeasResponse> =>
-    api.get<IdeasResponse>(`/tasks/${taskId}/ideas`, { signal }),
-  create: (taskId: string, body: CreateIdeaInput): Promise<Idea> =>
-    unwrapIdea(api.post<IdeasResponse>(`/tasks/${taskId}/ideas`, body)),
-  createStandalone: (body: CreateStandaloneIdeaInput): Promise<Idea> =>
-    api.post<IdeaResponse>('/ideas', body).then((r) => r.idea),
-  all: (
-    params: { status?: IdeaStatus },
-    signal?: AbortSignal,
-  ): Promise<IdeasWithContextResponse> =>
-    api.get<IdeasWithContextResponse>('/ideas', {
-      query: { status: params.status },
-      signal,
-    }),
-  adopt: (ideaId: string, body: AdoptIdeaInput): Promise<Idea> =>
-    api.post<IdeaResponse>(`/ideas/${ideaId}/adopt`, body).then((r) => r.idea),
-  reject: (ideaId: string, body?: RejectIdeaInput): Promise<Idea> =>
-    api.post<IdeaResponse>(`/ideas/${ideaId}/reject`, body).then((r) => r.idea),
-  remove: (ideaId: string): Promise<void> => api.delete<void>(`/ideas/${ideaId}`),
-};
-
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -78,7 +43,7 @@ export function useTaskIdeas(taskId: string | undefined): UseQueryResult<Idea[]>
   return useQuery<Idea[]>({
     queryKey: taskId ? queryKeys.taskIdeas(taskId) : ['tasks', '__none__', 'ideas'],
     queryFn: async ({ signal }) => {
-      const res = await ideasApi.forTask(taskId!, signal);
+      const res = await coboardClient.ideas.forTask(taskId!, signal);
       return res.ideas;
     },
     enabled: taskId !== undefined,
@@ -94,7 +59,7 @@ export function useAllIdeas(params: AllIdeasParams): UseQueryResult<IdeaWithCont
   return useQuery<IdeaWithContext[]>({
     queryKey: queryKeys.ideas({ status: params.status }),
     queryFn: async ({ signal }) => {
-      const res = await ideasApi.all(params, signal);
+      const res = await coboardClient.ideas.all(params, signal);
       return res.ideas;
     },
   });
@@ -105,10 +70,7 @@ export function useAllIdeas(params: AllIdeasParams): UseQueryResult<IdeaWithCont
 // ---------------------------------------------------------------------------
 
 /** Invalidate every idea listing + the stats queries after an idea mutation. */
-function invalidateIdeas(
-  queryClient: ReturnType<typeof useQueryClient>,
-  taskId?: string,
-): void {
+function invalidateIdeas(queryClient: ReturnType<typeof useQueryClient>, taskId?: string): void {
   if (taskId) {
     void queryClient.invalidateQueries({ queryKey: queryKeys.taskIdeas(taskId) });
   }
@@ -122,7 +84,7 @@ function invalidateIdeas(
 export function useCreateIdea(taskId: string): UseMutationResult<Idea, Error, CreateIdeaInput> {
   const queryClient = useQueryClient();
   return useMutation<Idea, Error, CreateIdeaInput>({
-    mutationFn: (body) => ideasApi.create(taskId, body),
+    mutationFn: (body) => coboardClient.ideas.create(taskId, body),
     onSuccess: () => invalidateIdeas(queryClient, taskId),
   });
 }
@@ -138,7 +100,7 @@ export function useCreateStandaloneIdea(): UseMutationResult<
 > {
   const queryClient = useQueryClient();
   return useMutation<Idea, Error, CreateStandaloneIdeaInput>({
-    mutationFn: (body) => ideasApi.createStandalone(body),
+    mutationFn: (body) => coboardClient.ideas.createStandalone(body),
     onSuccess: () => invalidateIdeas(queryClient),
   });
 }
@@ -154,7 +116,7 @@ export interface AdoptIdeaVars {
 export function useAdoptIdea(): UseMutationResult<Idea, Error, AdoptIdeaVars> {
   const queryClient = useQueryClient();
   return useMutation<Idea, Error, AdoptIdeaVars>({
-    mutationFn: ({ ideaId, input }) => ideasApi.adopt(ideaId, input),
+    mutationFn: ({ ideaId, input }) => coboardClient.ideas.adopt(ideaId, input),
     onSuccess: (_idea, { taskId }) => invalidateIdeas(queryClient, taskId),
   });
 }
@@ -172,7 +134,10 @@ export function useRejectIdea(): UseMutationResult<Idea, Error, RejectIdeaVars> 
   const queryClient = useQueryClient();
   return useMutation<Idea, Error, RejectIdeaVars>({
     mutationFn: ({ ideaId, reason }) =>
-      ideasApi.reject(ideaId, reason && reason.trim() ? { reason: reason.trim() } : undefined),
+      coboardClient.ideas.reject(
+        ideaId,
+        reason && reason.trim() ? { reason: reason.trim() } : undefined,
+      ),
     onSuccess: (_idea, { taskId }) => invalidateIdeas(queryClient, taskId),
   });
 }
@@ -191,7 +156,7 @@ export interface DeleteIdeaVars {
 export function useDeleteIdea(): UseMutationResult<void, Error, DeleteIdeaVars> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, DeleteIdeaVars>({
-    mutationFn: ({ ideaId }) => ideasApi.remove(ideaId),
+    mutationFn: ({ ideaId }) => coboardClient.ideas.remove(ideaId),
     onSuccess: (_void, { taskId }) => invalidateIdeas(queryClient, taskId),
   });
 }

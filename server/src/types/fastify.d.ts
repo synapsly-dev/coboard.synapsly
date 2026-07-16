@@ -24,7 +24,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Resolved, active user for the request, or null if unauthenticated. */
     user: UserRow | null;
-    /** Raw session token from the signed cookie, or null. */
+    /** Raw session token from a signed Web cookie or native-client Bearer header. */
     sessionToken: string | null;
   }
 }

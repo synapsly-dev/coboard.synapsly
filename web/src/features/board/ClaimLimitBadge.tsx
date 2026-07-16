@@ -2,7 +2,7 @@ import { Users } from 'lucide-react';
 import type { Task } from 'shared';
 import { Badge } from '../../components/ui';
 import { cn } from '../../lib/utils';
-import { isBelowMinClaimants, isClaimFull } from './permissions';
+import { isBelowMinClaimants, isClaimFull } from 'shared';
 
 /**
  * Claim-count status pill (claim-limits feature). While a task is in the active
@@ -27,7 +27,11 @@ export function ClaimLimitBadge({
 
   if (belowMin) {
     return (
-      <Badge variant="warning" className={cn('gap-1', className)} title="认领人数未达下限，任务保持在待认领">
+      <Badge
+        variant="warning"
+        className={cn('gap-1', className)}
+        title="认领人数未达下限，任务保持在待认领"
+      >
         <Users className="h-3 w-3 shrink-0" aria-hidden />
         未达下限 {count}/{task.minClaimants}
       </Badge>

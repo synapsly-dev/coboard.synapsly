@@ -1,0 +1,84 @@
+/* Generated from packages/design-tokens/src/tokens.ts. Do not edit. */
+$radius-lg: 10px;
+$radius-md: 8px;
+$radius-sm: 6px;
+$radius-pill: 9999px;
+$space-xs: 4px;
+$space-sm: 8px;
+$space-md: 12px;
+$space-lg: 16px;
+$space-xl: 24px;
+$space-2xl: 32px;
+$duration-instant: 100ms;
+$duration-fast: 120ms;
+$duration-base: 150ms;
+$duration-medium: 200ms;
+$duration-emphasized: 220ms;
+$duration-slow: 240ms;
+$duration-spinner: 700ms;
+$ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+$ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1);
+$font-sans: Inter, system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+
+@mixin coboard-theme-light {
+  --background: hsl(60, 11%, 98%);
+  --foreground: hsl(240, 4%, 5%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(240, 4%, 5%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(240, 4%, 5%);
+  --primary: hsl(240, 4%, 5%);
+  --primary-foreground: hsl(60, 11%, 98%);
+  --secondary: hsl(60, 8%, 95%);
+  --secondary-foreground: hsl(240, 5%, 16%);
+  --muted: hsl(60, 8%, 95%);
+  --muted-foreground: hsl(240, 2%, 38%);
+  --accent: hsl(60, 5%, 93%);
+  --accent-foreground: hsl(240, 4%, 5%);
+  --destructive: hsl(6, 63%, 46%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --success: hsl(149, 66%, 30%);
+  --success-foreground: hsl(0, 0%, 100%);
+  --warning: hsl(35, 92%, 33%);
+  --warning-foreground: hsl(0, 0%, 100%);
+  --border: hsl(60, 6%, 90%);
+  --input: hsl(60, 4%, 82%);
+  --ring: hsl(240, 4%, 5%);
+}
+
+@mixin coboard-theme-dark {
+  --background: hsl(240, 4%, 5%);
+  --foreground: hsl(60, 5%, 96%);
+  --card: hsl(240, 5%, 8%);
+  --card-foreground: hsl(60, 5%, 96%);
+  --popover: hsl(240, 5%, 12%);
+  --popover-foreground: hsl(60, 5%, 96%);
+  --primary: hsl(60, 5%, 96%);
+  --primary-foreground: hsl(240, 4%, 5%);
+  --secondary: hsl(240, 5%, 12%);
+  --secondary-foreground: hsl(60, 5%, 96%);
+  --muted: hsl(240, 5%, 12%);
+  --muted-foreground: hsl(240, 3%, 64%);
+  --accent: hsl(240, 5%, 15%);
+  --accent-foreground: hsl(60, 5%, 96%);
+  --destructive: hsl(0, 72%, 51%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --success: hsl(142, 69%, 58%);
+  --success-foreground: hsl(240, 4%, 5%);
+  --warning: hsl(35, 92%, 33%);
+  --warning-foreground: hsl(0, 0%, 100%);
+  --border: hsl(240, 5%, 17%);
+  --input: hsl(240, 5%, 24%);
+  --ring: hsl(60, 5%, 96%);
+}
+
+page {
+  @include coboard-theme-light;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: $font-sans;
+}
+
+.theme-dark {
+  @include coboard-theme-dark;
+}

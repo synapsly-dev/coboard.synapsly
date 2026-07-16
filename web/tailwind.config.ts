@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import { fontTokens } from '../packages/design-tokens/src/tokens';
 
 /**
  * Tailwind config (§3). A clean, neutral, slate-based design token palette driven
@@ -57,19 +58,11 @@ const config: Config = {
       },
       borderRadius: {
         lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        md: 'var(--radius-md)',
+        sm: 'var(--radius-sm)',
       },
       fontFamily: {
-        sans: [
-          'Inter',
-          'system-ui',
-          '-apple-system',
-          'PingFang SC',
-          'Microsoft YaHei',
-          'Segoe UI',
-          'sans-serif',
-        ],
+        sans: [...fontTokens.sans],
       },
       keyframes: {
         'fade-in': {
@@ -129,18 +122,18 @@ const config: Config = {
         },
       },
       animation: {
-        'fade-in': 'fade-in 150ms ease-out',
-        'fade-out': 'fade-out 120ms ease-in',
-        'enter-rise': 'enter-rise 240ms cubic-bezier(0.32, 0.72, 0, 1)',
-        'overlay-in': 'overlay-in 150ms ease-out',
-        'overlay-out': 'fade-out 120ms ease-in',
-        'content-in': 'content-in 150ms ease-out',
-        'content-out': 'content-out 120ms ease-in',
-        'popover-in': 'popover-in 120ms ease-out',
-        'popover-out': 'popover-out 100ms ease-in',
-        'slide-in-right': 'slide-in-right 220ms cubic-bezier(0.32, 0.72, 0, 1)',
-        'slide-out-right': 'slide-out-right 200ms cubic-bezier(0.32, 0.72, 0, 1)',
-        spin: 'spin 0.7s linear infinite',
+        'fade-in': 'fade-in var(--duration-base) ease-out',
+        'fade-out': 'fade-out var(--duration-fast) ease-in',
+        'enter-rise': 'enter-rise var(--duration-slow) var(--ease-emphasized)',
+        'overlay-in': 'overlay-in var(--duration-base) ease-out',
+        'overlay-out': 'fade-out var(--duration-fast) ease-in',
+        'content-in': 'content-in var(--duration-base) ease-out',
+        'content-out': 'content-out var(--duration-fast) ease-in',
+        'popover-in': 'popover-in var(--duration-fast) ease-out',
+        'popover-out': 'popover-out var(--duration-instant) ease-in',
+        'slide-in-right': 'slide-in-right var(--duration-emphasized) var(--ease-emphasized)',
+        'slide-out-right': 'slide-out-right var(--duration-medium) var(--ease-emphasized)',
+        spin: 'spin var(--duration-spinner) linear infinite',
       },
       // Shared motion scale — one easing family + a 3-step duration scale so
       // added transitions read as the same authored system rather than the

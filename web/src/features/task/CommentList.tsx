@@ -8,10 +8,9 @@ import { useAuth } from '../../lib/auth-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { isApiClientError } from '../../api/client';
 import { useDeleteComment, useUpdateComment } from '../../api/comments';
-import { queryKeys } from '../../lib/query';
+import { queryKeys } from 'client-core';
 import { relativeTime } from '../board/format';
-import { isManager } from '../board/permissions';
-import type { TaskPermissionContext } from '../board/permissions';
+import { isManager, type TaskPermissionContext } from 'shared';
 import { AttachmentChips } from '../attachments/AttachmentChips';
 import { extractMentions } from './mentions';
 import { renderMarkdown } from './markdown';
@@ -100,8 +99,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
       { commentId: comment.id, body: parsed.data },
       {
         onSuccess: () => setEditing(false),
-        onError: (err) =>
-          setError(isApiClientError(err) ? err.message : '保存失败，请稍后重试'),
+        onError: (err) => setError(isApiClientError(err) ? err.message : '保存失败，请稍后重试'),
       },
     );
   }
@@ -117,9 +115,7 @@ function CommentItem({ task, comment, members, permCtx }: CommentItemProps): JSX
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-foreground">
-            {comment.author.displayName}
-          </span>
+          <span className="text-sm font-medium text-foreground">{comment.author.displayName}</span>
           <span className="text-xs text-muted-foreground">{relativeTime(comment.createdAt)}</span>
           {comment.editedAt && <span className="text-xs text-muted-foreground">（已编辑）</span>}
 

@@ -5,15 +5,9 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type {
-  CreateLabelInput,
-  Label,
-  LabelResponse,
-  LabelsResponse,
-  UpdateLabelInput,
-} from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import type { CreateLabelInput, Label, UpdateLabelInput } from 'shared';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Label catalog hooks (task-labels feature). The catalog is GLOBAL — one shared set
@@ -23,22 +17,12 @@ import { queryKeys } from '../lib/query';
  * deleting also refreshes the boards/tasks (a removed label detaches from tasks).
  */
 
-export const labelsApi = {
-  list: (signal?: AbortSignal): Promise<LabelsResponse> =>
-    api.get<LabelsResponse>('/labels', { signal }),
-  create: (body: CreateLabelInput): Promise<Label> =>
-    api.post<LabelResponse>('/labels', body).then((r) => r.label),
-  update: (id: string, body: UpdateLabelInput): Promise<Label> =>
-    api.patch<LabelResponse>(`/labels/${id}`, body).then((r) => r.label),
-  remove: (id: string): Promise<void> => api.delete<void>(`/labels/${id}`),
-};
-
 /** The global label catalog, ordered by name (§ task-labels). */
 export function useLabels(): UseQueryResult<Label[]> {
   return useQuery<Label[]>({
     queryKey: queryKeys.labels(),
     queryFn: async ({ signal }) => {
-      const res = await labelsApi.list(signal);
+      const res = await coboardClient.labels.list(signal);
       return res.labels;
     },
   });
@@ -48,7 +32,7 @@ export function useLabels(): UseQueryResult<Label[]> {
 export function useCreateLabel(): UseMutationResult<Label, Error, CreateLabelInput> {
   const queryClient = useQueryClient();
   return useMutation<Label, Error, CreateLabelInput>({
-    mutationFn: (body) => labelsApi.create(body),
+    mutationFn: (body) => coboardClient.labels.create(body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.labels() });
     },
@@ -65,7 +49,7 @@ export interface UpdateLabelVars {
 export function useUpdateLabel(): UseMutationResult<Label, Error, UpdateLabelVars> {
   const queryClient = useQueryClient();
   return useMutation<Label, Error, UpdateLabelVars>({
-    mutationFn: ({ id, patch }) => labelsApi.update(id, patch),
+    mutationFn: ({ id, patch }) => coboardClient.labels.update(id, patch),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.labels() });
       // A recolor/rename changes how tasks render their chips.
@@ -82,7 +66,7 @@ export function useUpdateLabel(): UseMutationResult<Label, Error, UpdateLabelVar
 export function useDeleteLabel(): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
-    mutationFn: (id) => labelsApi.remove(id),
+    mutationFn: (id) => coboardClient.labels.remove(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.labels() });
       void queryClient.invalidateQueries({ queryKey: ['projects'] });

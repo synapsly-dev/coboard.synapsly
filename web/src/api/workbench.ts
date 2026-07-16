@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import type { BoardResponse, Task } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import type { Task } from 'shared';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * 工作台 data hooks (P2 §4). Two personal read endpoints:
@@ -13,19 +13,12 @@ import { queryKeys } from '../lib/query';
  * the task mutations can refresh them with a single blanket invalidation.
  */
 
-export const workbenchApi = {
-  reviewQueue: (signal?: AbortSignal): Promise<BoardResponse> =>
-    api.get<BoardResponse>('/me/review-queue', { signal }),
-  rejectedTasks: (signal?: AbortSignal): Promise<BoardResponse> =>
-    api.get<BoardResponse>('/me/rejected-tasks', { signal }),
-};
-
 /** Tasks awaiting the caller's review (P2 §4 GET /me/review-queue). */
 export function useReviewQueue(): UseQueryResult<Task[]> {
   return useQuery<Task[]>({
     queryKey: queryKeys.reviewQueue(),
     queryFn: async ({ signal }) => {
-      const res = await workbenchApi.reviewQueue(signal);
+      const res = await coboardClient.workbench.reviewQueue(signal);
       return res.tasks;
     },
   });
@@ -36,7 +29,7 @@ export function useRejectedTasks(): UseQueryResult<Task[]> {
   return useQuery<Task[]>({
     queryKey: queryKeys.rejectedTasks(),
     queryFn: async ({ signal }) => {
-      const res = await workbenchApi.rejectedTasks(signal);
+      const res = await coboardClient.workbench.rejectedTasks(signal);
       return res.tasks;
     },
   });

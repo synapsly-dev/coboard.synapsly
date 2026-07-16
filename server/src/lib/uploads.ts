@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { isInlinePreviewable } from 'shared';
+import { isInlinePreviewable, MAX_UPLOAD_BYTES } from 'shared';
 import { AppError, ErrorCode, validationError } from './errors.js';
 
 /**
@@ -8,9 +8,6 @@ import { AppError, ErrorCode, validationError } from './errors.js';
  * download response (nosniff + attachment-by-default Content-Disposition), so
  * every upload surface enforces identical limits and headers.
  */
-
-/** Single-file upload cap (§7.2): 5 MB. */
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 export interface UploadedFile {
   filename: string;
@@ -96,7 +93,10 @@ export function sendFileBytes(
 
   reply.header('Content-Type', file.mime);
   reply.header('X-Content-Type-Options', 'nosniff');
-  reply.header('Content-Disposition', contentDisposition(file.filename, inline ? 'inline' : 'attachment'));
+  reply.header(
+    'Content-Disposition',
+    contentDisposition(file.filename, inline ? 'inline' : 'attachment'),
+  );
   // A fileId's bytes never change (attachments are create/delete only), so the
   // browser may cache them — thumbnails in comment threads / the 灵感区 grid
   // would otherwise re-download full files on every remount. `private` keeps

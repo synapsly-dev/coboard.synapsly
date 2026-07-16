@@ -1,17 +1,14 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type {
   LeaderboardEntry,
-  LeaderboardResponse,
   MyStatsResponse,
   StatsSort,
   TrackStatsEntry,
-  TrackStatsResponse,
   TrendBucket,
   TrendPoint,
-  TrendResponse,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Contribution-statistics data hooks (§6.4, §7). Three read endpoints:
@@ -65,49 +62,8 @@ function toKeyParams(
 }
 
 /** Low-level fetchers — shared by hooks (and any future imperative refetch). */
-export const statsApi = {
-  leaderboard: (
-    params: LeaderboardParams,
-    signal?: AbortSignal,
-  ): Promise<LeaderboardResponse> =>
-    api.get<LeaderboardResponse>('/stats/leaderboard', {
-      query: {
-        projectId: params.projectId,
-        from: params.from,
-        to: params.to,
-        sort: params.sort,
-      },
-      signal,
-    }),
-
-  me: (params: MyStatsParams, signal?: AbortSignal): Promise<MyStatsResponse> =>
-    api.get<MyStatsResponse>('/stats/me', {
-      query: { from: params.from, to: params.to },
-      signal,
-    }),
-
-  trend: (params: TrendParams, signal?: AbortSignal): Promise<TrendResponse> =>
-    api.get<TrendResponse>('/stats/trend', {
-      query: {
-        userId: params.userId,
-        from: params.from,
-        to: params.to,
-        bucket: params.bucket,
-      },
-      signal,
-    }),
-
-  tracks: (params: MyStatsParams, signal?: AbortSignal): Promise<TrackStatsResponse> =>
-    api.get<TrackStatsResponse>('/stats/tracks', {
-      query: { from: params.from, to: params.to },
-      signal,
-    }),
-};
-
 /** Ranked per-user contribution list (§7 GET /stats/leaderboard). */
-export function useLeaderboard(
-  params: LeaderboardParams,
-): UseQueryResult<LeaderboardEntry[]> {
+export function useLeaderboard(params: LeaderboardParams): UseQueryResult<LeaderboardEntry[]> {
   const keyParams = toKeyParams({
     projectId: params.projectId,
     from: params.from,
@@ -117,7 +73,7 @@ export function useLeaderboard(
   return useQuery<LeaderboardEntry[]>({
     queryKey: queryKeys.leaderboard(keyParams),
     queryFn: async ({ signal }) => {
-      const res = await statsApi.leaderboard(params, signal);
+      const res = await coboardClient.stats.leaderboard(params, signal);
       return res.entries;
     },
   });
@@ -128,7 +84,7 @@ export function useMyStats(params: MyStatsParams): UseQueryResult<MyStatsRespons
   const keyParams = toKeyParams({ from: params.from, to: params.to });
   return useQuery<MyStatsResponse>({
     queryKey: queryKeys.myStats(keyParams),
-    queryFn: ({ signal }) => statsApi.me(params, signal),
+    queryFn: ({ signal }) => coboardClient.stats.me(params, signal),
   });
 }
 
@@ -138,7 +94,7 @@ export function useTrackStats(params: MyStatsParams): UseQueryResult<TrackStatsE
   return useQuery<TrackStatsEntry[]>({
     queryKey: queryKeys.trackStats(keyParams),
     queryFn: async ({ signal }) => {
-      const res = await statsApi.tracks(params, signal);
+      const res = await coboardClient.stats.tracks(params, signal);
       return res.entries;
     },
   });
@@ -155,7 +111,7 @@ export function useTrend(params: TrendParams): UseQueryResult<TrendPoint[]> {
   return useQuery<TrendPoint[]>({
     queryKey: queryKeys.trend(keyParams),
     queryFn: async ({ signal }) => {
-      const res = await statsApi.trend(params, signal);
+      const res = await coboardClient.stats.trend(params, signal);
       return res.points;
     },
   });

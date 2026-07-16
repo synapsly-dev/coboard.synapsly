@@ -953,6 +953,19 @@ export const authUserResponseSchema = z.object({
 });
 export type AuthUserResponse = z.infer<typeof authUserResponseSchema>;
 
+/** POST /auth/miniapp/exchange — redeem the short-lived code returned by the SSO web view. */
+export const miniappAuthExchangeInputSchema = z.object({
+  code: z.string().min(32).max(200),
+});
+export type MiniappAuthExchangeInput = z.infer<typeof miniappAuthExchangeInputSchema>;
+
+export const miniappAuthExchangeResponseSchema = z.object({
+  token: z.string().min(20),
+  expiresAt: z.string().datetime(),
+  user: userSchema,
+});
+export type MiniappAuthExchangeResponse = z.infer<typeof miniappAuthExchangeResponseSchema>;
+
 /** PATCH /auth/profile — update the current user's own profile (display name). */
 export const updateProfileInputSchema = z.object({
   displayName: displayNameSchema,
@@ -1107,6 +1120,12 @@ export const projectsListResponseSchema = z.object({
   projects: z.array(projectSchema),
 });
 export type ProjectsListResponse = z.infer<typeof projectsListResponseSchema>;
+
+/** POST/PATCH /projects — single-project response wrapper. */
+export const projectResponseSchema = z.object({
+  project: projectSchema,
+});
+export type ProjectResponse = z.infer<typeof projectResponseSchema>;
 
 /**
  * A project as shown in the self-service directory (GET /projects/directory):

@@ -2,10 +2,12 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
   completeJoinInputSchema,
   devLoginInputSchema,
+  miniappAuthExchangeInputSchema,
   updateAvatarInputSchema,
   updateProfileInputSchema,
   type AuthConfigResponse,
   type AuthUserResponse,
+  type MiniappAuthExchangeResponse,
 } from 'shared';
 import {
   SESSION_COOKIE,
@@ -24,10 +26,11 @@ import {
   randomToken,
   verifyIdToken,
 } from '../auth/synapsly.js';
+import { issueMiniappAuthCode, redeemMiniappAuthCode } from '../auth/miniapp.js';
 import type { SynapslyConfig } from '../auth/config.js';
 import { requireAuth } from '../lib/guards.js';
 import { parseBody } from '../lib/validate.js';
-import { isAppError } from '../lib/errors.js';
+import { isAppError, unauthorized } from '../lib/errors.js';
 import {
   completeSsoJoin,
   devLogin as devLoginService,
@@ -37,6 +40,7 @@ import {
 } from '../services/authService.js';
 import {
   clearUserAvatar,
+  findUserById,
   serializeUser,
   setUserAvatar,
   updateUser,
@@ -95,7 +99,14 @@ function safeReturnTo(raw: unknown): string {
   return '/';
 }
 
-function loginErrorRedirect(reply: FastifyReply, message: string): void {
+function loginErrorRedirect(reply: FastifyReply, message: string, returnTo?: string): void {
+  if (returnTo === MINIAPP_BRIDGE_PATH) {
+    reply
+      .header('Cache-Control', 'no-store')
+      .type('text/html; charset=utf-8')
+      .send(miniappBridgeHtml({ error: message }));
+    return;
+  }
   reply.redirect(`/login?sso_error=${encodeURIComponent(message)}`);
 }
 
@@ -104,6 +115,25 @@ interface OidcFlowState {
   nonce: string;
   verifier: string;
   returnTo: string;
+}
+
+const MINIAPP_BRIDGE_PATH = '/api/auth/miniapp/bridge';
+
+function miniappBridgeHtml(result: { code: string } | { error: string }): string {
+  const callback =
+    'code' in result
+      ? `/pages/auth-callback/index?code=${encodeURIComponent(result.code)}`
+      : `/pages/auth-callback/index?error=${encodeURIComponent(result.error)}`;
+  const callbackJson = JSON.stringify(callback).replace(/</g, '\\u003c');
+  const message =
+    'code' in result ? '登录成功，正在返回 Coboard…' : '登录未完成，正在返回 Coboard…';
+  return `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录成功</title><script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+<style>body{font:16px system-ui;text-align:center;padding:64px 24px;color:#171717}button{padding:12px 20px;border:0;border-radius:8px;background:#171717;color:white}</style>
+</head><body><p>${message}</p><button id="back">返回小程序</button>
+<script>const go=()=>wx.miniProgram.redirectTo({url:${callbackJson}});document.getElementById('back').onclick=go;go();</script>
+</body></html>`;
 }
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
@@ -115,6 +145,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       synapslyEnabled: runtime.synapsly !== null,
       devLogin: runtime.devLogin,
     };
+  });
+
+  // Enter the existing confidential OIDC flow inside a Mini Program web-view.
+  fastify.get('/auth/miniapp/start', async (_request, reply) => {
+    if (!runtime.synapsly) throw unauthorized('Syna ID 登录未配置');
+    reply.redirect(`/api/auth/synapsly/start?returnTo=${encodeURIComponent(MINIAPP_BRIDGE_PATH)}`);
   });
 
   // --- SSO: begin the Authorization-Code + PKCE flow -----------------------
@@ -130,11 +166,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const returnTo = safeReturnTo((request.query as { returnTo?: string }).returnTo);
 
     const payload: OidcFlowState = { state, nonce, verifier, returnTo };
-    reply.setCookie(
-      OIDC_COOKIE,
-      JSON.stringify(payload),
-      flowCookieOptions(fastify.isProduction),
-    );
+    reply.setCookie(OIDC_COOKIE, JSON.stringify(payload), flowCookieOptions(fastify.isProduction));
 
     const url = await buildAuthorizationUrl(cfg, {
       state,
@@ -157,13 +189,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       error?: string;
       error_description?: string;
     };
-    if (query.error) {
-      loginErrorRedirect(reply, query.error_description || query.error);
-      return;
-    }
-
     const flow = readSignedJson<OidcFlowState>(request, OIDC_COOKIE);
     reply.clearCookie(OIDC_COOKIE, { path: '/' });
+    if (query.error) {
+      loginErrorRedirect(reply, query.error_description || query.error, flow?.returnTo);
+      return;
+    }
     if (!flow || !query.code || !query.state || query.state !== flow.state) {
       loginErrorRedirect(reply, '登录会话已失效，请重试');
       return;
@@ -184,15 +215,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           JSON.stringify(identity),
           flowCookieOptions(fastify.isProduction),
         );
-        reply.redirect('/join');
+        reply.redirect(`/join?returnTo=${encodeURIComponent(flow.returnTo)}`);
         return;
       }
 
-      const session = await startSession(
-        fastify.db,
-        resolution.user.id,
-        identity.idToken,
-      );
+      const session = await startSession(fastify.db, resolution.user.id, identity.idToken);
       reply.setCookie(
         SESSION_COOKIE,
         session.token,
@@ -204,11 +231,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       reply.redirect(flow.returnTo);
     } catch (err) {
       if (isAppError(err)) {
-        loginErrorRedirect(reply, err.message);
+        loginErrorRedirect(reply, err.message, flow.returnTo);
         return;
       }
       request.log.error({ err }, 'synapsly callback failed');
-      loginErrorRedirect(reply, '登录失败，请稍后重试');
+      loginErrorRedirect(reply, '登录失败，请稍后重试', flow.returnTo);
     }
   });
 
@@ -242,6 +269,46 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // The web-view arrives here with the short-lived browser cookie created by
+  // OIDC. Turn it into a one-use code, then navigate back into a native page.
+  fastify.get('/auth/miniapp/bridge', async (request, reply) => {
+    const user = requireAuth(request);
+    const sessionToken = request.sessionToken;
+    if (!sessionToken) throw unauthorized('登录会话已失效，请重试');
+    const idToken = await getSessionOidcIdToken(fastify.db, sessionToken);
+    const code = await issueMiniappAuthCode(fastify.db, user.id, idToken);
+    await deleteSession(fastify.db, sessionToken);
+    reply.clearCookie(SESSION_COOKIE, clearSessionCookieOptions(fastify.isProduction));
+    return reply
+      .header('Cache-Control', 'no-store')
+      .header(
+        'Content-Security-Policy',
+        "default-src 'none'; script-src 'unsafe-inline' https://res.wx.qq.com; style-src 'unsafe-inline'",
+      )
+      .type('text/html; charset=utf-8')
+      .send(miniappBridgeHtml({ code }));
+  });
+
+  // Native client redeems the code once and receives an ordinary opaque Bearer
+  // session. The Syna ID token never crosses into Mini Program JavaScript.
+  fastify.post(
+    '/auth/miniapp/exchange',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request): Promise<MiniappAuthExchangeResponse> => {
+      const { code } = parseBody(miniappAuthExchangeInputSchema, request.body);
+      const redeemed = await redeemMiniappAuthCode(fastify.db, code);
+      if (!redeemed) throw unauthorized('登录凭证已失效，请重新登录');
+      const user = await findUserById(fastify.db, redeemed.userId);
+      if (!user?.isActive) throw unauthorized('账号已被停用或不存在');
+      const session = await startSession(fastify.db, user.id, redeemed.oidcIdToken);
+      return {
+        token: session.token,
+        expiresAt: session.expiresAt.toISOString(),
+        user: serializeUser(user),
+      };
+    },
+  );
+
   // --- Dev fake-login (non-production only) --------------------------------
   fastify.post('/auth/dev-login', async (request, reply): Promise<AuthUserResponse> => {
     if (!runtime.devLogin) {
@@ -263,6 +330,26 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     return { user: serializeUser(user) };
   });
 
+  fastify.post(
+    '/auth/miniapp/dev-login',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (request, reply): Promise<MiniappAuthExchangeResponse> => {
+      if (!runtime.devLogin) {
+        return reply.code(404).send({
+          error: { code: 'NOT_FOUND', message: '资源不存在' },
+        }) as unknown as MiniappAuthExchangeResponse;
+      }
+      const input = parseBody(devLoginInputSchema, request.body);
+      const user = await devLoginService(fastify.db, input);
+      const session = await startSession(fastify.db, user.id, null);
+      return {
+        token: session.token,
+        expiresAt: session.expiresAt.toISOString(),
+        user: serializeUser(user),
+      };
+    },
+  );
+
   // --- Current user --------------------------------------------------------
   fastify.get('/auth/me', async (request): Promise<AuthUserResponse> => {
     const user = requireAuth(request);
@@ -278,10 +365,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         idToken = await getSessionOidcIdToken(fastify.db, request.sessionToken);
         await deleteSession(fastify.db, request.sessionToken);
       }
-      reply.clearCookie(
-        SESSION_COOKIE,
-        clearSessionCookieOptions(fastify.isProduction),
-      );
+      reply.clearCookie(SESSION_COOKIE, clearSessionCookieOptions(fastify.isProduction));
 
       const cfg = runtime.synapsly;
       if (cfg && cfg.singleLogout) {

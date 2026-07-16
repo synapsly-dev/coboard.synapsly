@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { affectedQueryKeys } from 'client-core';
 import type { RealtimeEntity, RealtimeEvent } from 'shared';
 import { useAuth } from './auth-context';
 
@@ -53,99 +54,9 @@ function safeParse(raw: string): RealtimeEvent | null {
  * keys (e.g. `['projects', projectId, 'tasks']`) so a single event refreshes the
  * board, its task details, comments, activities, and recomputed stats.
  */
-function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): void {
-  const { projectId, entity, payload } = event;
-  const taskId = typeof payload['taskId'] === 'string' ? payload['taskId'] : undefined;
-
-  switch (entity) {
-    case 'task': {
-      // Board for the project (when scoped) + the "全部项目" board (§8), which
-      // aggregates project tasks AND no-project pool tasks (projectId === null).
-      if (projectId) {
-        void queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] });
-      }
-      void queryClient.invalidateQueries({ queryKey: ['projects', 'all', 'tasks'] });
-      if (taskId) {
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
-        // A task event also carries delivery-content changes (§7.2): file
-        // attachments and text deliverables.
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'files'] });
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'texts'] });
-      }
-      // Completing/reopening a task changes contribution stats.
-      void queryClient.invalidateQueries({ queryKey: ['stats'] });
-      // 工作台 lists (P2 §4: review queue / rejected) mirror task state.
-      void queryClient.invalidateQueries({ queryKey: ['workbench'] });
-      break;
-    }
-    case 'comment': {
-      if (taskId) {
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'comments'] });
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'activities'] });
-      }
-      break;
-    }
-    case 'activity': {
-      if (taskId) {
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'activities'] });
-      }
-      break;
-    }
-    case 'project': {
-      void queryClient.invalidateQueries({ queryKey: ['projects'] });
-      break;
-    }
-    case 'idea': {
-      // Refresh the task's idea list, the cross-project 灵感区, and the recomputed
-      // stats (adopting an idea credits the author's contribution points, §7.1).
-      if (taskId) {
-        void queryClient.invalidateQueries({ queryKey: ['tasks', taskId, 'ideas'] });
-      }
-      void queryClient.invalidateQueries({ queryKey: ['ideas'] });
-      void queryClient.invalidateQueries({ queryKey: ['stats'] });
-      break;
-    }
-    case 'announcement': {
-      // An admin published/edited/removed a 信息 notice — refresh the list.
-      void queryClient.invalidateQueries({ queryKey: ['announcements'] });
-      break;
-    }
-    case 'org': {
-      // An editor changed the team org tree (团队架构), or an application (岗位申报,
-      // P1) was created / withdrawn / decided. Refresh every scope's tree AND the
-      // applications lists — both live under the `['org']` prefix (`['org', scope]`
-      // and `['org', 'applications', scope]`) — since the payload's scope is enough
-      // context and both datasets are small.
-      void queryClient.invalidateQueries({ queryKey: ['org'] });
-      break;
-    }
-    case 'asset': {
-      // Someone created/edited/deleted a 资产 (P3 §1) — refresh every filtered
-      // listing under the `['assets']` prefix.
-      void queryClient.invalidateQueries({ queryKey: ['assets'] });
-      break;
-    }
-    case 'track': {
-      // An admin created/edited/deleted a 赛道 or reassigned a project's track (P0
-      // §2). Refresh the track list, the projects list (grouping + projectCount),
-      // and the per-track stats rollup.
-      void queryClient.invalidateQueries({ queryKey: ['tracks'] });
-      void queryClient.invalidateQueries({ queryKey: ['projects'] });
-      void queryClient.invalidateQueries({ queryKey: ['stats', 'tracks'] });
-      void queryClient.invalidateQueries({ queryKey: ['org'] });
-      break;
-    }
-    case 'notification': {
-      // Private notification events have already been recipient-filtered by the
-      // SSE endpoint. Refresh both the bell badge and every open list/filter.
-      void queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      break;
-    }
-    default: {
-      // Exhaustiveness guard — unreachable for known entities.
-      const _never: never = entity;
-      void _never;
-    }
+export function invalidateForEvent(queryClient: QueryClient, event: RealtimeEvent): void {
+  for (const queryKey of affectedQueryKeys(event)) {
+    void queryClient.invalidateQueries({ queryKey });
   }
 }
 

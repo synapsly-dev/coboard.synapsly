@@ -5,16 +5,9 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type {
-  AuthUserResponse,
-  CreateUserInput,
-  UpdateUserInput,
-  User,
-  UsersListResponse,
-  UserWithProjects,
-} from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import type { CreateUserInput, UpdateUserInput, User, UserWithProjects } from 'shared';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * User-administration data hooks (§7 GET/POST /users, PATCH /users/:id; §6.3).
@@ -29,15 +22,6 @@ import { queryKeys } from '../lib/query';
  */
 
 /** Low-level fetchers — shared by hooks and mutation refetch/invalidation. */
-export const usersApi = {
-  list: (signal?: AbortSignal): Promise<UsersListResponse> =>
-    api.get<UsersListResponse>('/users', { signal }),
-  create: (input: CreateUserInput): Promise<AuthUserResponse> =>
-    api.post<AuthUserResponse>('/users', input),
-  update: (id: string, input: UpdateUserInput): Promise<AuthUserResponse> =>
-    api.patch<AuthUserResponse>(`/users/${id}`, input),
-};
-
 /**
  * All accounts (admin only) — §7 GET /users. Each user carries their project
  * memberships (`projects`), so the admin console can show per-user project chips
@@ -47,7 +31,7 @@ export function useUsers(): UseQueryResult<UserWithProjects[]> {
   return useQuery<UserWithProjects[]>({
     queryKey: queryKeys.users(),
     queryFn: async ({ signal }) => {
-      const res = await usersApi.list(signal);
+      const res = await coboardClient.users.list(signal);
       return res.users;
     },
   });
@@ -58,7 +42,7 @@ export function useCreateUser(): UseMutationResult<User, Error, CreateUserInput>
   const queryClient = useQueryClient();
   return useMutation<User, Error, CreateUserInput>({
     mutationFn: async (input) => {
-      const res = await usersApi.create(input);
+      const res = await coboardClient.users.create(input);
       return res.user;
     },
     onSuccess: () => {
@@ -77,7 +61,7 @@ export function useUpdateUser(): UseMutationResult<User, Error, UpdateUserVariab
   const queryClient = useQueryClient();
   return useMutation<User, Error, UpdateUserVariables>({
     mutationFn: async ({ id, input }) => {
-      const res = await usersApi.update(id, input);
+      const res = await coboardClient.users.update(id, input);
       return res.user;
     },
     onSuccess: (user) => {

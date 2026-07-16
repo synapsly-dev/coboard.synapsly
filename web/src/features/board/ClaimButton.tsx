@@ -5,7 +5,7 @@ import { Button } from '../../components/ui';
 import { useAuth } from '../../lib/auth-context';
 import { isApiClientError } from '../../api/client';
 import { useClaimTask } from '../../api/tasks';
-import { isClaimFull } from './permissions';
+import { isClaimFull } from 'shared';
 
 /**
  * Claim control (lifecycle v2 §3/§5). Shown on `open`/`in_progress` cards when the
@@ -31,17 +31,7 @@ export function ClaimButton({
   onClaimed,
 }: ClaimButtonProps): JSX.Element | null {
   const { user } = useAuth();
-  const claim = useClaimTask(
-    projectId,
-    user
-      ? {
-          id: user.id,
-          displayName: user.displayName,
-          avatarColor: user.avatarColor,
-          hasAvatar: user.hasAvatar,
-        }
-      : undefined,
-  );
+  const claim = useClaimTask(projectId);
   const [conflict, setConflict] = useState(false);
 
   const claimable = task.status === 'open' || task.status === 'in_progress';
@@ -79,9 +69,7 @@ export function ClaimButton({
         {!claim.isPending && <HandMetal className="h-3.5 w-3.5" aria-hidden />}
         认领
       </Button>
-      {conflict && (
-        <p className="mt-1 text-xs text-destructive">该任务暂时无法认领</p>
-      )}
+      {conflict && <p className="mt-1 text-xs text-destructive">该任务暂时无法认领</p>}
     </div>
   );
 }

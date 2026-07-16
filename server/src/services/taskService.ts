@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm';
-import { FINAL_REVIEW_POINTS_THRESHOLD, isAdminRole } from 'shared';
+import { activeTaskStatus, FINAL_REVIEW_POINTS_THRESHOLD, isAdminRole } from 'shared';
 import type {
   AssignTaskInput,
   CreateTaskInput,
@@ -588,7 +588,7 @@ export async function createTask(
   // Dispatching adds exactly one claimant; the task only reaches 进行中 if that one
   // claimant already meets the lower bound (min === 1), else it waits in 待认领.
   const dispatched = input.assigneeId != null;
-  const status: TaskStatus = dispatched ? poolStatusFor(1, minClaimants) : 'open';
+  const status: TaskStatus = dispatched ? activeTaskStatus(1, minClaimants) : 'open';
   const rank = await nextRankForColumn(db, projectId, status);
 
   const [created] = await db
@@ -762,7 +762,7 @@ export async function updateTask(
     (task.status === 'open' || task.status === 'in_progress')
   ) {
     const count = (await loadClaimantIds(db, taskId)).length;
-    targetStatus = poolStatusFor(count, newMin);
+    targetStatus = activeTaskStatus(count, newMin);
   }
   const statusChanged = targetStatus !== task.status;
   if (statusChanged) patch.status = targetStatus;
@@ -952,10 +952,6 @@ async function notifyTaskPointsAwarded(
  * claimants is `in_progress`; below the floor it stays `open` (待认领, 未达下限). Only
  * applies while a task is in the claimable pool — deliver/review own the later states.
  */
-function poolStatusFor(count: number, minClaimants: number): 'open' | 'in_progress' {
-  return count >= minClaimants ? 'in_progress' : 'open';
-}
-
 /**
  * Claim a task (lifecycle v2 §3; no-project tasks §8): add the caller to the
  * claimants set (idempotent) and, if the task is still `open`, move it to
@@ -995,7 +991,7 @@ export async function claimTask(
     // Only leave 待认领 once the lower bound is met; below it the task stays open
     // (未达下限) even though it now has some claimants (claim-limits).
     const count = claimantIds.length + inserted.length;
-    const nextStatus = poolStatusFor(count, task.minClaimants);
+    const nextStatus = activeTaskStatus(count, task.minClaimants);
     if (nextStatus !== task.status) {
       const [row] = await db
         .update(tasks)
@@ -1190,7 +1186,7 @@ export async function assignTask(
   let updated = task;
   if (task.status === 'open') {
     const count = claimantIds.length + inserted.length;
-    const nextStatus = poolStatusFor(count, task.minClaimants);
+    const nextStatus = activeTaskStatus(count, task.minClaimants);
     if (nextStatus !== task.status) {
       const [row] = await db
         .update(tasks)
@@ -1511,7 +1507,7 @@ export async function reviewTask(
     .update(tasks)
     .set({
       ...gradePatch,
-      status: poolStatusFor(rejectCount, task.minClaimants),
+      status: activeTaskStatus(rejectCount, task.minClaimants),
       deliveredAt: null,
       deliveredBy: null,
       reviewedBy: actor.id,

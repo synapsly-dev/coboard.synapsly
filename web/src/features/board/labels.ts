@@ -1,4 +1,19 @@
-import type { ActivityType, Priority, QualityGrade, ReviewStage, TaskStatus, TaskType } from 'shared';
+import {
+  ACTIVITY_LABELS as SHARED_ACTIVITY_LABELS,
+  PRIORITY_META,
+  QUALITY_GRADE_META as SHARED_QUALITY_GRADE_META,
+  REVIEW_STAGE_LABELS as SHARED_REVIEW_STAGE_LABELS,
+  TASK_STATUS_META,
+  TASK_STATUS_ORDER,
+  TASK_TYPE_META as SHARED_TASK_TYPE_META,
+  taskTypes,
+  type ActivityType,
+  type Priority,
+  type QualityGrade,
+  type ReviewStage,
+  type TaskStatus,
+  type TaskType,
+} from 'shared';
 import type { BadgeVariant } from '../../components/ui';
 
 /**
@@ -8,19 +23,11 @@ import type { BadgeVariant } from '../../components/ui';
  */
 
 /** Board column order (lifecycle v2 §5): 待认领 → 进行中 → 待审阅 → 已完成. */
-export const COLUMN_ORDER: readonly TaskStatus[] = [
-  'open',
-  'in_progress',
-  'pending_review',
-  'done',
-];
+export const COLUMN_ORDER = TASK_STATUS_ORDER;
 
-export const STATUS_LABELS: Record<TaskStatus, string> = {
-  open: '待认领',
-  in_progress: '进行中',
-  pending_review: '待审阅',
-  done: '已完成',
-};
+export const STATUS_LABELS: Record<TaskStatus, string> = Object.fromEntries(
+  Object.entries(TASK_STATUS_META).map(([status, meta]) => [status, meta.label]),
+) as Record<TaskStatus, string>;
 
 /** One column's stage-timestamp spec (板块时间) — see {@link STATUS_TIME}. */
 export interface StatusTimeSpec {
@@ -44,12 +51,9 @@ export const STATUS_TIME: Record<TaskStatus, StatusTimeSpec> = {
   done: { label: '完成时间', prefix: '完成', field: 'completedAt' },
 };
 
-export const PRIORITY_LABELS: Record<Priority, string> = {
-  low: '低',
-  medium: '中',
-  high: '高',
-  urgent: '紧急',
-};
+export const PRIORITY_LABELS: Record<Priority, string> = Object.fromEntries(
+  Object.entries(PRIORITY_META).map(([priority, meta]) => [priority, meta.label]),
+) as Record<Priority, string>;
 
 /** Badge variant + dot color per priority for consistent visual weight. */
 export const PRIORITY_BADGE: Record<Priority, { variant: BadgeVariant; dot: string }> = {
@@ -78,64 +82,33 @@ export interface TaskTypeMeta {
 
 export const TASK_TYPE_META: Record<TaskType, TaskTypeMeta> = {
   critical: {
-    code: 'A',
-    label: 'A · 关键任务',
-    name: '关键任务',
+    ...SHARED_TASK_TYPE_META.critical,
     className: 'bg-rose-500/10 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400',
   },
   baseline: {
-    code: 'B',
-    label: 'B · 底线任务',
-    name: '底线任务',
+    ...SHARED_TASK_TYPE_META.baseline,
     className:
       'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400',
   },
   claimable: {
-    code: 'C',
-    label: 'C · 认领任务',
-    name: '认领任务',
+    ...SHARED_TASK_TYPE_META.claimable,
     className: 'bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400',
   },
   collab: {
-    code: 'D',
-    label: 'D · 协作任务',
-    name: '协作任务',
+    ...SHARED_TASK_TYPE_META.collab,
     className:
       'bg-slate-500/10 text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:text-slate-300',
   },
 };
 
 /** Ordered task types for selectors (A → B → C → D). */
-export const TASK_TYPE_OPTIONS: readonly TaskType[] = [
-  'critical',
-  'baseline',
-  'claimable',
-  'collab',
-];
+export const TASK_TYPE_OPTIONS: readonly TaskType[] = taskTypes;
 
 /** Human-readable, fill-in-the-blanks templates for the activity timeline (§5). */
-export const ACTIVITY_LABELS: Record<ActivityType, string> = {
-  created: '创建了任务',
-  claimed: '认领了任务',
-  assigned: '指派了任务',
-  unassigned: '取消了指派',
-  released: '释放了任务',
-  status_changed: '变更了状态',
-  completed: '通过了审阅',
-  reopened: '撤销了通过（退回待审阅）',
-  commented: '发表了评论',
-  updated: '更新了任务',
-  delivered: '交付了任务',
-  rejected: '驳回了交付',
-  transferred: '转让了任务',
-  due_changed: '修改了截止时间',
-};
+export const ACTIVITY_LABELS: Record<ActivityType, string> = SHARED_ACTIVITY_LABELS;
 
 /** Review stage labels (P2 §3 两级复核): first = 初审, final = 复核. */
-export const REVIEW_STAGE_LABELS: Record<ReviewStage, string> = {
-  first: '初审',
-  final: '复核',
-};
+export const REVIEW_STAGE_LABELS: Record<ReviewStage, string> = SHARED_REVIEW_STAGE_LABELS;
 
 /**
  * 交付质量 A/B/C/D display metadata (P2 §2, 运营需求 §4.2). Same chip recipe as the
@@ -154,27 +127,22 @@ export interface QualityGradeMeta {
 
 export const QUALITY_GRADE_META: Record<QualityGrade, QualityGradeMeta> = {
   a: {
-    letter: 'A',
-    name: '超预期',
+    ...SHARED_QUALITY_GRADE_META.a,
     className:
       'bg-emerald-500/10 text-emerald-600 ring-1 ring-inset ring-emerald-500/20 dark:text-emerald-400',
   },
   b: {
-    letter: 'B',
-    name: '合格',
+    ...SHARED_QUALITY_GRADE_META.b,
     className: 'bg-sky-500/10 text-sky-600 ring-1 ring-inset ring-sky-500/20 dark:text-sky-400',
   },
   c: {
-    letter: 'C',
-    name: '需修改',
+    ...SHARED_QUALITY_GRADE_META.c,
     className:
       'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20 dark:text-amber-400',
   },
   d: {
-    letter: 'D',
-    name: '无效',
-    className:
-      'bg-rose-500/10 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400',
+    ...SHARED_QUALITY_GRADE_META.d,
+    className: 'bg-rose-500/10 text-rose-600 ring-1 ring-inset ring-rose-500/20 dark:text-rose-400',
   },
 };
 

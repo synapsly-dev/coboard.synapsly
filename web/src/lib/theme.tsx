@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { durationTokens } from 'design-tokens';
 
 /**
  * Theme provider — light / dark / follow-system. Persists the choice in
@@ -77,7 +78,7 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
       fadeTimerRef.current = setTimeout(() => {
         el.classList.remove('theme-transition');
         fadeTimerRef.current = null;
-      }, 260);
+      }, durationTokens.slow + 20);
     }
     el.dataset.theme = resolved;
     el.classList.toggle('dark', resolved === 'dark');

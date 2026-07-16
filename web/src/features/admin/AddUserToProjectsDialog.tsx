@@ -14,7 +14,7 @@ import {
 import { isApiClientError } from '../../api/client';
 import { useAddProjectMember, useProjects } from '../../api/projects';
 import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '../../lib/query';
+import { queryKeys } from 'client-core';
 import { cn } from '../../lib/utils';
 import { ProjectRoleSelect } from './ProjectRoleSelect';
 
@@ -45,13 +45,7 @@ export function AddUserToProjectsDialog({
   );
 }
 
-function Body({
-  user,
-  onDone,
-}: {
-  user: UserWithProjects;
-  onDone: () => void;
-}): JSX.Element {
+function Body({ user, onDone }: { user: UserWithProjects; onDone: () => void }): JSX.Element {
   const projectsQuery = useProjects();
   const addMember = useAddProjectMember();
   const queryClient = useQueryClient();
@@ -92,9 +86,9 @@ function Body({
     void queryClient.invalidateQueries({ queryKey: queryKeys.users() });
     if (failed > 0) {
       const first = results.find((r) => r.status === 'rejected') as
-        | PromiseRejectedResult
-        | undefined;
-      const reason = first && isApiClientError(first.reason) ? first.reason.message : '部分项目添加失败';
+        PromiseRejectedResult | undefined;
+      const reason =
+        first && isApiClientError(first.reason) ? first.reason.message : '部分项目添加失败';
       setError(`${ids.length - failed}/${ids.length} 已添加，${failed} 个失败：${reason}`);
       return;
     }
@@ -138,7 +132,9 @@ function Body({
                     <span
                       className={cn(
                         'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
-                        checked ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+                        checked
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-input',
                       )}
                     >
                       {checked && <Check className="h-3 w-3" aria-hidden />}

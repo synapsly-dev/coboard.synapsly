@@ -11,17 +11,14 @@ import type {
   DecideOrgApplicationInput,
   MoveOrgNodeInput,
   OrgApplication,
-  OrgApplicationResponse,
   OrgApplicationsResponse,
   OrgNode,
-  OrgNodeResponse,
   OrgScope,
-  OrgTreeResponse,
   SetOrgMembersInput,
   UpdateOrgNodeInput,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Org-tree (团队架构) data hooks. One read surface — the flat, rank-ordered node
@@ -35,44 +32,12 @@ import { queryKeys } from '../lib/query';
  * scope's tree as well as the applications list.
  */
 
-export const orgApi = {
-  tree: (scope: OrgScope, signal?: AbortSignal): Promise<OrgTreeResponse> =>
-    api.get<OrgTreeResponse>('/org/tree', { query: { scope }, signal }),
-  create: (input: CreateOrgNodeInput): Promise<OrgNode> =>
-    api.post<OrgNodeResponse>('/org/nodes', input).then((r) => r.node),
-  update: (id: string, input: UpdateOrgNodeInput): Promise<OrgNode> =>
-    api.patch<OrgNodeResponse>(`/org/nodes/${id}`, input).then((r) => r.node),
-  move: (id: string, input: MoveOrgNodeInput): Promise<OrgNode> =>
-    api.post<OrgNodeResponse>(`/org/nodes/${id}/move`, input).then((r) => r.node),
-  remove: (id: string): Promise<void> => api.delete<void>(`/org/nodes/${id}`),
-  setMembers: (id: string, input: SetOrgMembersInput): Promise<OrgNode> =>
-    api.put<OrgNodeResponse>(`/org/nodes/${id}/members`, input).then((r) => r.node),
-  leave: (id: string): Promise<OrgNode> =>
-    api.post<OrgNodeResponse>(`/org/nodes/${id}/leave`).then((r) => r.node),
-  applications: (scope: OrgScope, signal?: AbortSignal): Promise<OrgApplicationsResponse> =>
-    api.get<OrgApplicationsResponse>('/org/applications', { query: { scope }, signal }),
-  apply: (nodeId: string, input: CreateOrgApplicationInput): Promise<OrgApplication> =>
-    api
-      .post<OrgApplicationResponse>(`/org/nodes/${nodeId}/applications`, input)
-      .then((r) => r.application),
-  withdraw: (id: string): Promise<OrgApplication> =>
-    api.delete<OrgApplicationResponse>(`/org/applications/${id}`).then((r) => r.application),
-  decide: (
-    id: string,
-    decision: 'approve' | 'reject',
-    input: DecideOrgApplicationInput,
-  ): Promise<OrgApplication> =>
-    api
-      .post<OrgApplicationResponse>(`/org/applications/${id}/${decision}`, input)
-      .then((r) => r.application),
-};
-
 /** The org tree for a scope, as a flat node list (the page assembles the tree). */
 export function useOrgTree(scope: OrgScope): UseQueryResult<OrgNode[]> {
   return useQuery<OrgNode[]>({
     queryKey: queryKeys.orgTree(scope),
     queryFn: async ({ signal }) => {
-      const res = await orgApi.tree(scope, signal);
+      const res = await coboardClient.org.tree(scope, signal);
       return res.nodes;
     },
   });
@@ -88,7 +53,7 @@ export function useCreateOrgNode(
 ): UseMutationResult<OrgNode, Error, CreateOrgNodeInput> {
   const queryClient = useQueryClient();
   return useMutation<OrgNode, Error, CreateOrgNodeInput>({
-    mutationFn: (input) => orgApi.create(input),
+    mutationFn: (input) => coboardClient.org.create(input),
     onSuccess: () => invalidateScope(queryClient, scope),
   });
 }
@@ -103,7 +68,7 @@ export function useUpdateOrgNode(
 ): UseMutationResult<OrgNode, Error, UpdateOrgNodeVars> {
   const queryClient = useQueryClient();
   return useMutation<OrgNode, Error, UpdateOrgNodeVars>({
-    mutationFn: ({ id, input }) => orgApi.update(id, input),
+    mutationFn: ({ id, input }) => coboardClient.org.update(id, input),
     onSuccess: () => invalidateScope(queryClient, scope),
   });
 }
@@ -118,7 +83,7 @@ export function useMoveOrgNode(
 ): UseMutationResult<OrgNode, Error, MoveOrgNodeVars> {
   const queryClient = useQueryClient();
   return useMutation<OrgNode, Error, MoveOrgNodeVars>({
-    mutationFn: ({ id, input }) => orgApi.move(id, input),
+    mutationFn: ({ id, input }) => coboardClient.org.move(id, input),
     onSuccess: () => invalidateScope(queryClient, scope),
   });
 }
@@ -126,7 +91,7 @@ export function useMoveOrgNode(
 export function useDeleteOrgNode(scope: OrgScope): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
-    mutationFn: (id) => orgApi.remove(id),
+    mutationFn: (id) => coboardClient.org.remove(id),
     onSuccess: () => invalidateScope(queryClient, scope),
   });
 }
@@ -141,7 +106,7 @@ export function useSetOrgMembers(
 ): UseMutationResult<OrgNode, Error, SetOrgMembersVars> {
   const queryClient = useQueryClient();
   return useMutation<OrgNode, Error, SetOrgMembersVars>({
-    mutationFn: ({ id, input }) => orgApi.setMembers(id, input),
+    mutationFn: ({ id, input }) => coboardClient.org.setMembers(id, input),
     onSuccess: () => invalidateScope(queryClient, scope),
   });
 }
@@ -154,7 +119,7 @@ export function useSetOrgMembers(
 export function useLeaveOrgNode(scope: OrgScope): UseMutationResult<OrgNode, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<OrgNode, Error, string>({
-    mutationFn: (id) => orgApi.leave(id),
+    mutationFn: (id) => coboardClient.org.leave(id),
     onSuccess: () => {
       invalidateScope(queryClient, scope);
       void queryClient.invalidateQueries({ queryKey: queryKeys.orgApplications(scope) });
@@ -173,7 +138,7 @@ export function useLeaveOrgNode(scope: OrgScope): UseMutationResult<OrgNode, Err
 export function useOrgApplications(scope: OrgScope): UseQueryResult<OrgApplicationsResponse> {
   return useQuery<OrgApplicationsResponse>({
     queryKey: queryKeys.orgApplications(scope),
-    queryFn: ({ signal }) => orgApi.applications(scope, signal),
+    queryFn: ({ signal }) => coboardClient.org.applications(scope, signal),
   });
 }
 
@@ -197,7 +162,7 @@ export function useApplyToPosition(
 ): UseMutationResult<OrgApplication, Error, ApplyToPositionVars> {
   const queryClient = useQueryClient();
   return useMutation<OrgApplication, Error, ApplyToPositionVars>({
-    mutationFn: ({ nodeId, input }) => orgApi.apply(nodeId, input),
+    mutationFn: ({ nodeId, input }) => coboardClient.org.apply(nodeId, input),
     onSuccess: () => invalidateApplications(queryClient, scope),
   });
 }
@@ -208,7 +173,7 @@ export function useWithdrawApplication(
 ): UseMutationResult<OrgApplication, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<OrgApplication, Error, string>({
-    mutationFn: (id) => orgApi.withdraw(id),
+    mutationFn: (id) => coboardClient.org.withdraw(id),
     onSuccess: () => invalidateApplications(queryClient, scope),
   });
 }
@@ -225,7 +190,7 @@ export function useDecideApplication(
 ): UseMutationResult<OrgApplication, Error, DecideApplicationVars> {
   const queryClient = useQueryClient();
   return useMutation<OrgApplication, Error, DecideApplicationVars>({
-    mutationFn: ({ id, decision, input }) => orgApi.decide(id, decision, input),
+    mutationFn: ({ id, decision, input }) => coboardClient.org.decide(id, decision, input),
     onSuccess: () => invalidateApplications(queryClient, scope),
   });
 }

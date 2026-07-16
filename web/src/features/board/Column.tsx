@@ -13,7 +13,7 @@ import { cn } from '../../lib/utils';
 import { TaskCard } from './TaskCard';
 import { STATUS_LABELS, STATUS_TIME } from './labels';
 import { compareTasksForKey, taskMatcher, type ColumnSortKey } from './sort';
-import type { TaskPermissionContext } from './permissions';
+import type { TaskPermissionContext } from 'shared';
 
 /**
  * A single board column (lifecycle v2 §5) — a vertical list of task cards. Cards
@@ -104,9 +104,7 @@ export function Column({
     >
       <header className="flex items-center gap-2 px-3 py-1.5">
         <span className={cn('h-2 w-2 rounded-full', COLUMN_ACCENT[status])} aria-hidden />
-        <h2 className="truncate text-sm font-semibold text-foreground">
-          {STATUS_LABELS[status]}
-        </h2>
+        <h2 className="truncate text-sm font-semibold text-foreground">{STATUS_LABELS[status]}</h2>
         <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-muted-foreground">
           {filtering ? `${visible.length}/${tasks.length}` : tasks.length}
         </span>

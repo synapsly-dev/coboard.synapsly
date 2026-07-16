@@ -15,6 +15,12 @@ export default defineConfig({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       shared: fileURLToPath(new URL('../packages/shared/src/index.ts', import.meta.url)),
+      'client-core': fileURLToPath(
+        new URL('../packages/client-core/src/index.ts', import.meta.url),
+      ),
+      'design-tokens': fileURLToPath(
+        new URL('../packages/design-tokens/src/index.ts', import.meta.url),
+      ),
     },
   },
   server: {

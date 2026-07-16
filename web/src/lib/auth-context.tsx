@@ -9,7 +9,7 @@ import type {
   User,
 } from 'shared';
 import { api, isApiClientError } from '../api/client';
-import { queryKeys } from './query';
+import { queryKeys } from 'client-core';
 
 /**
  * Auth context. Source of truth for the current session: a TanStack query against

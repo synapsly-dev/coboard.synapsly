@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Task, User } from 'shared';
 import { Column } from './Column';
-import type { TaskPermissionContext } from './permissions';
+import type { TaskPermissionContext } from 'shared';
 
 /**
  * Column search + sort (板块搜索/排序). Verifies the header search filters the
@@ -123,8 +123,18 @@ describe('Column sort (板块排序)', () => {
     // Default open order = urgency first → 紧急旧任务 leads; publish-time-desc
     // puts the newer 低优新任务 first.
     renderColumn([
-      makeTask({ id: 't1', title: '紧急旧任务', priority: 'urgent', createdAt: '2026-06-10T09:00:00' }),
-      makeTask({ id: 't2', title: '低优新任务', priority: 'low', createdAt: '2026-06-18T09:00:00' }),
+      makeTask({
+        id: 't1',
+        title: '紧急旧任务',
+        priority: 'urgent',
+        createdAt: '2026-06-10T09:00:00',
+      }),
+      makeTask({
+        id: 't2',
+        title: '低优新任务',
+        priority: 'low',
+        createdAt: '2026-06-18T09:00:00',
+      }),
     ]);
     expect(titles()).toEqual(['紧急旧任务', '低优新任务']);
 

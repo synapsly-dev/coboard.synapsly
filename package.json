@@ -10,13 +10,17 @@
   "packageManager": "pnpm@11.5.2",
   "scripts": {
     "typecheck": "pnpm -r typecheck",
-    "build": "pnpm --filter shared build && pnpm --filter server build && pnpm --filter web build",
+    "build": "pnpm tokens:check && pnpm --filter shared build && pnpm --filter design-tokens build && pnpm --filter client-core build && pnpm --filter server build && pnpm --filter web build",
     "test": "pnpm -r test",
     "dev": "pnpm --parallel --filter server --filter web dev",
+    "miniapp:dev": "pnpm --filter miniapp dev",
+    "miniapp:build": "pnpm --filter miniapp build",
     "format": "prettier --write . --ignore-unknown",
     "format:check": "prettier --check . --ignore-unknown",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "pnpm --filter server migrate"
+    "db:migrate": "pnpm --filter server migrate",
+    "tokens:generate": "pnpm --filter design-tokens generate",
+    "tokens:check": "pnpm --filter design-tokens check"
   },
   "devDependencies": {
     "drizzle-kit": "^0.30.6",

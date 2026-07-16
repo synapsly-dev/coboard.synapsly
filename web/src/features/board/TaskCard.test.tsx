@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { TaskClaimant, User, Task } from 'shared';
 import { TaskCard } from './TaskCard';
-import type { TaskPermissionContext } from './permissions';
+import type { TaskPermissionContext } from 'shared';
 
 /**
  * TaskCard rendering tests (§10 — 前端关键组件 RTL; lifecycle v2). Verifies the
@@ -43,7 +43,9 @@ vi.mock('../../api/tasks', () => ({
 
 const permCtx: TaskPermissionContext = { user: mockUser, projectRole: 'member' };
 
-function makeClaimant(overrides: Partial<TaskClaimant> & Pick<TaskClaimant, 'userId' | 'displayName'>): TaskClaimant {
+function makeClaimant(
+  overrides: Partial<TaskClaimant> & Pick<TaskClaimant, 'userId' | 'displayName'>,
+): TaskClaimant {
   return {
     avatarColor: '#3b82f6',
     hasAvatar: false,
@@ -148,9 +150,7 @@ describe('TaskCard', () => {
     // Default (per-project board): no project badge.
     expect(screen.queryByText('示例项目')).toBeNull();
 
-    rerender(
-      <TaskCard task={makeTask()} projectId="all" permCtx={permCtx} showProjectBadge />,
-    );
+    rerender(<TaskCard task={makeTask()} projectId="all" permCtx={permCtx} showProjectBadge />);
     expect(screen.getByText('示例项目')).toBeTruthy();
   });
 

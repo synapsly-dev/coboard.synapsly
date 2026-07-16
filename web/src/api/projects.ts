@@ -10,14 +10,11 @@ import type {
   CreateProjectInput,
   Project,
   ProjectDirectoryItem,
-  ProjectDirectoryResponse,
-  ProjectMembersResponse,
   ProjectMemberWithUser,
-  ProjectsListResponse,
   UpdateProjectInput,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Single-project response wrapper for POST /projects and PATCH /projects/:id.
@@ -27,10 +24,6 @@ import { queryKeys } from '../lib/query';
  * the established `{ entity }` convention here and flag it for reconciliation in
  * the integration phase. If the server wraps differently, only this type changes.
  */
-interface ProjectResponse {
-  project: Project;
-}
-
 /**
  * Project data hooks (§7). Read hooks come from the foundation; the Admin
  * frontend agent adds the mutation hooks (create/update/archive, member
@@ -43,33 +36,12 @@ interface ProjectResponse {
  */
 
 /** Low-level fetchers — shared by hooks and mutation onSuccess refetches. */
-export const projectsApi = {
-  list: (signal?: AbortSignal): Promise<ProjectsListResponse> =>
-    api.get<ProjectsListResponse>('/projects', { signal }),
-  create: (input: CreateProjectInput): Promise<ProjectResponse> =>
-    api.post<ProjectResponse>('/projects', input),
-  update: (id: string, input: UpdateProjectInput): Promise<ProjectResponse> =>
-    api.patch<ProjectResponse>(`/projects/${id}`, input),
-  directory: (signal?: AbortSignal): Promise<ProjectDirectoryResponse> =>
-    api.get<ProjectDirectoryResponse>('/projects/directory', { signal }),
-  join: (id: string): Promise<{ ok: boolean }> =>
-    api.post<{ ok: boolean }>(`/projects/${id}/join`),
-  leave: (id: string): Promise<{ ok: boolean }> =>
-    api.post<{ ok: boolean }>(`/projects/${id}/leave`),
-  members: (id: string, signal?: AbortSignal): Promise<ProjectMembersResponse> =>
-    api.get<ProjectMembersResponse>(`/projects/${id}/members`, { signal }),
-  addMember: (id: string, input: AddProjectMemberInput): Promise<ProjectMembersResponse> =>
-    api.post<ProjectMembersResponse>(`/projects/${id}/members`, input),
-  removeMember: (id: string, userId: string): Promise<void> =>
-    api.delete<void>(`/projects/${id}/members/${userId}`),
-};
-
 /** All projects visible to the current user (§7 GET /projects). */
 export function useProjects(): UseQueryResult<Project[]> {
   return useQuery<Project[]>({
     queryKey: queryKeys.projects(),
     queryFn: async ({ signal }) => {
-      const res = await projectsApi.list(signal);
+      const res = await coboardClient.projects.list(signal);
       return res.projects;
     },
   });
@@ -83,7 +55,7 @@ export function useProject(projectId: string | undefined): UseQueryResult<Projec
   return useQuery<Project[], Error, Project | undefined>({
     queryKey: queryKeys.projects(),
     queryFn: async ({ signal }) => {
-      const res = await projectsApi.list(signal);
+      const res = await coboardClient.projects.list(signal);
       return res.projects;
     },
     enabled: projectId !== undefined,
@@ -100,7 +72,7 @@ export function useProjectDirectory(): UseQueryResult<ProjectDirectoryItem[]> {
   return useQuery<ProjectDirectoryItem[]>({
     queryKey: queryKeys.projectDirectory(),
     queryFn: async ({ signal }) => {
-      const res = await projectsApi.directory(signal);
+      const res = await coboardClient.projects.directory(signal);
       return res.projects;
     },
   });
@@ -117,7 +89,7 @@ export function useProjectMembers(
   return useQuery<ProjectMemberWithUser[]>({
     queryKey: projectId ? queryKeys.projectMembers(projectId) : ['projects', 'unknown', 'members'],
     queryFn: async ({ signal }) => {
-      const res = await projectsApi.members(projectId as string, signal);
+      const res = await coboardClient.projects.members(projectId as string, signal);
       return res.members;
     },
     enabled: projectId !== undefined,
@@ -133,7 +105,7 @@ export function useCreateProject(): UseMutationResult<Project, Error, CreateProj
   const queryClient = useQueryClient();
   return useMutation<Project, Error, CreateProjectInput>({
     mutationFn: async (input) => {
-      const res = await projectsApi.create(input);
+      const res = await coboardClient.projects.create(input);
       return res.project;
     },
     onSuccess: () => {
@@ -156,7 +128,7 @@ export function useUpdateProject(): UseMutationResult<Project, Error, UpdateProj
   const queryClient = useQueryClient();
   return useMutation<Project, Error, UpdateProjectVariables>({
     mutationFn: async ({ id, input }) => {
-      const res = await projectsApi.update(id, input);
+      const res = await coboardClient.projects.update(id, input);
       return res.project;
     },
     onSuccess: () => {
@@ -179,7 +151,7 @@ export function useAddProjectMember(): UseMutationResult<
   const queryClient = useQueryClient();
   return useMutation<ProjectMemberWithUser[], Error, AddMemberVariables>({
     mutationFn: async ({ projectId, input }) => {
-      const res = await projectsApi.addMember(projectId, input);
+      const res = await coboardClient.projects.addMember(projectId, input);
       return res.members;
     },
     onSuccess: (_data, { projectId }) => {
@@ -199,7 +171,7 @@ interface RemoveMemberVariables {
 export function useRemoveProjectMember(): UseMutationResult<void, Error, RemoveMemberVariables> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, RemoveMemberVariables>({
-    mutationFn: ({ projectId, userId }) => projectsApi.removeMember(projectId, userId),
+    mutationFn: ({ projectId, userId }) => coboardClient.projects.removeMember(projectId, userId),
     onSuccess: (_data, { projectId }) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectMembers(projectId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects() });
@@ -225,7 +197,7 @@ export function useJoinProject(): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (projectId) => {
-      await projectsApi.join(projectId);
+      await coboardClient.projects.join(projectId);
     },
     onSuccess: () => invalidateMembershipQueries(queryClient),
   });
@@ -236,7 +208,7 @@ export function useLeaveProject(): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
     mutationFn: async (projectId) => {
-      await projectsApi.leave(projectId);
+      await coboardClient.projects.leave(projectId);
     },
     onSuccess: () => invalidateMembershipQueries(queryClient),
   });

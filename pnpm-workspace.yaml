@@ -2,6 +2,13 @@ packages:
   - 'packages/*'
   - 'server'
   - 'web'
+  - 'miniapp'
 allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true
+  '@tarojs/binding': true
+  '@tarojs/cli': true
   argon2: true
+  core-js: true
+  core-js-pure: true
   esbuild: true

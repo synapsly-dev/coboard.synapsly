@@ -1,0 +1,21 @@
+.projects-sections { display: flex; flex-direction: column; gap: 24px; }
+.track-section { display: flex; flex-direction: column; gap: 12px; }
+.track-section__header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.track-section__icon { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 8px; background: var(--secondary); color: var(--muted-foreground); font-size: 16px; }
+.track-section__icon--primary { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--primary); }
+.track-section__title { font-size: 14px; font-weight: 600; }
+.track-section__count { color: var(--muted-foreground); font-size: 12px; }
+.track-managers { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.track-managers__label { color: var(--muted-foreground); font-size: 11px; }
+.track-managers__avatars { display: flex; }
+.track-managers__avatars .avatar { width: 24px; height: 24px; margin-left: -6px; border: 2px solid var(--background); font-size: 10px; }
+.track-managers__avatars .avatar:first-child { margin-left: 0; }
+.track-goal { display: flex; width: 100%; align-items: flex-start; gap: 6px; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
+.track-goal__icon { color: var(--primary); }
+.project-card { display: flex; flex-direction: column; gap: 10px; }
+.project-card__heading { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.project-card__title { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.project-card__description { display: -webkit-box; overflow: hidden; color: var(--muted-foreground); font-size: 14px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.project-card__description--empty { opacity: .7; font-style: italic; }
+.project-card__members { color: var(--muted-foreground); font-size: 12px; }
+.project-card__actions { display: flex; align-items: center; gap: 8px; padding-top: 2px; }

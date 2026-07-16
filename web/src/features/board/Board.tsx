@@ -19,7 +19,7 @@ import {
 import { useLabels } from '../../api/labels';
 import { COLUMN_ORDER, STATUS_LABELS } from './labels';
 import { compareTasksInColumn } from './sort';
-import { resolveProjectRole } from './permissions';
+import { resolveProjectRole } from 'shared';
 import { cn } from '../../lib/utils';
 
 /**

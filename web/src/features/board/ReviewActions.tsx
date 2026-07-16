@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { Check, X } from 'lucide-react';
-import { isAdminRole, QUALITY_COEFFICIENTS, qualityGrades, type QualityGrade, type Task } from 'shared';
+import {
+  isAdminRole,
+  QUALITY_COEFFICIENTS,
+  qualityGrades,
+  type QualityGrade,
+  type Task,
+} from 'shared';
 import {
   Badge,
   Button,
@@ -18,7 +24,7 @@ import { useReviewTask } from '../../api/tasks';
 import { useAuth } from '../../lib/auth-context';
 import { cn } from '../../lib/utils';
 import { FINAL_REVIEW_CHIP_CLASS, QUALITY_GRADE_META } from './labels';
-import { pendingReviewStage } from './permissions';
+import { pendingReviewStage } from 'shared';
 
 /**
  * Review controls for a `pending_review` task (lifecycle v2 §5; P2 §2/§3). The
@@ -178,9 +184,7 @@ export function ReviewActions({
                     className={cn(
                       'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium leading-none transition-colors',
                       meta.className,
-                      active
-                        ? 'ring-2 ring-current'
-                        : 'opacity-70 hover:opacity-100',
+                      active ? 'ring-2 ring-current' : 'opacity-70 hover:opacity-100',
                     )}
                   >
                     <span className="font-bold">{meta.letter}</span>
@@ -259,12 +263,7 @@ export function ReviewActions({
             <Button type="button" variant="outline" onClick={() => setRejectOpen(false)}>
               取消
             </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              loading={review.isPending}
-              onClick={reject}
-            >
+            <Button type="button" variant="destructive" loading={review.isPending} onClick={reject}>
               确认驳回
             </Button>
           </DialogFooter>
@@ -279,7 +278,13 @@ export function ReviewActions({
  * final stage — shows the 初审人 as a tooltip/title. Rendered wherever the old
  * 待审阅 badge would sit for a non-reviewer.
  */
-export function FirstApprovedChip({ task, className }: { task: Task; className?: string }): JSX.Element {
+export function FirstApprovedChip({
+  task,
+  className,
+}: {
+  task: Task;
+  className?: string;
+}): JSX.Element {
   return (
     <span
       className={cn(

@@ -5,32 +5,27 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
+import { queryKeys } from 'client-core';
 import type {
-  AssignTaskInput,
-  BoardResponse,
   CreateTaskInput,
   DeliverTaskInput,
-  ProjectMembersResponse,
   ProjectMemberWithUser,
   ReviewTaskInput,
   Task,
-  TaskClaimant,
   TaskResponse,
   TaskReview,
-  TaskReviewsResponse,
   TransferTaskInput,
   UpdateTaskInput,
 } from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Task data + mutation hooks (§7 tasks). Reads drive the kanban board and the
- * task detail drawer; writes use TanStack Query OPTIMISTIC updates so the acting
- * user sees instant feedback while the request is in flight. Other clients are
- * refreshed by the SSE invalidation layer (§6.5, lib/sse.ts).
+ * task detail drawer. Field edits and deletes use bounded optimistic updates;
+ * lifecycle mutations always apply the authoritative Task returned by the server.
+ * Other clients are refreshed by the realtime invalidation layer.
  *
- * Optimistic pattern (per mutation):
+ * Optimistic pattern (field edits/deletes only):
  *  - onMutate: cancel in-flight board/task queries, snapshot caches, apply the
  *    predicted next state, return the snapshot as rollback context.
  *  - onError: restore the snapshot (so a 409 lost-claim race etc. reverts).
@@ -46,49 +41,9 @@ import { queryKeys } from '../lib/query';
  * param and as the cache key for {@link useAllTasks}; `queryKeys.allTasks()` is
  * `queryKeys.board(ALL_PROJECTS)` so the optimistic helpers reuse that cache.
  */
-export const ALL_PROJECTS = 'all';
+export { ALL_PROJECTS } from 'client-core';
 
-export const tasksApi = {
-  board: (projectId: string, signal?: AbortSignal): Promise<BoardResponse> =>
-    api.get<BoardResponse>(`/projects/${projectId}/tasks`, { signal }),
-  /** Every task the caller can see across projects + the no-project pool (§8). */
-  all: (signal?: AbortSignal): Promise<BoardResponse> =>
-    api.get<BoardResponse>('/tasks/all', { signal }),
-  get: (taskId: string, signal?: AbortSignal): Promise<TaskResponse> =>
-    api.get<TaskResponse>(`/tasks/${taskId}`, { signal }),
-  /**
-   * Unified create (§8 POST /tasks). With `projectId` → a project task (caller
-   * must be a member); without → a no-project (pool) task.
-   */
-  create: (body: CreateTaskInput): Promise<TaskResponse> =>
-    api.post<TaskResponse>('/tasks', body),
-  update: (taskId: string, body: UpdateTaskInput): Promise<TaskResponse> =>
-    api.patch<TaskResponse>(`/tasks/${taskId}`, body),
-  claim: (taskId: string): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/tasks/${taskId}/claim`),
-  release: (taskId: string, userId?: string): Promise<TaskResponse> =>
-    api.post<TaskResponse>(
-      `/tasks/${taskId}/release`,
-      userId ? { userId } : undefined,
-    ),
-  assign: (taskId: string, body: AssignTaskInput): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/tasks/${taskId}/assign`, body),
-  deliver: (taskId: string, body: DeliverTaskInput): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/tasks/${taskId}/deliver`, body),
-  review: (taskId: string, body: ReviewTaskInput): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/tasks/${taskId}/review`, body),
-  /** Structured 审核记录 history, newest first (P2 §2). */
-  reviews: (taskId: string, signal?: AbortSignal): Promise<TaskReviewsResponse> =>
-    api.get<TaskReviewsResponse>(`/tasks/${taskId}/reviews`, { signal }),
-  /** 转让 (P2 §5): atomically move a task from one claimant to another. */
-  transfer: (taskId: string, body: TransferTaskInput): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/tasks/${taskId}/transfer`, body),
-  revokeApproval: (taskId: string): Promise<TaskResponse> =>
-    api.post<TaskResponse>(`/tasks/${taskId}/revoke-approval`),
-  remove: (taskId: string): Promise<void> => api.delete<void>(`/tasks/${taskId}`),
-  members: (projectId: string, signal?: AbortSignal): Promise<ProjectMembersResponse> =>
-    api.get<ProjectMembersResponse>(`/projects/${projectId}/members`, { signal }),
-};
+const tasksClient = coboardClient.tasks;
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -99,7 +54,7 @@ export function useBoardTasks(projectId: string | undefined): UseQueryResult<Tas
   return useQuery<Task[]>({
     queryKey: projectId ? queryKeys.board(projectId) : ['projects', '__none__', 'tasks'],
     queryFn: async ({ signal }) => {
-      const res = await tasksApi.board(projectId!, signal);
+      const res = await tasksClient.board(projectId!, signal);
       return res.tasks;
     },
     enabled: projectId !== undefined,
@@ -115,7 +70,7 @@ export function useAllTasks(enabled = true): UseQueryResult<Task[]> {
   return useQuery<Task[]>({
     queryKey: queryKeys.allTasks(),
     queryFn: async ({ signal }) => {
-      const res = await tasksApi.all(signal);
+      const res = await tasksClient.all(signal);
       return res.tasks;
     },
     enabled,
@@ -127,7 +82,7 @@ export function useTaskReviews(taskId: string | undefined): UseQueryResult<TaskR
   return useQuery<TaskReview[]>({
     queryKey: taskId ? queryKeys.taskReviews(taskId) : ['tasks', '__none__', 'reviews'],
     queryFn: async ({ signal }) => {
-      const res = await tasksApi.reviews(taskId!, signal);
+      const res = await tasksClient.reviews(taskId!, signal);
       return res.reviews;
     },
     enabled: taskId !== undefined,
@@ -139,7 +94,7 @@ export function useTask(taskId: string | undefined): UseQueryResult<Task> {
   return useQuery<Task>({
     queryKey: taskId ? queryKeys.task(taskId) : ['tasks', '__none__'],
     queryFn: async ({ signal }) => {
-      const res = await tasksApi.get(taskId!, signal);
+      const res = await tasksClient.get(taskId!, signal);
       return res.task;
     },
     enabled: taskId !== undefined,
@@ -155,11 +110,9 @@ export function useProjectMembers(
   projectId: string | undefined,
 ): UseQueryResult<ProjectMemberWithUser[]> {
   return useQuery<ProjectMemberWithUser[]>({
-    queryKey: projectId
-      ? queryKeys.projectMembers(projectId)
-      : ['projects', '__none__', 'members'],
+    queryKey: projectId ? queryKeys.projectMembers(projectId) : ['projects', '__none__', 'members'],
     queryFn: async ({ signal }) => {
-      const res = await tasksApi.members(projectId!, signal);
+      const res = await tasksClient.members(projectId!, signal);
       return res.members;
     },
     enabled: projectId !== undefined,
@@ -248,7 +201,7 @@ function invalidateTask(
 export function useCreateTask(): UseMutationResult<TaskResponse, Error, CreateTaskInput> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, CreateTaskInput>({
-    mutationFn: (body) => tasksApi.create(body),
+    mutationFn: (body) => tasksClient.create(body),
     onSuccess: (_data, body) => {
       if (body.projectId) {
         void queryClient.invalidateQueries({ queryKey: queryKeys.board(body.projectId) });
@@ -274,7 +227,7 @@ export function usePatchTask(
 ): UseMutationResult<TaskResponse, Error, PatchTaskVars, BoardSnapshot> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, PatchTaskVars, BoardSnapshot>({
-    mutationFn: ({ taskId, patch }) => tasksApi.update(taskId, patch),
+    mutationFn: ({ taskId, patch }) => tasksClient.update(taskId, patch),
     onMutate: async ({ taskId, patch }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.board(projectId) });
       await queryClient.cancelQueries({ queryKey: queryKeys.task(taskId) });
@@ -282,26 +235,19 @@ export function usePatchTask(
       // `labels` objects — strip it from the optimistic spread (the server returns
       // the resolved label objects, reconciled on settle).
       const { labelIds: _labelIds, ...optimistic } = patch;
-      return applyOptimisticTask(queryClient, projectId, taskId, (task) => {
-        const next = { ...task, ...optimistic };
-        // Mirror the server's claim-limit recompute: when a patch changes the lower
-        // bound without an explicit status move, an open/in_progress task's column
-        // depends on whether its claimant count still meets the (new) min. Recompute
-        // here so the card doesn't briefly flicker into the wrong column before the
-        // server response reconciles.
-        if (
-          optimistic.status === undefined &&
-          optimistic.minClaimants !== undefined &&
-          (task.status === 'open' || task.status === 'in_progress')
-        ) {
-          next.status =
-            task.claimants.length >= next.minClaimants ? 'in_progress' : 'open';
-        }
-        return next;
-      });
+      return applyOptimisticTask(queryClient, projectId, taskId, (task) => ({
+        ...task,
+        ...optimistic,
+        // Status is server-owned. A min-claimant edit may move the task only after
+        // the authoritative response is received.
+        status: task.status,
+      }));
     },
     onError: (_err, { taskId }, context) => {
       restoreSnapshot(queryClient, projectId, taskId, context);
+    },
+    onSuccess: ({ task }) => {
+      queryClient.setQueryData(queryKeys.task(task.id), task);
     },
     onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
@@ -309,48 +255,16 @@ export function usePatchTask(
   });
 }
 
-/** Optimistically add a claimant (the current user) to a task's claimant list. */
-function addClaimant(task: Task, claimant: TaskClaimant): TaskClaimant[] {
-  if (task.claimants.some((c) => c.userId === claimant.userId)) return task.claimants;
-  return [...task.claimants, claimant];
-}
-
 /**
- * Claim a task (lifecycle v2 §3). Optimistically adds the current user to the
- * claimants set and, if the task was open, moves it to in_progress.
+ * Claim a task. Lifecycle transitions are server-owned; the returned Task is the
+ * only state written back into client caches.
  */
-export function useClaimTask(
-  projectId: string,
-  currentUser?: { id: string; displayName: string; avatarColor: string; hasAvatar: boolean },
-): UseMutationResult<TaskResponse, Error, string, BoardSnapshot> {
+export function useClaimTask(projectId: string): UseMutationResult<TaskResponse, Error, string> {
   const queryClient = useQueryClient();
-  return useMutation<TaskResponse, Error, string, BoardSnapshot>({
-    mutationFn: (taskId) => tasksApi.claim(taskId),
-    onMutate: async (taskId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.board(projectId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.task(taskId) });
-      return applyOptimisticTask(queryClient, projectId, taskId, (task) => {
-        const claimants = currentUser
-          ? addClaimant(task, {
-              userId: currentUser.id,
-              displayName: currentUser.displayName,
-              avatarColor: currentUser.avatarColor,
-              hasAvatar: currentUser.hasAvatar,
-              points: null,
-              claimedAt: new Date().toISOString(),
-            })
-          : task.claimants;
-        // Only leave 待认领 once the lower bound is met (claim-limits); below it the
-        // task stays open (未达下限) even with some claimants.
-        const status =
-          task.status === 'open' && claimants.length >= task.minClaimants
-            ? 'in_progress'
-            : task.status;
-        return { ...task, status, claimants };
-      });
-    },
-    onError: (_err, taskId, context) => {
-      restoreSnapshot(queryClient, projectId, taskId, context);
+  return useMutation<TaskResponse, Error, string>({
+    mutationFn: (taskId) => tasksClient.claim(taskId),
+    onSuccess: ({ task }) => {
+      queryClient.setQueryData(queryKeys.task(task.id), task);
     },
     onSettled: (_data, _err, taskId) => {
       invalidateTask(queryClient, projectId, taskId);
@@ -371,33 +285,12 @@ export interface ReleaseTaskVars {
  */
 export function useReleaseTask(
   projectId: string,
-  currentUserId?: string,
-): UseMutationResult<TaskResponse, Error, ReleaseTaskVars, BoardSnapshot> {
+): UseMutationResult<TaskResponse, Error, ReleaseTaskVars> {
   const queryClient = useQueryClient();
-  return useMutation<TaskResponse, Error, ReleaseTaskVars, BoardSnapshot>({
-    mutationFn: ({ taskId, userId }) =>
-      tasksApi.release(taskId, userId),
-    onMutate: async ({ taskId, userId }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.board(projectId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.task(taskId) });
-      const target = userId ?? currentUserId;
-      return applyOptimisticTask(queryClient, projectId, taskId, (task) => {
-        const claimants = target
-          ? task.claimants.filter((c) => c.userId !== target)
-          : task.claimants;
-        // Drop back to 待认领 with no claimants, or when an in_progress task falls
-        // below its lower bound (claim-limits).
-        const status =
-          claimants.length === 0
-            ? 'open'
-            : task.status === 'in_progress' && claimants.length < task.minClaimants
-              ? 'open'
-              : task.status;
-        return { ...task, claimants, status };
-      });
-    },
-    onError: (_err, { taskId }, context) => {
-      restoreSnapshot(queryClient, projectId, taskId, context);
+  return useMutation<TaskResponse, Error, ReleaseTaskVars>({
+    mutationFn: ({ taskId, userId }) => tasksClient.release(taskId, userId),
+    onSuccess: ({ task }) => {
+      queryClient.setQueryData(queryKeys.task(task.id), task);
     },
     onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
@@ -409,7 +302,7 @@ export function useReleaseTask(
 export interface AssignTaskVars {
   taskId: string;
   assigneeId: string;
-  /** Optional display fields for an optimistic claimant avatar. */
+  /** Optional display fields retained for the picker; lifecycle state is not predicted. */
   assignee?: { displayName: string; avatarColor: string; hasAvatar: boolean };
 }
 
@@ -419,34 +312,12 @@ export interface AssignTaskVars {
  */
 export function useAssignTask(
   projectId: string,
-): UseMutationResult<TaskResponse, Error, AssignTaskVars, BoardSnapshot> {
+): UseMutationResult<TaskResponse, Error, AssignTaskVars> {
   const queryClient = useQueryClient();
-  return useMutation<TaskResponse, Error, AssignTaskVars, BoardSnapshot>({
-    mutationFn: ({ taskId, assigneeId }) => tasksApi.assign(taskId, { assigneeId }),
-    onMutate: async ({ taskId, assigneeId, assignee }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.board(projectId) });
-      await queryClient.cancelQueries({ queryKey: queryKeys.task(taskId) });
-      return applyOptimisticTask(queryClient, projectId, taskId, (task) => {
-        const claimants = assignee
-          ? addClaimant(task, {
-              userId: assigneeId,
-              displayName: assignee.displayName,
-              avatarColor: assignee.avatarColor,
-              hasAvatar: assignee.hasAvatar,
-              points: null,
-              claimedAt: new Date().toISOString(),
-            })
-          : task.claimants;
-        // Mirror claim: only advance past 待认领 once the lower bound is met.
-        const status =
-          task.status === 'open' && claimants.length >= task.minClaimants
-            ? 'in_progress'
-            : task.status;
-        return { ...task, status, claimants };
-      });
-    },
-    onError: (_err, { taskId }, context) => {
-      restoreSnapshot(queryClient, projectId, taskId, context);
+  return useMutation<TaskResponse, Error, AssignTaskVars>({
+    mutationFn: ({ taskId, assigneeId }) => tasksClient.assign(taskId, { assigneeId }),
+    onSuccess: ({ task }) => {
+      queryClient.setQueryData(queryKeys.task(task.id), task);
     },
     onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
@@ -470,7 +341,7 @@ export function useDeliverTask(
 ): UseMutationResult<TaskResponse, Error, DeliverTaskVars> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, DeliverTaskVars>({
-    mutationFn: ({ taskId, input }) => tasksApi.deliver(taskId, input),
+    mutationFn: ({ taskId, input }) => tasksClient.deliver(taskId, input),
     onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
     },
@@ -493,7 +364,7 @@ export function useReviewTask(
 ): UseMutationResult<TaskResponse, Error, ReviewTaskVars> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, ReviewTaskVars>({
-    mutationFn: ({ taskId, input }) => tasksApi.review(taskId, input),
+    mutationFn: ({ taskId, input }) => tasksClient.review(taskId, input),
     onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
     },
@@ -510,7 +381,7 @@ export function useRevokeApproval(
 ): UseMutationResult<TaskResponse, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, string>({
-    mutationFn: (taskId) => tasksApi.revokeApproval(taskId),
+    mutationFn: (taskId) => tasksClient.revokeApproval(taskId),
     onSettled: (_data, _err, taskId) => {
       invalidateTask(queryClient, projectId, taskId);
     },
@@ -534,7 +405,7 @@ export function useTransferTask(
 ): UseMutationResult<TaskResponse, Error, TransferTaskVars> {
   const queryClient = useQueryClient();
   return useMutation<TaskResponse, Error, TransferTaskVars>({
-    mutationFn: ({ taskId, input }) => tasksApi.transfer(taskId, input),
+    mutationFn: ({ taskId, input }) => tasksClient.transfer(taskId, input),
     onSettled: (_data, _err, { taskId }) => {
       invalidateTask(queryClient, projectId, taskId);
     },
@@ -549,7 +420,7 @@ export function useDeleteTask(
 ): UseMutationResult<void, Error, string, BoardSnapshot> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string, BoardSnapshot>({
-    mutationFn: (taskId) => tasksApi.remove(taskId),
+    mutationFn: (taskId) => tasksClient.remove(taskId),
     onMutate: async (taskId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.board(projectId) });
       const boardKey = queryKeys.board(projectId);

@@ -158,6 +158,22 @@ export const sessions = pgTable(
   (table) => [index('sessions_user_id_idx').on(table.userId)],
 );
 
+// Short-lived, single-use codes used to transfer an authenticated Syna ID web
+// session into a Mini Program Bearer session. Only a SHA-256 digest is stored.
+export const miniappAuthCodes = pgTable(
+  'miniapp_auth_codes',
+  {
+    codeHash: text('code_hash').primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    oidcIdToken: text('oidc_id_token'),
+    createdAt,
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('miniapp_auth_codes_expires_at_idx').on(table.expiresAt)],
+);
+
 // ---------------------------------------------------------------------------
 // tracks — 赛道 (P0 §2). The top operational grouping above projects. Each track
 // groups projects(小组) and carries 赛道运营经理(manager) + members via

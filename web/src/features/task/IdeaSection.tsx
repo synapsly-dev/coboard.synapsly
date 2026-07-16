@@ -6,10 +6,9 @@ import { Avatar, Badge, Button, Spinner, Textarea, useConfirm } from '../../comp
 import { useQueryClient } from '@tanstack/react-query';
 import { avatarUrl } from '../../lib/utils';
 import { useCreateIdea, useDeleteIdea, useTaskIdeas } from '../../api/ideas';
-import { queryKeys } from '../../lib/query';
+import { queryKeys } from 'client-core';
 import { relativeTime } from '../board/format';
-import type { TaskPermissionContext } from '../board/permissions';
-import { isManager } from '../board/permissions';
+import { isManager, type TaskPermissionContext } from 'shared';
 import { AttachmentPicker } from '../attachments/AttachmentPicker';
 import { useAttachmentSubmit } from '../attachments/useAttachmentSubmit';
 import { confirmDeleteIdea } from '../ideas/delete';
@@ -90,9 +89,7 @@ function IdeaItem({
       />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-foreground">
-            {idea.author.displayName}
-          </span>
+          <span className="text-sm font-medium text-foreground">{idea.author.displayName}</span>
           <span className="text-xs text-muted-foreground">{relativeTime(idea.createdAt)}</span>
           <Badge variant={IDEA_STATUS_VARIANT[idea.status]}>
             {IDEA_STATUS_LABELS[idea.status]}

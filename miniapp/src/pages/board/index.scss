@@ -1,0 +1,69 @@
+.board-page { padding-top: 12px; }
+
+.board-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.board-project-picker {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--card);
+  font-size: 13px;
+}
+
+.board-project-picker__label { color: var(--muted-foreground); }
+.board-project-picker__value { max-width: 150px; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.board-project-picker__chevron { color: var(--muted-foreground); }
+.board-create { margin-bottom: 14px; }
+
+.board-column {
+  overflow: hidden;
+  min-height: 300px;
+  border-radius: 12px;
+  padding: 0 8px 12px;
+  background: color-mix(in srgb, var(--secondary) 40%, transparent);
+}
+
+.board-column__header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+}
+
+.board-column__dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: color-mix(in srgb, var(--muted-foreground) 45%, transparent); }
+.board-column__dot--in_progress { background: var(--primary); }
+.board-column__dot--pending_review { background: var(--warning); }
+.board-column__dot--done { background: var(--success); }
+.board-column__title { overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.board-column__count { border-radius: 999px; padding: 2px 8px; background: var(--card); color: var(--muted-foreground); font-size: 12px; font-weight: 500; }
+.board-column__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+
+.board-icon-button {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--muted-foreground);
+  font-size: 20px;
+}
+
+.board-icon-button:active { background: var(--secondary); }
+.board-icon-button--active { color: var(--primary); }
+.board-search { padding: 0 0 8px; }
+.board-search input { min-height: 36px; box-sizing: border-box; border: 1px solid var(--input); border-radius: 8px; padding: 7px 10px; background: var(--card); font-size: 14px; }
+.board-column__tasks { padding-top: 2px; }
+.board-column .task-card:last-child { margin-bottom: 0; }
+.board-column .empty { min-height: 220px; border-color: color-mix(in srgb, var(--border) 70%, transparent); background: transparent; font-size: 12px; }

@@ -12,7 +12,8 @@ import type {
   UpdateRegistrationSettingsInput,
 } from 'shared';
 import { api } from './client';
-import { queryKeys } from '../lib/query';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Admin settings hooks (§8 GET/PATCH /settings; §6.3). Admin-only on the server.
@@ -23,18 +24,11 @@ import { queryKeys } from '../lib/query';
  */
 
 /** Low-level fetchers — shared by hooks and mutation refetch/invalidation. */
-export const settingsApi = {
-  get: (signal?: AbortSignal): Promise<RegistrationSettings> =>
-    api.get<RegistrationSettings>('/settings', { signal }),
-  update: (input: UpdateRegistrationSettingsInput): Promise<RegistrationSettings> =>
-    api.patch<RegistrationSettings>('/settings', input),
-};
-
 /** Read the registration settings, including the code (admin) — §8 GET /settings. */
 export function useAdminSettings(): UseQueryResult<RegistrationSettings> {
   return useQuery<RegistrationSettings>({
     queryKey: queryKeys.settings(),
-    queryFn: ({ signal }) => settingsApi.get(signal),
+    queryFn: ({ signal }) => coboardClient.settings.get(signal),
   });
 }
 
@@ -46,7 +40,7 @@ export function useUpdateSettings(): UseMutationResult<
 > {
   const queryClient = useQueryClient();
   return useMutation<RegistrationSettings, Error, UpdateRegistrationSettingsInput>({
-    mutationFn: (input) => settingsApi.update(input),
+    mutationFn: (input) => coboardClient.settings.update(input),
     onSuccess: (settings) => {
       queryClient.setQueryData<RegistrationSettings>(queryKeys.settings(), settings);
     },

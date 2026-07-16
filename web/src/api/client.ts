@@ -1,4 +1,5 @@
 import type { ApiError } from 'shared';
+import type { HttpAdapter } from 'client-core';
 
 /**
  * Typed fetch wrapper (§7, §8).
@@ -118,11 +119,7 @@ async function request<T>(
     response = await fetch(buildUrl(path, options.query), init);
   } catch {
     // Network failure / aborted request — surface as a generic client error.
-    throw new ApiClientError(
-      0,
-      'network_error',
-      '网络连接失败，请检查网络后重试',
-    );
+    throw new ApiClientError(0, 'network_error', '网络连接失败，请检查网络后重试');
   }
 
   // 204 No Content (e.g. DELETE) — nothing to parse.
@@ -138,12 +135,7 @@ async function request<T>(
   if (!response.ok) {
     const apiError = parseApiError(payload);
     if (apiError) {
-      throw new ApiClientError(
-        response.status,
-        apiError.code,
-        apiError.message,
-        apiError.fields,
-      );
+      throw new ApiClientError(response.status, apiError.code, apiError.message, apiError.fields);
     }
     throw new ApiClientError(
       response.status,
@@ -167,4 +159,14 @@ export const api = {
     request<T>('PUT', path, { ...options, body }),
   delete: <T>(path: string, options?: RequestOptions): Promise<T> =>
     request<T>('DELETE', path, options),
+};
+
+/** Browser transport injected into the platform-neutral Coboard client. */
+export const webHttpAdapter: HttpAdapter = {
+  request: <T>(options: Parameters<HttpAdapter['request']>[0]): Promise<T> =>
+    request<T>(options.method, options.path, {
+      body: options.body,
+      query: options.query,
+      signal: options.signal,
+    }),
 };

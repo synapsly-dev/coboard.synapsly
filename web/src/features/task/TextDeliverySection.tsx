@@ -6,8 +6,7 @@ import { Avatar, Button, Spinner, Textarea, useConfirm } from '../../components/
 import { avatarUrl } from '../../lib/utils';
 import { isApiClientError } from '../../api/client';
 import { useCreateTaskText, useDeleteTaskText, useTaskTexts } from '../../api/task-texts';
-import type { TaskPermissionContext } from '../board/permissions';
-import { isManager } from '../board/permissions';
+import { isManager, type TaskPermissionContext } from 'shared';
 import { relativeTime } from '../board/format';
 import { renderMarkdown } from './markdown';
 
@@ -43,8 +42,7 @@ export function TextDeliverySection({ task, permCtx }: TextDeliverySectionProps)
     }
     createText.mutate(parsed.data, {
       onSuccess: () => setDraft(''),
-      onError: (err) =>
-        setError(isApiClientError(err) ? err.message : '提交失败，请稍后重试'),
+      onError: (err) => setError(isApiClientError(err) ? err.message : '提交失败，请稍后重试'),
     });
   }
 
@@ -142,7 +140,9 @@ function TextRow({
               title="删除"
               loading={deleteText.isPending}
               onClick={async () => {
-                if (await confirm({ title: '删除交付内容', description: '确定删除这条交付内容？' })) {
+                if (
+                  await confirm({ title: '删除交付内容', description: '确定删除这条交付内容？' })
+                ) {
                   deleteText.mutate(text.id);
                 }
               }}

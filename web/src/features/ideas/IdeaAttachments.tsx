@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import type { Attachment, Idea } from 'shared';
 import { useAuth } from '../../lib/auth-context';
-import { queryKeys } from '../../lib/query';
+import { queryKeys } from 'client-core';
 import { AttachmentChips } from '../attachments/AttachmentChips';
 
 /**
@@ -36,9 +36,7 @@ export function IdeaAttachments({
       ownerId={idea.id}
       files={idea.files}
       canUpload={idea.author.id === user?.id && idea.status === 'pending'}
-      canDeleteFile={(f) =>
-        canManage || (f.uploaderId === user?.id && idea.status === 'pending')
-      }
+      canDeleteFile={(f) => canManage || (f.uploaderId === user?.id && idea.status === 'pending')}
       onFileUploaded={(file) => onFilesChanged?.((files) => [...files, file])}
       onFileDeleted={(fileId) => onFilesChanged?.((files) => files.filter((f) => f.id !== fileId))}
       onChanged={() => {

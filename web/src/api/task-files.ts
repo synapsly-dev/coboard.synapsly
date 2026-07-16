@@ -5,9 +5,9 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type { TaskFile, TaskFilesResponse } from 'shared';
-import { ApiClientError, api } from './client';
-import { queryKeys } from '../lib/query';
+import { MAX_UPLOAD_BYTES, type TaskFile } from 'shared';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Task file / attachment hooks (§7.2). A task's attachments are listed in the task
@@ -20,11 +20,11 @@ import { queryKeys } from '../lib/query';
  */
 
 /** Single-file upload cap mirrored on the client for a friendly pre-flight guard. */
-export const MAX_TASK_FILE_BYTES = 5 * 1024 * 1024;
+export const MAX_TASK_FILE_BYTES = MAX_UPLOAD_BYTES;
 
 /** URL of a task file's download stream (served by GET /api/tasks/:id/files/:fileId). */
 export function taskFileUrl(taskId: string, fileId: string): string {
-  return `/api/tasks/${taskId}/files/${fileId}`;
+  return coboardClient.files.task.url(taskId, fileId);
 }
 
 /**
@@ -33,66 +33,12 @@ export function taskFileUrl(taskId: string, fileId: string): string {
  * for whitelisted mimes (images + PDF); everything else still downloads.
  */
 export function taskFilePreviewUrl(taskId: string, fileId: string): string {
-  return `${taskFileUrl(taskId, fileId)}?inline=1`;
+  return coboardClient.files.task.url(taskId, fileId, true);
 }
 
 // ---------------------------------------------------------------------------
 // Fetchers
 // ---------------------------------------------------------------------------
-
-export const taskFilesApi = {
-  list: (taskId: string, signal?: AbortSignal): Promise<TaskFilesResponse> =>
-    api.get<TaskFilesResponse>(`/tasks/${taskId}/files`, { signal }),
-  remove: (taskId: string, fileId: string): Promise<void> =>
-    api.delete<void>(`/tasks/${taskId}/files/${fileId}`),
-};
-
-/**
- * Upload one file to a task via multipart/form-data. Uses a direct `fetch` (the
- * shared client is JSON-only) but keeps the same cookie + CSRF-header + error-shape
- * conventions. Never sets a `Content-Type` header — the browser adds the multipart
- * boundary automatically. Returns the created file's metadata.
- */
-async function uploadTaskFile(taskId: string, file: File): Promise<TaskFile> {
-  const form = new FormData();
-  form.append('file', file, file.name);
-
-  let response: Response;
-  try {
-    response = await fetch(`/api/tasks/${taskId}/files`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        // CSRF guard (§8); the browser sets the multipart Content-Type itself.
-        'X-Requested-With': 'XMLHttpRequest',
-        Accept: 'application/json',
-      },
-      body: form,
-    });
-  } catch {
-    throw new ApiClientError(0, 'network_error', '网络连接失败，请检查网络后重试');
-  }
-
-  const payload: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const err =
-      payload && typeof payload === 'object' && 'error' in payload
-        ? (payload as { error: { code: string; message: string } }).error
-        : null;
-    throw new ApiClientError(
-      response.status,
-      err?.code ?? 'unexpected_error',
-      err?.message ?? '上传失败，请稍后重试',
-    );
-  }
-
-  const res = payload as TaskFilesResponse;
-  const created = res.files[0];
-  if (!created) {
-    throw new Error('服务器未返回文件数据');
-  }
-  return created;
-}
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -103,7 +49,7 @@ export function useTaskFiles(taskId: string | undefined): UseQueryResult<TaskFil
   return useQuery<TaskFile[]>({
     queryKey: taskId ? queryKeys.taskFiles(taskId) : ['tasks', '__none__', 'files'],
     queryFn: async ({ signal }) => {
-      const res = await taskFilesApi.list(taskId!, signal);
+      const res = await coboardClient.files.task.list(taskId!, signal);
       return res.files;
     },
     enabled: taskId !== undefined,
@@ -115,12 +61,10 @@ export function useTaskFiles(taskId: string | undefined): UseQueryResult<TaskFil
 // ---------------------------------------------------------------------------
 
 /** Upload a file to a task (§7.2 POST /tasks/:id/files). Refreshes the file list. */
-export function useUploadTaskFile(
-  taskId: string,
-): UseMutationResult<TaskFile, Error, File> {
+export function useUploadTaskFile(taskId: string): UseMutationResult<TaskFile, Error, File> {
   const queryClient = useQueryClient();
   return useMutation<TaskFile, Error, File>({
-    mutationFn: (file) => uploadTaskFile(taskId, file),
+    mutationFn: (file) => coboardClient.files.task.upload(taskId, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.taskFiles(taskId) });
     },
@@ -128,12 +72,10 @@ export function useUploadTaskFile(
 }
 
 /** Delete a task file (§7.2 DELETE /tasks/:id/files/:fileId). Refreshes the list. */
-export function useDeleteTaskFile(
-  taskId: string,
-): UseMutationResult<void, Error, string> {
+export function useDeleteTaskFile(taskId: string): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
-    mutationFn: (fileId) => taskFilesApi.remove(taskId, fileId),
+    mutationFn: (fileId) => coboardClient.files.task.remove(taskId, fileId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.taskFiles(taskId) });
     },

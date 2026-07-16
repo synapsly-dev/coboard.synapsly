@@ -5,15 +5,9 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type {
-  Announcement,
-  AnnouncementResponse,
-  AnnouncementsResponse,
-  CreateAnnouncementInput,
-  UpdateAnnouncementInput,
-} from 'shared';
-import { api } from './client';
-import { queryKeys } from '../lib/query';
+import type { Announcement, CreateAnnouncementInput, UpdateAnnouncementInput } from 'shared';
+import { queryKeys } from 'client-core';
+import { coboardClient } from '../platform/coboard-client';
 
 /**
  * Announcement / 信息 hooks. Every logged-in user can read the list; create/edit/
@@ -22,21 +16,11 @@ import { queryKeys } from '../lib/query';
  * channel (§6.5).
  */
 
-export const announcementsApi = {
-  list: (signal?: AbortSignal): Promise<AnnouncementsResponse> =>
-    api.get<AnnouncementsResponse>('/announcements', { signal }),
-  create: (input: CreateAnnouncementInput): Promise<AnnouncementResponse> =>
-    api.post<AnnouncementResponse>('/announcements', input),
-  update: (id: string, input: UpdateAnnouncementInput): Promise<AnnouncementResponse> =>
-    api.patch<AnnouncementResponse>(`/announcements/${id}`, input),
-  remove: (id: string): Promise<void> => api.delete<void>(`/announcements/${id}`),
-};
-
 /** All notices, newest first (§ GET /announcements). */
 export function useAnnouncements(): UseQueryResult<Announcement[]> {
   return useQuery<Announcement[]>({
     queryKey: queryKeys.announcements(),
-    queryFn: async ({ signal }) => (await announcementsApi.list(signal)).announcements,
+    queryFn: async ({ signal }) => (await coboardClient.announcements.list(signal)).announcements,
   });
 }
 
@@ -48,7 +32,7 @@ export function useCreateAnnouncement(): UseMutationResult<
 > {
   const queryClient = useQueryClient();
   return useMutation<Announcement, Error, CreateAnnouncementInput>({
-    mutationFn: async (input) => (await announcementsApi.create(input)).announcement,
+    mutationFn: async (input) => (await coboardClient.announcements.create(input)).announcement,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.announcements() });
     },
@@ -69,7 +53,8 @@ export function useUpdateAnnouncement(): UseMutationResult<
 > {
   const queryClient = useQueryClient();
   return useMutation<Announcement, Error, UpdateAnnouncementVars>({
-    mutationFn: async ({ id, input }) => (await announcementsApi.update(id, input)).announcement,
+    mutationFn: async ({ id, input }) =>
+      (await coboardClient.announcements.update(id, input)).announcement,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.announcements() });
     },
@@ -80,7 +65,7 @@ export function useUpdateAnnouncement(): UseMutationResult<
 export function useDeleteAnnouncement(): UseMutationResult<void, Error, string> {
   const queryClient = useQueryClient();
   return useMutation<void, Error, string>({
-    mutationFn: (id) => announcementsApi.remove(id),
+    mutationFn: (id) => coboardClient.announcements.remove(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.announcements() });
     },
