@@ -9,12 +9,10 @@ import autoload from '@fastify/autoload';
 import { registerRoutes as registerRoutesExplicit } from './route-registry.js';
 import type { Database } from './db/index.js';
 import { loadAuthRuntime, type AuthRuntime } from './auth/config.js';
+import { configureEmailChannel } from './email/emailChannel.js';
+import { createMailer, type Mailer } from './email/mailer.js';
 import { bus, type RealtimeBus } from './realtime/bus.js';
-import {
-  SESSION_COOKIE,
-  lookupSession,
-  touchSession,
-} from './auth/session.js';
+import { SESSION_COOKIE, lookupSession, touchSession } from './auth/session.js';
 import { AppError, ErrorCode, isAppError } from './lib/errors.js';
 // Fastify type augmentation in ./types/fastify.d.ts is picked up by the compiler
 // via the tsconfig `include`; no runtime import is needed.
@@ -41,6 +39,8 @@ export interface BuildAppOptions {
    * dev-login off).
    */
   authRuntime?: AuthRuntime;
+  /** Outbound mailer (defaults to one built from the auth runtime; tests inject). */
+  mailer?: Mailer;
   /** Absolute path to the built web SPA (web/dist). Omit to skip static serving. */
   webDistPath?: string | undefined;
   /** Fastify logger toggle. */
@@ -70,9 +70,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorate('isProduction', options.production);
   app.decorate(
     'authRuntime',
-    options.authRuntime ??
-      loadAuthRuntime({ production: options.production, publicUrl: '' }),
+    options.authRuntime ?? loadAuthRuntime({ production: options.production, publicUrl: '' }),
   );
+  app.decorate('mailer', options.mailer ?? createMailer(app.authRuntime.synapsly, app.log));
+  // 邮件通道 (module singleton): createNotifications mirrors tagged notifications
+  // to email through this. Last-built app wins, which is what tests want too.
+  configureEmailChannel({
+    mailer: app.mailer,
+    log: app.log,
+    publicUrl: app.authRuntime.publicUrl || '',
+  });
 
   // Per-request auth context defaults.
   app.decorateRequest('user', null);
@@ -171,9 +178,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   } else {
     app.setNotFoundHandler((_request, reply) =>
-      reply
-        .code(404)
-        .send(new AppError(404, ErrorCode.NOT_FOUND, '资源不存在').toResponse()),
+      reply.code(404).send(new AppError(404, ErrorCode.NOT_FOUND, '资源不存在').toResponse()),
     );
   }
 

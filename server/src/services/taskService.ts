@@ -664,6 +664,7 @@ export async function createTask(
       dedupeKey: `activity:${activity.id}:task_assigned`,
       groupKey: `task:${created.id}`,
       payload: { projectId },
+      emailEvent: 'taskAssigned',
     });
   }
 
@@ -881,6 +882,8 @@ async function notifyTaskClaimants(
     dedupeKey: input.dedupeKey,
     groupKey: `task:${task.id}`,
     payload: { projectId: task.projectId },
+    // 邮件提醒: only the 驳回 moment is mirrored to email (admin-configurable).
+    emailEvent: input.type === 'review_rejected' ? 'taskRejected' : undefined,
   });
 }
 
@@ -891,6 +894,11 @@ async function notifyTaskReviewers(
   actorUserId: string,
   dedupeKey: string,
 ): Promise<void> {
+  // 邮件提醒: when the pending review sits with the global admins (pool task, or
+  // 复核 after a passed 初审 — mirrors listTaskReviewerIds), the mail goes to the
+  // admin roster picked in settings; otherwise it's the ordinary reviewer mail.
+  const adminStage =
+    task.projectId === null || (task.needsFinalReview && task.firstApprovedAt !== null);
   await createNotifications(db, bus, {
     recipientUserIds: await listTaskReviewerIds(db, task),
     actorUserId,
@@ -904,6 +912,7 @@ async function notifyTaskReviewers(
     dedupeKey,
     groupKey: `task:${task.id}`,
     payload: { projectId: task.projectId },
+    emailEvent: adminStage ? 'adminReviewNeeded' : 'taskSubmitted',
   });
 }
 
@@ -1199,6 +1208,7 @@ export async function assignTask(
       dedupeKey: `activity:${activity.id}:task_assigned`,
       groupKey: `task:${task.id}`,
       payload: { projectId: task.projectId },
+      emailEvent: 'taskAssigned',
     });
     publishTaskChange(bus, 'assigned', updated);
   }
@@ -1699,6 +1709,7 @@ export async function transferTask(
     dedupeKey: `activity:${activity.id}:transferred_to`,
     groupKey: `task:${task.id}`,
     payload: { projectId: task.projectId },
+    emailEvent: 'taskAssigned',
   });
 
   publishTaskChange(bus, 'transferred', task);

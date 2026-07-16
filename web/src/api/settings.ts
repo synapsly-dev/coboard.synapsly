@@ -6,7 +6,9 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import type {
+  EmailNotificationSettings,
   RegistrationSettings,
+  UpdateEmailNotificationSettingsInput,
   UpdateRegistrationSettingsInput,
 } from 'shared';
 import { api } from './client';
@@ -47,6 +49,40 @@ export function useUpdateSettings(): UseMutationResult<
     mutationFn: (input) => settingsApi.update(input),
     onSuccess: (settings) => {
       queryClient.setQueryData<RegistrationSettings>(queryKeys.settings(), settings);
+    },
+  });
+}
+
+/** 邮件提醒 fetchers — GET/PATCH /settings/email-notifications (admin). */
+export const emailNotificationSettingsApi = {
+  get: (signal?: AbortSignal): Promise<EmailNotificationSettings> =>
+    api.get<EmailNotificationSettings>('/settings/email-notifications', { signal }),
+  update: (input: UpdateEmailNotificationSettingsInput): Promise<EmailNotificationSettings> =>
+    api.patch<EmailNotificationSettings>('/settings/email-notifications', input),
+};
+
+/** Read the 邮件提醒 settings (admin). */
+export function useEmailNotificationSettings(): UseQueryResult<EmailNotificationSettings> {
+  return useQuery<EmailNotificationSettings>({
+    queryKey: queryKeys.emailNotificationSettings(),
+    queryFn: ({ signal }) => emailNotificationSettingsApi.get(signal),
+  });
+}
+
+/** Persist a partial 邮件提醒 update (admin). */
+export function useUpdateEmailNotificationSettings(): UseMutationResult<
+  EmailNotificationSettings,
+  Error,
+  UpdateEmailNotificationSettingsInput
+> {
+  const queryClient = useQueryClient();
+  return useMutation<EmailNotificationSettings, Error, UpdateEmailNotificationSettingsInput>({
+    mutationFn: (input) => emailNotificationSettingsApi.update(input),
+    onSuccess: (settings) => {
+      queryClient.setQueryData<EmailNotificationSettings>(
+        queryKeys.emailNotificationSettings(),
+        settings,
+      );
     },
   });
 }

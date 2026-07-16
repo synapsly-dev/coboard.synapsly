@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type {
+  EmailNotificationEventKey,
   EntitySubscription,
   Notification,
   NotificationCounts,
@@ -27,6 +28,7 @@ import {
   type TaskRow,
   type UserRow,
 } from '../db/schema.js';
+import { sendNotificationEmails } from '../email/emailChannel.js';
 import { notFound } from '../lib/errors.js';
 import type { RealtimeBus } from '../realtime/bus.js';
 import { publishChange } from './activityService.js';
@@ -144,6 +146,11 @@ export interface CreateNotificationsInput {
   groupKey?: string | null;
   /** Direct actions normally do not notify their own actor. */
   includeActor?: boolean;
+  /**
+   * 邮件提醒: mirror each freshly inserted notification to email under this
+   * event key (gated by the admin email settings). Omit for in-app only.
+   */
+  emailEvent?: EmailNotificationEventKey;
 }
 
 /** Insert one durable notification per distinct recipient and publish private SSE. */
@@ -210,6 +217,13 @@ export async function createNotifications(
     if (!row) continue;
     inserted.push(row);
     publishNotificationRefresh(bus, recipientUserId, 'notification_created', row.id);
+  }
+
+  // 邮件通道: mirror the fresh rows (dedupe already applied) to email. The call
+  // resolves policy + recipients but never awaits the actual SMTP round-trip,
+  // and it never throws — see emailChannel.ts.
+  if (input.emailEvent && inserted.length > 0) {
+    await sendNotificationEmails(db, input.emailEvent, inserted);
   }
   return inserted;
 }

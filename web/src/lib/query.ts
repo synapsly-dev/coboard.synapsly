@@ -35,6 +35,8 @@ export const queryKeys = {
   /** Public probe of which sign-in affordances the login page should show. */
   authConfig: () => ['auth', 'config'] as const,
   settings: () => ['settings'] as const,
+  /** 邮件提醒 config (admin) — GET/PATCH /settings/email-notifications. */
+  emailNotificationSettings: () => ['settings', 'email-notifications'] as const,
   me: () => ['auth', 'me'] as const,
   users: () => ['users'] as const,
   projects: () => ['projects'] as const,

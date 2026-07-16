@@ -5,6 +5,7 @@ import { loadAuthRuntime } from './auth/config.js';
 import { createDb, resolveDatabaseUrl, type DbHandle } from './db/index.js';
 import { runMigrations } from './db/migrate.js';
 import { maybeSeed } from './db/seed.js';
+import { startDueSoonScheduler } from './services/deadlineService.js';
 
 /**
  * Production entrypoint (§9). Resolves config from env, opens the database, runs
@@ -25,9 +26,8 @@ function readConfig(): {
   seed: boolean;
 } {
   const production = process.env.NODE_ENV === 'production';
-  const sessionSecret = process.env.SESSION_SECRET ?? (
-    production ? undefined : 'coboard-local-development-secret'
-  );
+  const sessionSecret =
+    process.env.SESSION_SECRET ?? (production ? undefined : 'coboard-local-development-secret');
   if (!sessionSecret || sessionSecret.length < 16) {
     throw new Error('SESSION_SECRET 未配置或过短（至少 16 字符），请在 .env 中设置');
   }
@@ -93,8 +93,12 @@ async function main(): Promise<void> {
     logger: true,
   });
 
+  // 任务临期提醒(站内+邮件):每小时扫描一次 dueDate。
+  const stopDueSoonScan = startDueSoonScheduler({ db, bus: app.bus, log: app.log });
+
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info(`收到 ${signal}，正在关闭...`);
+    stopDueSoonScan();
     try {
       await app.close();
       await close();

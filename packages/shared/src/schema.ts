@@ -996,6 +996,57 @@ export const updateRegistrationSettingsInputSchema = z
 export type UpdateRegistrationSettingsInput = z.infer<typeof updateRegistrationSettingsInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Email notification settings (邮件提醒)
+//
+// Emails are sent through core's `/api/send/email` M2M endpoint at key task
+// lifecycle moments. Admins control a master switch, per-event toggles, the
+// due-soon lead time, and WHICH admins receive the admin-facing mails.
+// ---------------------------------------------------------------------------
+
+/** Per-event toggles. Keys are the five notification moments. */
+export const emailNotificationEventsSchema = z.object({
+  /** 任务被派发给成员时 → 通知被派发人 */
+  taskAssigned: z.boolean(),
+  /** 任务即将到期(dueDate 距今 ≤ dueSoonDays)→ 通知认领人 */
+  taskDueSoon: z.boolean(),
+  /** 任务交付提交时 → 通知任务创建者与项目负责人 */
+  taskSubmitted: z.boolean(),
+  /** 任务被驳回时 → 通知认领人 */
+  taskRejected: z.boolean(),
+  /** 任务需要管理员审阅(复核/无项目任务交付)→ 通知选定的管理员 */
+  adminReviewNeeded: z.boolean(),
+});
+export type EmailNotificationEvents = z.infer<typeof emailNotificationEventsSchema>;
+export type EmailNotificationEventKey = keyof EmailNotificationEvents;
+
+/** GET /settings/email-notifications — admin-only full settings. */
+export const emailNotificationSettingsSchema = z.object({
+  /** Master switch; when false no email is ever sent. */
+  enabled: z.boolean(),
+  events: emailNotificationEventsSchema,
+  /** 提前提醒天数：dueDate 距今 ≤ N 天(含已逾期)触发临期邮件。 */
+  dueSoonDays: z.number().int().min(0).max(30),
+  /** 接收管理员邮件(adminReviewNeeded)的管理员用户 id 名单。 */
+  adminRecipientIds: z.array(z.string().uuid()).max(100),
+});
+export type EmailNotificationSettings = z.infer<typeof emailNotificationSettingsSchema>;
+
+/** PATCH /settings/email-notifications — partial update, at least one field. */
+export const updateEmailNotificationSettingsInputSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    events: emailNotificationEventsSchema.partial().optional(),
+    dueSoonDays: z.number().int().min(0).max(30).optional(),
+    adminRecipientIds: z.array(z.string().uuid()).max(100).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: '至少修改一个字段',
+  });
+export type UpdateEmailNotificationSettingsInput = z.infer<
+  typeof updateEmailNotificationSettingsInputSchema
+>;
+
+// ---------------------------------------------------------------------------
 // Users (admin) (§7)
 // ---------------------------------------------------------------------------
 

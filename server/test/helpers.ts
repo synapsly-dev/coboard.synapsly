@@ -8,6 +8,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import type { Database } from '../src/db/index.js';
 import type { AuthRuntime } from '../src/auth/config.js';
+import type { Mailer, MailMessage } from '../src/email/mailer.js';
 import { RealtimeBus } from '../src/realtime/bus.js';
 import * as schema from '../src/db/schema.js';
 
@@ -26,6 +27,8 @@ export interface TestContext {
   db: Database;
   bus: RealtimeBus;
   pglite: PGlite;
+  /** Every mail "sent" during the test, in order (the mailer is a recorder). */
+  outbox: MailMessage[];
   cleanup: () => Promise<void>;
 }
 
@@ -41,9 +44,7 @@ interface MigrationJournal {
 async function applyMigrations(pglite: PGlite): Promise<void> {
   const journalPath = join(MIGRATIONS_FOLDER, 'meta', '_journal.json');
   if (!existsSync(journalPath)) {
-    throw new Error(
-      `未找到迁移文件 (${journalPath})。请先运行 \`pnpm db:generate\`。`,
-    );
+    throw new Error(`未找到迁移文件 (${journalPath})。请先运行 \`pnpm db:generate\`。`);
   }
   const journal = JSON.parse(await readFile(journalPath, 'utf8')) as MigrationJournal;
   const ordered = [...journal.entries].sort((a, b) => a.idx - b.idx);
@@ -80,12 +81,23 @@ export async function createTestContext(opts?: {
   const db = drizzle(pglite, { schema }) as unknown as Database;
   const bus = new RealtimeBus();
 
+  // Recording mailer: notification tests assert on the outbox synchronously.
+  const outbox: MailMessage[] = [];
+  const mailer: Mailer = {
+    kind: 'log',
+    send: (message) => {
+      outbox.push(message);
+      return Promise.resolve();
+    },
+  };
+
   const app = await buildApp({
     db,
     sessionSecret: 'test-secret-please-ignore-1234567890',
     production: false,
     realtimeBus: bus,
     authRuntime: { ...DEFAULT_TEST_AUTH_RUNTIME, ...opts?.authRuntime },
+    mailer,
     logger: false,
     // Vitest cannot use autoload's native dynamic import of source modules.
     routeLoader: 'explicit',
@@ -97,6 +109,7 @@ export async function createTestContext(opts?: {
     db,
     bus,
     pglite,
+    outbox,
     cleanup: async () => {
       await app.close();
       await pglite.close();
