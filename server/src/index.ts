@@ -72,7 +72,16 @@ async function main(): Promise<void> {
     await maybeSeed(db);
   }
 
+  // Local source runs are the development surface used by both the Web app and
+  // the miniapp. Keep fake login available there unless it was explicitly
+  // disabled. Production still goes through loadAuthRuntime's hard guard and
+  // can never enable DEV_LOGIN.
+  const authEnv =
+    !config.production && process.env.DEV_LOGIN === undefined
+      ? { ...process.env, DEV_LOGIN: 'true' }
+      : process.env;
   const authRuntime = loadAuthRuntime({
+    env: authEnv,
     production: config.production,
     publicUrl: config.publicUrl,
   });

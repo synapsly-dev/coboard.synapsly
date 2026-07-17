@@ -7,6 +7,21 @@ function urlFor(path: string): string {
   return `${API_BASE}/api${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+function compactQuery(query: HttpRequest['query']): HttpRequest['query'] {
+  if (!query) return undefined;
+  return Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined));
+}
+
+function requestData(request: HttpRequest): HttpRequest['body'] | HttpRequest['query'] {
+  if (request.method === 'GET') return compactQuery(request.query);
+
+  // wx.request sends `Content-Type: application/json` by default. Fastify
+  // correctly rejects an empty body carrying that content type, which affected
+  // bodyless mutations such as claim/release/revoke. An empty object keeps the
+  // wire payload valid JSON while preserving the client-core API's optional body.
+  return request.body ?? {};
+}
+
 function errorFrom(status: number, payload: unknown): CoboardClientError {
   if (payload && typeof payload === 'object' && 'error' in payload) {
     const error = (
@@ -31,7 +46,7 @@ export const taroHttpAdapter: HttpAdapter = {
       const response = await Taro.request<T>({
         url: urlFor(request.path),
         method: request.method,
-        data: request.method === 'GET' ? request.query : request.body,
+        data: requestData(request),
         header: {
           Accept: 'application/json',
           'Content-Type': 'application/json',

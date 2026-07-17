@@ -2,8 +2,8 @@ import { defineConfig, type UserConfigExport } from '@tarojs/cli';
 
 export default defineConfig<'webpack5'>(async (merge) => {
   const isDevelopment = process.env.NODE_ENV !== 'production';
-  // Taro.request needs an absolute URL. Keep local development zero-config,
-  // while production still has to provide an explicit HTTPS origin.
+  // Taro.request needs an absolute URL. The watch build always injects the local
+  // service origin; release builds still require an explicit HTTPS origin.
   const apiBase = process.env.TARO_APP_API_BASE ?? (isDevelopment ? 'http://127.0.0.1:3000' : '');
   const base: UserConfigExport<'webpack5'> = {
     projectName: 'coboard-miniapp',

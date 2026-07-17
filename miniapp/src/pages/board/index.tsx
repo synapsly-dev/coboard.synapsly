@@ -2,33 +2,25 @@ import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro';
 import { Input, Picker, Text, View } from '@tarojs/components';
 import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { TASK_STATUS_META, TASK_STATUS_ORDER, type Task, type TaskStatus } from 'shared';
+import { canClaim, canDeliver, canReview, canRevokeApproval, resolveProjectRole, TASK_STATUS_META, TASK_STATUS_ORDER, type TaskStatus } from 'shared';
 import { coboardClient } from '../../platform/coboard-client';
 import { AuthGate } from '../../components/AuthGate';
-import { ActionButton, Card, Empty, Field, Segmented } from '../../components/ui';
+import { ActionButton, Empty, Segmented } from '../../components/ui';
 import { TaskCard } from '../../components/TaskCard';
 import { useCurrentUser, useSessionToken } from '../../lib/auth';
 import { queryClient } from '../../lib/query';
+import { BoardFilters, FILTER_ALL, FILTER_ME, LABEL_FILTER_ALL } from '../../features/board/BoardFilters';
+import { compareTasksForKey, taskMatcher, type ColumnSortKey } from '../../features/board/sort';
+import { CreateTaskForm } from '../../features/board/CreateTaskForm';
 import './index.scss';
 
-type SortKey = 'default' | 'priority' | 'due';
-
-const SORTS: readonly { value: SortKey; label: string }[] = [
+const SORTS: readonly { value: ColumnSortKey; label: string }[] = [
   { value: 'default', label: '默认排序' },
+  { value: 'time_desc', label: '阶段时间：新 → 旧' },
+  { value: 'time_asc', label: '阶段时间：旧 → 新' },
   { value: 'priority', label: '优先级：高 → 低' },
   { value: 'due', label: '截止日期：近 → 远' },
 ];
-
-const PRIORITY = { low: 0, medium: 1, high: 2, urgent: 3 } as const;
-
-function matches(task: Task, rawQuery: string): boolean {
-  const query = rawQuery.trim().toLowerCase();
-  if (!query) return true;
-  return task.title.toLowerCase().includes(query)
-    || task.labels.some((label) => label.name.toLowerCase().includes(query))
-    || task.claimants.some((claimant) => claimant.displayName.toLowerCase().includes(query))
-    || (task.projectName ?? '').toLowerCase().includes(query);
-}
 
 function BoardPage(): JSX.Element {
   const token = useSessionToken();
@@ -37,11 +29,11 @@ function BoardPage(): JSX.Element {
   const [status, setStatus] = useState<TaskStatus>('open');
   const [projectId, setProjectId] = useState('all');
   const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('default');
+  const [searchOpen, setSearchOpen] = useState<Record<TaskStatus, boolean>>({ open: false, in_progress: false, pending_review: false, done: false });
+  const [searches, setSearches] = useState<Record<TaskStatus, string>>({ open: '', in_progress: '', pending_review: '', done: '' });
+  const [sortKeys, setSortKeys] = useState<Record<TaskStatus, ColumnSortKey>>({ open: 'default', in_progress: 'default', pending_review: 'default', done: 'default' });
+  const [assignee, setAssignee] = useState(FILTER_ALL);
+  const [labelFilter, setLabelFilter] = useState(LABEL_FILTER_ALL);
 
   const projects = useQuery({
     queryKey: ['projects', 'directory', token],
@@ -51,28 +43,26 @@ function BoardPage(): JSX.Element {
   const query = useQuery({
     queryKey: ['board', projectId, token],
     enabled: Boolean(token),
-    queryFn: async () => (projectId === 'all'
-      ? await coboardClient.tasks.all()
-      : await coboardClient.tasks.board(projectId)).tasks,
+    queryFn: async () => {
+      const response = projectId === 'all'
+        ? await coboardClient.tasks.all()
+        : await coboardClient.tasks.board(projectId);
+      return response.tasks;
+    },
+  });
+  const members = useQuery({
+    queryKey: ['projects', projectId, 'members', token],
+    enabled: Boolean(token) && projectId !== 'all',
+    queryFn: async () => (await coboardClient.projects.members(projectId)).members,
+  });
+  const labels = useQuery({
+    queryKey: ['labels', token],
+    enabled: Boolean(token),
+    queryFn: async () => (await coboardClient.labels.list()).labels,
   });
   const claim = useMutation({
     mutationFn: (id: string) => coboardClient.tasks.claim(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['board'] }),
-  });
-  const create = useMutation({
-    mutationFn: () => coboardClient.tasks.create({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      priority: 'medium',
-      minClaimants: 1,
-      projectId: projectId === 'all' ? null : projectId,
-    }),
-    onSuccess: () => {
-      setCreating(false);
-      setTitle('');
-      setDescription('');
-      void queryClient.invalidateQueries({ queryKey: ['board'] });
-    },
   });
 
   useDidShow(() => {
@@ -82,9 +72,11 @@ function BoardPage(): JSX.Element {
       Taro.removeStorageSync('coboard-board-project');
     }
     if (token) {
-      void projects.refetch();
-      void query.refetch();
-      void me.refetch();
+      // The first mount already starts these queries. Refetching from the initial
+      // useDidShow callback cancels that request in the mini-program runtime.
+      if (projects.status !== 'pending') void projects.refetch();
+      if (query.status !== 'pending') void query.refetch();
+      if (me.status !== 'pending') void me.refetch();
     }
   });
   usePullDownRefresh(async () => {
@@ -95,20 +87,17 @@ function BoardPage(): JSX.Element {
   const projectOptions = [{ id: 'all', name: '全部项目' }, ...(projects.data ?? [])];
   const projectIndex = Math.max(0, projectOptions.findIndex((project) => project.id === projectId));
   const tasks = query.data ?? [];
-  const statusTasks = tasks.filter((task) => task.status === status);
+  const filteredTasks = tasks.filter((task) => {
+    if (assignee === FILTER_ME && !task.claimants.some((person) => person.userId === me.data?.id)) return false;
+    if (assignee !== FILTER_ALL && assignee !== FILTER_ME && !task.claimants.some((person) => person.userId === assignee)) return false;
+    return labelFilter === LABEL_FILTER_ALL || task.labels.some((item) => item.id === labelFilter);
+  });
+  const statusTasks = filteredTasks.filter((task) => task.status === status);
+  const search = searches[status];
+  const sortKey = sortKeys[status];
   const visible = useMemo(() => {
-    const filtered = statusTasks.filter((task) => matches(task, search));
-    if (sortKey === 'priority') {
-      return [...filtered].sort((a, b) => PRIORITY[b.priority] - PRIORITY[a.priority]);
-    }
-    if (sortKey === 'due') {
-      return [...filtered].sort((a, b) => {
-        const aTime = a.dueDate ? Date.parse(a.dueDate) : Number.POSITIVE_INFINITY;
-        const bTime = b.dueDate ? Date.parse(b.dueDate) : Number.POSITIVE_INFINITY;
-        return aTime - bTime;
-      });
-    }
-    return filtered;
+    const matcher = taskMatcher(search);
+    return statusTasks.filter((task) => !matcher || matcher(task)).sort(compareTasksForKey(status, sortKey));
   }, [search, sortKey, statusTasks]);
 
   return (
@@ -118,7 +107,10 @@ function BoardPage(): JSX.Element {
           mode="selector"
           range={projectOptions.map((project) => project.name)}
           value={projectIndex}
-          onChange={(event) => setProjectId(projectOptions[Number(event.detail.value)]?.id ?? 'all')}
+          onChange={(event) => {
+            setProjectId(projectOptions[Number(event.detail.value)]?.id ?? 'all');
+            setAssignee(FILTER_ALL);
+          }}
         >
           <View className="board-project-picker">
             <Text className="board-project-picker__label">项目</Text>
@@ -131,23 +123,13 @@ function BoardPage(): JSX.Element {
         </ActionButton>
       </View>
 
-      {creating && (
-        <Card className="stack board-create">
-          <Field label="任务标题" value={title} placeholder="输入任务标题" onChange={setTitle} />
-          <Field label="任务说明" value={description} placeholder="补充任务目标和验收标准" multiline onChange={setDescription} />
-          <ActionButton loading={create.isPending} disabled={!title.trim()} onClick={() => create.mutate()}>
-            创建任务
-          </ActionButton>
-        </Card>
-      )}
+      <BoardFilters assignee={assignee} label={labelFilter} members={members.data ?? []} labels={labels.data ?? []} currentUserId={me.data?.id} showMembers={projectId !== 'all'} onAssigneeChange={setAssignee} onLabelChange={setLabelFilter} />
+
+      {creating && <CreateTaskForm boardProjectId={projectId} projects={projects.data ?? []} labels={labels.data ?? []} onCancel={() => setCreating(false)} onCreated={() => setCreating(false)} />}
 
       <Segmented
         value={status}
-        onChange={(value) => {
-          setStatus(value);
-          setSearch('');
-          setSearchOpen(false);
-        }}
+        onChange={setStatus}
         items={TASK_STATUS_ORDER.map((value) => ({
           value,
           label: TASK_STATUS_META[value].label,
@@ -164,10 +146,10 @@ function BoardPage(): JSX.Element {
           </Text>
           <View className="board-column__actions">
             <View
-              className={`board-icon-button ${searchOpen ? 'board-icon-button--active' : ''}`}
+              className={`board-icon-button ${searchOpen[status] ? 'board-icon-button--active' : ''}`}
               onClick={() => {
-                setSearchOpen((value) => !value);
-                if (searchOpen) setSearch('');
+                setSearchOpen((value) => ({ ...value, [status]: !value[status] }));
+                if (searchOpen[status]) setSearches((value) => ({ ...value, [status]: '' }));
               }}
             >
               <Text>⌕</Text>
@@ -176,7 +158,7 @@ function BoardPage(): JSX.Element {
               mode="selector"
               range={SORTS.map((item) => item.label)}
               value={Math.max(0, SORTS.findIndex((item) => item.value === sortKey))}
-              onChange={(event) => setSortKey(SORTS[Number(event.detail.value)]?.value ?? 'default')}
+              onChange={(event) => setSortKeys((value) => ({ ...value, [status]: SORTS[Number(event.detail.value)]?.value ?? 'default' }))}
             >
               <View className={`board-icon-button ${sortKey !== 'default' ? 'board-icon-button--active' : ''}`}>
                 <Text>⇅</Text>
@@ -185,13 +167,13 @@ function BoardPage(): JSX.Element {
           </View>
         </View>
 
-        {searchOpen && (
+        {searchOpen[status] && (
           <View className="board-search">
             <Input
               value={search}
               placeholder="搜索标题 / 标签 / 认领人"
               focus
-              onInput={(event) => setSearch(event.detail.value)}
+              onInput={(event) => setSearches((value) => ({ ...value, [status]: event.detail.value }))}
             />
           </View>
         )}
@@ -206,13 +188,16 @@ function BoardPage(): JSX.Element {
           ) : (
             <View className="board-column__tasks">
               {visible.map((task) => (
+                (() => {
+                  const ctx = { user: me.data ?? null, projectRole: resolveProjectRole(members.data, me.data?.id) };
+                  const routeAction = canDeliver(ctx, task) ? '交付' : canReview(ctx, task) ? '审阅' : canRevokeApproval(ctx, task) ? '撤销通过' : null;
+                  return (
                 <TaskCard
                   key={task.id}
                   task={task}
                   showStatus={false}
-                  action={(task.status === 'open' || task.status === 'in_progress')
-                    && !task.claimants.some((person) => person.userId === me.data?.id)
-                    ? (
+                  showProject={projectId === 'all'}
+                  action={canClaim(ctx, task) ? (
                       <ActionButton
                         size="small"
                         loading={claim.isPending && claim.variables === task.id}
@@ -220,9 +205,10 @@ function BoardPage(): JSX.Element {
                       >
                         认领
                       </ActionButton>
-                    )
-                    : undefined}
+                    ) : routeAction ? <ActionButton size="small" tone="secondary" onClick={() => Taro.navigateTo({ url: `/pages/task/index?id=${task.id}&action=${routeAction === '交付' ? 'deliver' : 'review'}` })}>{routeAction}</ActionButton> : undefined}
                 />
+                  );
+                })()
               ))}
             </View>
           )}

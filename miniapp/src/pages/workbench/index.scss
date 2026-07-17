@@ -1,0 +1,41 @@
+.workbench-page { padding-top: 18px; padding-bottom: 28px; }
+.workbench-page .page-header { align-items: flex-end; margin-bottom: 20px; }
+.week-strip { display: flex; flex: none; align-items: center; gap: 9px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.week-strip__label, .week-strip__done { color: var(--muted-foreground); font-size: 10px; }
+.week-strip__points { font-size: 16px; font-weight: 600; }
+.week-strip__points text { color: var(--muted-foreground); font-size: 10px; font-weight: 400; }
+.work-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.work-section__head { display: flex; align-items: center; gap: 7px; }
+.work-section__icon { width: 17px; color: var(--muted-foreground); font-size: 16px; text-align: center; }
+.work-section__title { font-size: 14px; font-weight: 600; }
+.work-groups { display: flex; flex-direction: column; gap: 12px; }
+.work-group { display: flex; flex-direction: column; gap: 6px; }
+.work-group__label { display: inline-flex; width: fit-content; align-items: center; gap: 5px; border-radius: 999px; padding: 3px 8px; background: var(--secondary); color: var(--muted-foreground); font-size: 11px; font-weight: 500; }
+.work-group__label--danger { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--destructive); }
+.work-group__label--warning { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+.work-group__label--final { background: #f1ebff; color: #6d42c7; }
+.work-list { display: flex; flex-direction: column; gap: 6px; }
+.work-task { display: flex; min-height: 42px; box-sizing: border-box; flex-wrap: wrap; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.035); }
+.work-task:active { border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); transform: scale(.995); }
+.work-task__type { display: flex; width: 23px; height: 23px; flex: none; align-items: center; justify-content: center; border-radius: 5px; background: var(--secondary); color: var(--muted-foreground); font-size: 11px; font-weight: 700; }
+.work-task__type--primary, .work-task__type--owner { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
+.work-task__type--danger, .work-task__type--claimable { background: color-mix(in srgb, var(--destructive) 10%, transparent); color: var(--destructive); }
+.work-task__main { min-width: 120px; flex: 1; }
+.work-task__title { display: block; overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.work-task__meta { display: block; overflow: hidden; margin-top: 2px; color: var(--muted-foreground); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.work-task__meta--danger { color: var(--destructive); }
+.work-task__project { display: block; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-ok { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); border-radius: 8px; padding: 11px 13px; background: var(--card); }
+.work-ok__icon { display: flex; width: 29px; height: 29px; align-items: center; justify-content: center; border-radius: 50%; background: color-mix(in srgb, var(--success) 10%, transparent); color: var(--success); }
+.work-ok__title { display: block; font-size: 13px; font-weight: 500; }
+.work-ok__copy { display: block; margin-top: 2px; color: var(--muted-foreground); font-size: 10px; }
+.notification-list { overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+.notification-row { display: flex; align-items: flex-start; gap: 8px; border-bottom: 1px solid var(--border); padding: 10px; }
+.notification-row:last-child { border-bottom: 0; }
+.notification-row__dot { width: 6px; height: 6px; flex: none; margin-top: 6px; border-radius: 50%; background: var(--primary); }
+.notification-row__main { min-width: 0; flex: 1; }
+.notification-row__title, .notification-row__body { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notification-row__title { font-size: 12px; font-weight: 500; }
+.notification-row__body, .notification-row__time { color: var(--muted-foreground); font-size: 10px; }
+.notification-row__body { margin-top: 2px; }
+.notification-row__time { flex: none; }

@@ -9,7 +9,7 @@ export function AuthGate({ children }: { children: React.ReactNode }): JSX.Eleme
   return (
     <View className="state-view">
       <Text>登录后查看团队内容</Text>
-      <Button size="mini" onClick={() => void Taro.switchTab({ url: '/pages/profile/index' })}>
+      <Button size="mini" onClick={() => void Taro.navigateTo({ url: '/pages/profile/index' })}>
         去登录
       </Button>
     </View>

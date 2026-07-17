@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "taro build --type weapp --watch --env development",
+    "dev:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-clean.ps1",
     "build": "taro build --type weapp --env production",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
