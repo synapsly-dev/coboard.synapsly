@@ -1,0 +1,1576 @@
+{
+  "runId": "run_dev_sample",
+  "market": "US",
+  "createdAt": "2026-07-17T02:10:00",
+  "myAsin": "B0FY5PZCXQ",
+  "title": "边桌/床头柜竞品分析看板",
+  "notes": [
+    "【开发样例】本文件仅用于前端 ?dev=1 预览:字段值取自开发契约与示例截图中出现的真实值,截图未覆盖处以样例值补齐;图片为本地占位图,非实时拉取结果。",
+    "Amazon评论模块对部分ASIN要求账户验证,相应产品的评论明细与VOC聚类如实标注为不可用状态,不编造数据。",
+    "mopio(B0DMN566D4)页面未暴露可解析的推荐ASIN模块,推荐商品一栏为空。"
+  ],
+  "products": [
+    {
+      "asin": "B0FY5PZCXQ",
+      "role": "my",
+      "roleLabel": "我司产品",
+      "brand": "AMADA HOMEFURNISHING",
+      "title": "Amada Fluted Nightstands with Charging Station, End Table with USB Ports & AC Outlets, Wood Side Table for Bedroom, Deep Drawer & Storage Shelf, Set of 1, Natural Oak",
+      "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "productUrl": "https://www.amazon.com/dp/B0FY5PZCXQ",
+      "brandUrl": "https://www.amazon.com/stores/AMADAHOMEFURNISHING/page/EC1BABB9-63E9-492A-A770-DC1A3F3201D9?lp_asin=B0FY5PZCXQ&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+      "videoUrl": "https://www.amazon.com/vdp/0d1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c?ref=dp_vse_rvc_0",
+      "metrics": {
+        "monthlySalesUnits": 53,
+        "monthlySalesRevenue": 4530.97,
+        "bsrCategory": "Home & Kitchen",
+        "bsr": 689057,
+        "subCategory": "Nightstands",
+        "subBsr": 1103,
+        "price": 85.49,
+        "averagePrice": 89.99,
+        "profit": 55.16,
+        "fba": 25.51,
+        "rating": 4.6,
+        "ratings": 14,
+        "ratingsRate": 1.89,
+        "ratingsGrowth": 1,
+        "monthlySalesUnitsGrowthRate": 60.0,
+        "bsrGrowthRate": -32.56,
+        "variationNum": 3,
+        "parentAsin": "B0FY5R28DD",
+        "availableDate": "2025-10-29",
+        "fulfillment": "FBM",
+        "sellerName": "Bestqi Ergonomic",
+        "sellerId": "A1GPOKKOFRQBRD",
+        "sellerNation": "US",
+        "sellerUrl": "https://www.amazon.com/sp?seller=A1GPOKKOFRQBRD",
+        "listingQualityScore": 100.0,
+        "weight": "25.35 pounds",
+        "dimension": "15.6 x 17.6 x 22.8 inches",
+        "packageDimensions": null,
+        "packageWeight": null,
+        "sku": "Color: Natural Oak | Number of Items: 1",
+        "nodeLabelPath": "Home & Kitchen:Furniture:Bedroom Furniture:Nightstands",
+        "badges": {
+          "bestSeller": "N",
+          "amazonChoice": "N",
+          "newRelease": "N",
+          "ebc": "Y",
+          "video": "Y"
+        }
+      },
+      "detail": {
+        "bullets": [
+          "【Smart Storage Design】This fluted bedside table masterfully blends style and function. The open top shelf offers easy access to daily essentials, while the deep drawer keeps personal items discreetly stored. Its grooved texture adds a contemporary touch—ideal for bedrooms with limited space at the headboard, helping you achieve a clutter-free space.",
+          "【Multi-Scene Versatility】With compact dimensions of 15.6\" D x 17.6\" W x 22.8\" H, this nightstand adapts seamlessly to multiple settings: use it as a bedside companion in the bedroom, a chic side table in the living room, or a stylish accent in the hallway. Its clean design and neutral finish harmonize effortlessly with any interior style.",
+          "【Built-in Charging Hub】Equipped with 2 AC outlets (125V/12A), 1 USB-A (5V/2A), 1 USB-C (5V/2A) ports, this smart nightstand powers all your devices at once. The integrated charging hub organizes cords neatly—a smart, functional upgrade for any tech-friendly bedroom.",
+          "【Premium Eco-Friendly Material】Crafted from P2-grade engineered wood that meets CARB Phase 2 standards, this nightstand features a scratch-resistant and water-repellent natural finish. The grooved detailing and sleek metal handle enhance durability while delivering a refined, contemporary look.",
+          "【Effortless Assembly】Includes clear illustrated instructions, labeled components, and all necessary tools. Whether you're new to DIY or a seasoned pro, you'll enjoy a smooth and satisfying assembly experience—designed to be frustration-free."
+        ],
+        "images": [
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%204%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%205%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%206%3C%2Ftext%3E%3C%2Fsvg%3E"
+        ],
+        "videoUrl": "https://www.amazon.com/vdp/0d1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c?ref=dp_vse_rvc_0",
+        "aplus": true,
+        "specs": {
+          "Color": "Natural Oak",
+          "Number of Items": "1",
+          "Material": "Engineered Wood",
+          "Style": "Fluted / Modern"
+        },
+        "recommended": [
+          {
+            "asin": "B0GLGPSFY5",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Nightstand with Charging Station"
+          },
+          {
+            "asin": "B0DQYJSNBW",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Fluted Bedside Table"
+          },
+          {
+            "asin": "B0F8VHKYCH",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Wood Side Table"
+          },
+          {
+            "asin": "B0GHQ5FY2N",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "End Table with USB Ports"
+          },
+          {
+            "asin": "B0FZJY9W81",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Modern Nightstand"
+          },
+          {
+            "asin": "B0DY7N2LRB",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Bedside Table with Drawer"
+          }
+        ],
+        "boughtTogether": [
+          {
+            "asin": "B0DQYJSNBW",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Matching Dresser, Natural Oak"
+          }
+        ],
+        "modules": {
+          "coupon": "页面存在Coupon模块;未发现公开Code",
+          "deal": "页面存在Deal模块,价格需前台稳定渲染/Keepa确认",
+          "bsAc": "页面存在BS/AC模块"
+        }
+      },
+      "reviews": {
+        "status": "unavailable",
+        "note": "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+        "count": 0,
+        "lowStarCount": 0,
+        "items": []
+      },
+      "analysis": {
+        "titleAnalysis": {
+          "pros": [
+            "产品类型前置,AI能识别为床头柜/边桌;充电场景清晰",
+            "包含件数/风格/储物等推荐属性"
+          ],
+          "cons": [
+            "Set of 1弱于竞品Set of 2心智;建议前80字符加入USB-C和尺寸"
+          ],
+          "advice": "标题前80字符建议:Nightstand with Charging Station, USB-C/AC Outlets, 17.6 in Fluted Bedside Table;五点补线长、插座位置、承重、安装时长、包裹数。"
+        },
+        "bulletsAnalysis": {
+          "pros": [
+            "有尺寸信息,便于AI回答适配空间问题;覆盖安装疑虑",
+            "材质与耐用性有证据"
+          ],
+          "cons": [
+            "充电参数有,但缺少线长、插座位置、床边使用安全说明;承重/稳定性没有在五点里充分前置"
+          ],
+          "advice": "标题前80字符建议:Nightstand with Charging Station, USB-C/AC Outlets, 17.6 in Fluted Bedside Table;五点补线长、插座位置、承重、安装时长、包裹数。"
+        },
+        "voc": {
+          "status": "unavailable",
+          "note": "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+          "positiveTop": [],
+          "negativeTop": [],
+          "unmetNeeds": []
+        },
+        "strategy": "高销量竞品用AC标+高评论承接自然/广告流量;我司应先修Listing转化,再投充电/小空间/USB-C长尾词"
+      }
+    },
+    {
+      "asin": "B0CQJZ8XQG",
+      "role": "competitor",
+      "roleLabel": "直接竞对1",
+      "brand": "SICOTAS",
+      "title": "SICOTAS Night Stand Set of 2 Nightstands with Drawer Storage Fluted Bed Side Table End Table Large Modern Wide Bedside Stand Mid Century Night Stands for Bedroom Living R",
+      "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "productUrl": "https://www.amazon.com/dp/B0CQJZ8XQG",
+      "brandUrl": "https://www.amazon.com/stores/SICOTAS/page/A2032DF5-D588-4911-925A-039CD32575E0?lp_asin=B0CQJZ8XQG&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+      "videoUrl": "https://www.amazon.com/vdp/1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b?ref=dp_vse_rvc_0",
+      "metrics": {
+        "monthlySalesUnits": 654,
+        "monthlySalesRevenue": 130793.46,
+        "bsrCategory": "Home & Kitchen",
+        "bsr": 56211,
+        "subCategory": "Nightstands",
+        "subBsr": 95,
+        "price": 199.99,
+        "averagePrice": 209.99,
+        "profit": 57.28,
+        "fba": 55.44,
+        "rating": 4.6,
+        "ratings": 690,
+        "ratingsRate": 1.83,
+        "ratingsGrowth": 12,
+        "monthlySalesUnitsGrowthRate": 12.3,
+        "bsrGrowthRate": -8.2,
+        "variationNum": 8,
+        "parentAsin": "B0CQJYQ1PZ",
+        "availableDate": "2023-12-18",
+        "fulfillment": "FBM",
+        "sellerName": "SICOTAS",
+        "sellerId": "ARK26W8MDF1PO",
+        "sellerNation": "US",
+        "sellerUrl": "https://www.amazon.com/sp?seller=ARK26W8MDF1PO",
+        "listingQualityScore": 92.0,
+        "weight": "63.9 pounds",
+        "dimension": "15.4 x 22.7 x 24.1 inches",
+        "packageDimensions": null,
+        "packageWeight": null,
+        "sku": "Color: White Alder | Size: 2 Pieces",
+        "nodeLabelPath": "Home & Kitchen:Furniture:Bedroom Furniture:Nightstands",
+        "badges": {
+          "bestSeller": "N",
+          "amazonChoice": "Y",
+          "newRelease": "N",
+          "ebc": "Y",
+          "video": "Y"
+        }
+      },
+      "detail": {
+        "bullets": [
+          "【Larger & Wider Size】- Overall dimensions: 15.4\"D x 22.7\"W x 24.1\"H. Our large nightstand provides ample storage space for all your bedside essentials. From books and reading glasses to electronic devices and personal items, everything can find its place within this spacious night stand. With its roomy desktop, large drawer, and open compartment, our bedside table allows you to keep your belongings tidy and within reach.",
+          "【Minimalist & Practical】- Our bed side table boasts a minimalist curve profile and a drawer with a unique waveform panel, perfectly balancing modern aesthetics with functional design. The chic appearance complements various bedroom styles, from contemporary to mid-century modern. The smooth lines and rounded corners make it safe for kids and families, creating a standout piece that elevates the ambiance of your room.",
+          "【Sturdy & Durable】- Crafted with a thickened high-quality board and scratch-proof, water-resistant surfaces, this end table is built to withstand daily use and remain a reliable companion for years to come. The frame is made of FSC-Certified engineered wood. The sturdy construction ensures stability and durability, making it a practical and long-lasting addition to your bedroom.",
+          "【Multiple Applications】- This 2-tier night stand is not only perfect for a bedside table in bedrooms but also ideal as an end table or side table next to your sofa, couch, or armchair in your living room, hallway, or office. Additionally, it can serve as a toy storage solution in the nursery. It brings a clean and crisp charm to any room it graces.",
+          "【Easy to Assemble】- Our nightstand comes with clear and detailed assembly instructions, making it easy to set up without any hassle. We are dedicated to providing you with professional customer service before and after your purchase.",
+          "【Color Variation Notice】- Slight Color Variations May Occur Due To Material Batches, Manufacturing Processes, Or Display Settings. These Are Normal And Do Not Impact Quality. Thank You For Your Understanding."
+        ],
+        "images": [
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%204%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%205%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%206%3C%2Ftext%3E%3C%2Fsvg%3E"
+        ],
+        "videoUrl": "https://www.amazon.com/vdp/1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b?ref=dp_vse_rvc_0",
+        "aplus": true,
+        "specs": {
+          "Color": "White Alder",
+          "Size": "2 Pieces",
+          "Material": "FSC-Certified Engineered Wood",
+          "Style": "Mid Century Modern"
+        },
+        "recommended": [
+          {
+            "asin": "B0GCMVP19Z",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Nightstand Set of 2"
+          },
+          {
+            "asin": "B0D69SFLGF",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Fluted Bedside Table"
+          },
+          {
+            "asin": "B0F4863L65",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Wide Night Stand"
+          }
+        ],
+        "boughtTogether": [],
+        "modules": {
+          "coupon": "页面存在Coupon模块;未发现公开Code",
+          "deal": "页面存在Deal模块,价格需前台稳定渲染/Keepa确认",
+          "bsAc": "Amazon's Choice"
+        }
+      },
+      "reviews": {
+        "status": "ok",
+        "note": "",
+        "count": 13,
+        "lowStarCount": 0,
+        "items": [
+          {
+            "star": 5.0,
+            "title": "Hermosassss",
+            "date": "June 25, 2025",
+            "verified": true,
+            "content": "¡Perfecto! Aquí tienes una reseña de 5 estrellas en inglés para el producto SICOTAS Set of 2 Nightstands en estilo Amazon: --- Stylish and Functional — Perfect for My Bedroom! I'm so impressed with this set of SICOTAS nightstands! They look even better in person — sleek, modern, and with a beautiful mid-century design. The fluted front detail adds a nice elegant touch, and the wide surface gives me plenty"
+          },
+          {
+            "star": 5.0,
+            "title": "Sturdy, Stylish, and Easy to Assemble – Great Value for the Price!",
+            "date": "October 9, 2024",
+            "verified": true,
+            "content": "I was pleasantly surprised by the quality of these nightstands! The grey color is exactly what I was hoping for and fits perfectly with my room's aesthetic. The build quality is excellent—once assembled, they're sturdy and don't wobble or feel loose. It's all one solid piece when you push or move it, which is something you don't always get with furniture. Assembly was super easy; I put one together in about an hour a"
+          },
+          {
+            "star": 5.0,
+            "title": "Nice night stands!!",
+            "date": "June 15, 2026",
+            "verified": true,
+            "content": "So far so good. These night stands are beautiful. They were super easy to out together. Instructions were very clear. I'll update once I see how well they hold up but first impressions 10/10"
+          },
+          {
+            "star": 5.0,
+            "title": "Fabulous nightstands for the WIN!",
+            "date": "October 18, 2025",
+            "verified": true,
+            "content": "These nightstands were so cute, that I ended up also purchasing the matching dresser. They are very lightweight and sturdy and do not take up a ton of room. They fit perfectly aligned with the height of my bed and really feel like the quality aligns with the price. Easy to construct. Highly recommend."
+          },
+          {
+            "star": 5.0,
+            "title": "East assembly",
+            "date": "June 12, 2026",
+            "verified": true,
+            "content": "Simple assembly , looks beautiful and sturdy"
+          },
+          {
+            "star": 4.0,
+            "title": "GOOD SET BUT LOOK CHEAP",
+            "date": "December 16, 2024",
+            "verified": true,
+            "content": "This set of two nightstands requires self-assembly, which takes about 1-2 hours for one person. All the parts and hardware were included. I really like the rounded corner design of these nightstands, which was the main reason I chose to purchase them. I bought the ivory color, which is more of an off-white beige. However, the actual product looks cheaper than it does in the photos posted the website. The drawer has a"
+          },
+          {
+            "star": 5.0,
+            "title": "Very pretty and spacious",
+            "date": "March 3, 2025",
+            "verified": true,
+            "content": "These are exactly as pictured. Large surface, deep drawer, and the open shelf fits books and a basket. Assembly took me about an hour each."
+          },
+          {
+            "star": 5.0,
+            "title": "Great value set",
+            "date": "January 21, 2025",
+            "verified": true,
+            "content": "For the price of one nightstand elsewhere you get two, and they look far more expensive than they are."
+          },
+          {
+            "star": 4.0,
+            "title": "Good but heavy boxes",
+            "date": "November 2, 2024",
+            "verified": true,
+            "content": "Quality is good and they match our bed frame. Just be aware the boxes are heavy — get help moving them upstairs."
+          },
+          {
+            "star": 5.0,
+            "title": "Perfect mid-century look",
+            "date": "August 30, 2025",
+            "verified": true,
+            "content": "The fluted drawer front is gorgeous. Sturdy after assembly, no wobble."
+          },
+          {
+            "star": 5.0,
+            "title": "Love them",
+            "date": "July 12, 2025",
+            "verified": true,
+            "content": "Bought for a guest room, everyone compliments them. Would buy again."
+          },
+          {
+            "star": 4.0,
+            "title": "Nice but instructions could be better",
+            "date": "May 5, 2025",
+            "verified": true,
+            "content": "Look great in person. A few steps in the instructions were confusing, but got there in the end."
+          },
+          {
+            "star": 5.0,
+            "title": "Solid and stylish",
+            "date": "April 14, 2025",
+            "verified": true,
+            "content": "Very solid once assembled. The wide top easily holds a lamp, phone, books and a drink."
+          }
+        ]
+      },
+      "analysis": {
+        "titleAnalysis": {
+          "pros": [
+            "产品类型前置,AI能识别为床头柜/边桌;包含件数/风格/储物等推荐属性"
+          ],
+          "cons": [
+            "标题过长,移动端和AI摘要会截断"
+          ],
+          "advice": "竞品优势在Set of 2、宽台面、评论体量;我司可用充电站和176lb承重做差异化拦截。"
+        },
+        "bulletsAnalysis": {
+          "pros": [
+            "有尺寸信息,便于AI回答适配空间问题;覆盖安装疑虑",
+            "材质与耐用性有证据"
+          ],
+          "cons": [
+            "承重/稳定性没有在五点里充分前置"
+          ],
+          "advice": "竞品优势在Set of 2、宽台面、评论体量;我司可用充电站和176lb承重做差异化拦截。"
+        },
+        "voc": {
+          "status": "ok",
+          "note": "",
+          "positiveTop": [
+            {
+              "point": "安装简单省力",
+              "evidence": [
+                "Sturdy, Stylish, and Easy to Assemble – Great Value for the Price!: Assembly was super easy; I put one together in about an hour",
+                "Nice night stands!!: They were super easy to out together. Instructions were very clear.",
+                "East assembly: Simple assembly , looks beautiful and sturdy"
+              ]
+            },
+            {
+              "point": "外观/中古风设计好评",
+              "evidence": [
+                "Hermosassss: sleek, modern, and with a beautiful mid-century design. The fluted front detail adds a nice elegant touch",
+                "Fabulous nightstands for the WIN!: These nightstands were so cute, that I ended up also purchasing the matching dresser"
+              ]
+            },
+            {
+              "point": "质量/稳定性扎实",
+              "evidence": [
+                "Sturdy, Stylish, and Easy to Assemble: once assembled, they're sturdy and don't wobble or feel loose",
+                "Solid and stylish: Very solid once assembled."
+              ]
+            }
+          ],
+          "negativeTop": [
+            {
+              "point": "实物质感低于图片预期",
+              "evidence": [
+                "GOOD SET BUT LOOK CHEAP: the actual product looks cheaper than it does in the photos posted the website"
+              ]
+            },
+            {
+              "point": "包装箱偏重,搬运不便",
+              "evidence": [
+                "Good but heavy boxes: be aware the boxes are heavy — get help moving them upstairs"
+              ]
+            }
+          ],
+          "unmetNeeds": [
+            {
+              "point": "更清晰的安装指引/步骤标注",
+              "evidence": [
+                "Nice but instructions could be better: A few steps in the instructions were confusing"
+              ]
+            },
+            {
+              "point": "颜色实物与页面一致性(ivory偏米白)",
+              "evidence": [
+                "GOOD SET BUT LOOK CHEAP: I bought the ivory color, which is more of an off-white beige"
+              ]
+            }
+          ]
+        },
+        "strategy": "竞品以Set of 2+AC标承接大流量;我司单只SKU应打「充电站+小空间」差异化,避开正面比价。"
+      }
+    },
+    {
+      "asin": "B0DMN566D4",
+      "role": "competitor",
+      "roleLabel": "直接竞对2",
+      "brand": "mopio",
+      "title": "mopio Blake 3 Drawer Dresser for Bedroom, Chest of Drawers, Wood Dresser Organizer, Modern Farmhouse, Tall Night Stand, Enhanced Safety, Sturdy Compliant (Black Oak, Sing",
+      "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "productUrl": "https://www.amazon.com/dp/B0DMN566D4",
+      "brandUrl": "https://www.amazon.com/stores/mopio/page/8F21C6E4-1401-43A7-BE27-84E818B2A9D3?lp_asin=B0DMN566D4&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+      "videoUrl": null,
+      "metrics": {
+        "monthlySalesUnits": 395,
+        "monthlySalesRevenue": 141805.0,
+        "bsrCategory": "Home & Kitchen",
+        "bsr": 184806,
+        "subCategory": "Nightstands",
+        "subBsr": 473,
+        "price": 358.99,
+        "averagePrice": 349.99,
+        "profit": 60.69,
+        "fba": 87.27,
+        "rating": 4.6,
+        "ratings": 60,
+        "ratingsRate": 0.0,
+        "ratingsGrowth": 5,
+        "monthlySalesUnitsGrowthRate": -5.4,
+        "bsrGrowthRate": 4.1,
+        "variationNum": 12,
+        "parentAsin": "B0DMN4Q2XH",
+        "availableDate": "2024-11-08",
+        "fulfillment": "FBM",
+        "sellerName": "MopioInc",
+        "sellerId": "A2XKW1B7QZP4RD",
+        "sellerNation": "US",
+        "sellerUrl": "https://www.amazon.com/sp?seller=A2XKW1B7QZP4RD",
+        "listingQualityScore": 88.0,
+        "weight": null,
+        "dimension": "15.7 x 31.6 x 32.3 inches",
+        "packageDimensions": null,
+        "packageWeight": null,
+        "sku": "Size: Dresser | Color: Black Oak",
+        "nodeLabelPath": "Home & Kitchen:Furniture:Bedroom Furniture:Dressers & Chests of Drawers",
+        "badges": {
+          "bestSeller": "N",
+          "amazonChoice": "Y",
+          "newRelease": "N",
+          "ebc": "Y",
+          "video": "Y"
+        }
+      },
+      "detail": {
+        "bullets": [
+          "1. Dimensions: Overall: 31.6\"W x 15.7\"D x 32.3\"H, 1-year warranty.",
+          "2. Classic Elevated details like accented legs and rectangular frames, paired with a warm finish, create a timeless and inviting look with modern sophistication.",
+          "3. Modular Design for Your Needs: Arrange the pieces into a solution that perfectly fits your space — build a tall cabinet by adding on additional units, or mix and match with other pieces from the Blake collection.",
+          "4. Versatile for Any Space: Dresser, nightstand, or entryway cabinet — adapts to any space and any need.",
+          "5. Organized Space: Keep your belongings tucked away behind smooth self-closing drawers."
+        ],
+        "images": [
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%204%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%205%3C%2Ftext%3E%3C%2Fsvg%3E"
+        ],
+        "videoUrl": null,
+        "aplus": true,
+        "specs": {
+          "Color": "Black Oak",
+          "Size": "Single",
+          "Material": "Engineered Wood",
+          "Style": "Modern Farmhouse"
+        },
+        "recommended": null,
+        "boughtTogether": [],
+        "modules": {
+          "coupon": "页面存在Coupon模块;未发现公开Code",
+          "deal": "页面存在Deal模块,价格需前台稳定渲染/Keepa确认",
+          "bsAc": "Amazon's Choice"
+        }
+      },
+      "reviews": {
+        "status": "unavailable",
+        "note": "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+        "count": 0,
+        "lowStarCount": 0,
+        "items": []
+      },
+      "analysis": {
+        "titleAnalysis": {
+          "pros": [
+            "包含件数/风格/储物等推荐属性"
+          ],
+          "cons": [
+            "核心品类词不够前置;Dresser与Night Stand混用,AI可能归类到收纳柜而非床头柜"
+          ],
+          "advice": "该款更偏dresser/storage cabinet,标题混类但客单高;我司不宜正面比容量,应避开dresser词。"
+        },
+        "bulletsAnalysis": {
+          "pros": [
+            "有尺寸信息,便于AI回答适配空间问题"
+          ],
+          "cons": [
+            "缺少安装难度/耗时/工具说明;承重/稳定性没有在五点里充分前置"
+          ],
+          "advice": "该款更偏dresser/storage cabinet,标题混类但客单高;我司不宜正面比容量,应避开dresser词。"
+        },
+        "voc": {
+          "status": "unavailable",
+          "note": "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+          "positiveTop": [],
+          "negativeTop": [],
+          "unmetNeeds": []
+        },
+        "strategy": "mopio走高客单模块化收纳路线,与我司目标人群部分重叠;我司主打床头场景+充电,不与其比容量。"
+      }
+    },
+    {
+      "asin": "B0FKT9HHN6",
+      "role": "competitor",
+      "roleLabel": "直接竞对3",
+      "brand": "SICOTAS",
+      "title": "SICOTAS Oversized Nightstands Set of 2 with 3 Storage Drawers | 31 Inch Wide Night Stand Modern Extra Large Bedside Table - Farmhouse Tall Bed Side Tables for Bedroom, As",
+      "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "productUrl": "https://www.amazon.com/dp/B0FKT9HHN6",
+      "brandUrl": "https://www.amazon.com/stores/SICOTAS/page/A2032DF5-D588-4911-925A-039CD32575E0?lp_asin=B0FKT9HHN6&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+      "videoUrl": "https://www.amazon.com/vdp/2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c?ref=dp_vse_rvc_0",
+      "metrics": {
+        "monthlySalesUnits": 54,
+        "monthlySalesRevenue": 10799.46,
+        "bsrCategory": "Home & Kitchen",
+        "bsr": 215340,
+        "subCategory": "Nightstands",
+        "subBsr": 912,
+        "price": 199.99,
+        "averagePrice": 199.99,
+        "profit": 58.4,
+        "fba": 45.2,
+        "rating": 4.6,
+        "ratings": 15,
+        "ratingsRate": 1.2,
+        "ratingsGrowth": 2,
+        "monthlySalesUnitsGrowthRate": null,
+        "bsrGrowthRate": null,
+        "variationNum": 6,
+        "parentAsin": "B0FKT8XW2M",
+        "availableDate": "2025-04-18",
+        "fulfillment": "FBM",
+        "sellerName": "SICOTAS",
+        "sellerId": "ARK26W8MDF1PO",
+        "sellerNation": "US",
+        "sellerUrl": "https://www.amazon.com/sp?seller=ARK26W8MDF1PO",
+        "listingQualityScore": 90.0,
+        "weight": "77 pounds",
+        "dimension": "15.75 x 31.5 x 24.8 inches",
+        "packageDimensions": null,
+        "packageWeight": null,
+        "sku": "Color: Grey | Size: 2 Pieces",
+        "nodeLabelPath": "Home & Kitchen:Furniture:Bedroom Furniture:Nightstands",
+        "badges": {
+          "bestSeller": "N",
+          "amazonChoice": "N",
+          "newRelease": "N",
+          "ebc": "Y",
+          "video": "Y"
+        }
+      },
+      "detail": {
+        "bullets": [
+          "【Oversized 31\" Wide Design】- Extra large bedside table offers a spacious tabletop and 3 storage drawers per stand, holding lamps, books, chargers and more with room to spare.",
+          "【Farmhouse Tall Profile】- 24.8\" height pairs perfectly with taller bed frames; the grey wood-grain finish fits farmhouse and modern bedrooms alike.",
+          "【3 Smooth Storage Drawers】- Generous drawer space keeps essentials organized and out of sight; metal runners glide smoothly.",
+          "【Sturdy Construction】- Thickened engineered wood board with scratch-proof, water-resistant surface stands up to daily use.",
+          "【Set of 2, Easy Assembly】- Ships in two boxes with illustrated instructions, labeled parts and all tools included."
+        ],
+        "images": [
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+          "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%204%3C%2Ftext%3E%3C%2Fsvg%3E"
+        ],
+        "videoUrl": "https://www.amazon.com/vdp/2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c?ref=dp_vse_rvc_0",
+        "aplus": true,
+        "specs": {
+          "Color": "Grey",
+          "Size": "2 Pieces",
+          "Material": "Engineered Wood",
+          "Style": "Farmhouse"
+        },
+        "recommended": [
+          {
+            "asin": "B0GCMVP19Z",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Nightstand Set of 2"
+          },
+          {
+            "asin": "B0F4863L65",
+            "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+            "title": "Wide Night Stand"
+          }
+        ],
+        "boughtTogether": [],
+        "modules": {
+          "coupon": "页面存在Coupon模块;未发现公开Code",
+          "deal": "需活动档期数据",
+          "bsAc": null
+        }
+      },
+      "reviews": {
+        "status": "ok",
+        "note": "",
+        "count": 8,
+        "lowStarCount": 1,
+        "items": [
+          {
+            "star": 5.0,
+            "title": "GREAT size and look, especially for the price!!!",
+            "date": "September 8, 2025",
+            "verified": true,
+            "content": "Beautiful and very large nightstands!! Especially for the price! Very nicely built and sturdy. Assembly is not difficult. Took about an hour each to assemble alone but would be quicker with two people. The seller has great reviews on their other products and I took a chance on this one that had no reviews at the time of purchase because they looked great. I have received numerous compliments on these and will recomme"
+          },
+          {
+            "star": 5.0,
+            "title": "Looks good",
+            "date": "October 2, 2025",
+            "verified": true,
+            "content": "So far so good. Easy instructions. Put together by myself. Look good with new bedroom set. May order 1 more."
+          },
+          {
+            "star": 3.0,
+            "title": "Drawers barely extend",
+            "date": "December 11, 2025",
+            "verified": true,
+            "content": "Look nice but drawers barely extend"
+          },
+          {
+            "star": 5.0,
+            "title": "Good quality",
+            "date": "December 6, 2025",
+            "verified": true,
+            "content": "Took a while to assemble but very sturdy"
+          },
+          {
+            "star": 4.0,
+            "title": "Assembly process was difficult.",
+            "date": "August 30, 2025",
+            "verified": true,
+            "content": "The drawers look great but took 1 star for inconvenience for the missing pieces. Have to wait for the seller to provide these before we can complete assembling. The assembling process was difficult to follow and took very long because it was not clearly marked. However, the seller responded to the matter immediately and sent out a new one, which was great on their part. Thank you!"
+          },
+          {
+            "star": 5.0,
+            "title": "Great nightstands for the price!!",
+            "date": "March 7, 2026",
+            "verified": true,
+            "content": "SO spacious and the quality is surprisingly great for the price! The instructions were so easy to assemble and clear!"
+          },
+          {
+            "star": 5.0,
+            "title": "Exactly as described",
+            "date": "November 19, 2025",
+            "verified": true,
+            "content": "Big, sturdy and the grey finish matches our farmhouse bed. Drawers hold a lot."
+          },
+          {
+            "star": 5.0,
+            "title": "Impressive size",
+            "date": "January 25, 2026",
+            "verified": true,
+            "content": "These are huge for nightstands — almost small dressers. Great storage."
+          }
+        ]
+      },
+      "analysis": {
+        "titleAnalysis": {
+          "pros": [
+            "产品类型前置,AI能识别为床头柜/边桌;包含件数/风格/储物等推荐属性"
+          ],
+          "cons": [
+            "明显缺点较少"
+          ],
+          "advice": "竞品有Set of 2和3 drawers,但评论少、重量高;我司可强调轻量安装和充电功能。"
+        },
+        "bulletsAnalysis": {
+          "pros": [
+            "有尺寸信息,便于AI回答适配空间问题;覆盖安装疑虑",
+            "材质与耐用性有证据"
+          ],
+          "cons": [
+            "需进一步量化细节"
+          ],
+          "advice": "竞品有Set of 2和3 drawers,但评论少、重量高;我司可强调轻量安装和充电功能。"
+        },
+        "voc": {
+          "status": "ok",
+          "note": "样本较小(缓存评论 8 条),聚类结论仅供参考",
+          "positiveTop": [
+            {
+              "point": "尺寸大/性价比高",
+              "evidence": [
+                "GREAT size and look, especially for the price!!!: Beautiful and very large nightstands!! Especially for the price!",
+                "Great nightstands for the price!!: SO spacious and the quality is surprisingly great for the price!"
+              ]
+            },
+            {
+              "point": "做工扎实稳固",
+              "evidence": [
+                "Good quality: Took a while to assemble but very sturdy",
+                "Exactly as described: Big, sturdy and the grey finish matches our farmhouse bed"
+              ]
+            },
+            {
+              "point": "外观搭配farmhouse卧室",
+              "evidence": [
+                "Looks good: Look good with new bedroom set. May order 1 more."
+              ]
+            }
+          ],
+          "negativeTop": [
+            {
+              "point": "抽屉拉伸行程不足",
+              "evidence": [
+                "Drawers barely extend: Look nice but drawers barely extend"
+              ]
+            },
+            {
+              "point": "安装过程困难/存在缺件",
+              "evidence": [
+                "Assembly process was difficult.: took 1 star for inconvenience for the missing pieces... The assembling process was difficult to follow"
+              ]
+            }
+          ],
+          "unmetNeeds": [
+            {
+              "point": "更清晰的安装标注与更快的缺件补发",
+              "evidence": [
+                "Assembly process was difficult.: it was not clearly marked. However, the seller responded to the matter immediately"
+              ]
+            }
+          ]
+        },
+        "strategy": "竞品缺充电功能,我司可在广告与A+中直接对比「充电站+轻量安装」优势拦截其流量。"
+      }
+    }
+  ],
+  "crossAnalysis": {
+    "summary": "四个ASIN同处床头柜/边桌类目但定位分层明显:SICOTAS双只装(B0CQJZ8XQG)以AC标+690条评论承接自然与广告流量,是体量型对手;mopio走高客单模块化收纳,类目心智偏dresser;SICOTAS加大款上架较新、评论少。我司(AMADA)单只装、带充电站,当前销量与评论体量均最小,短板在Listing转化与社会证明,长板在充电功能与小空间适配。",
+    "actions": [
+      "先修Listing转化:标题前80字符加入USB-C与尺寸,五点前置承重/线长/插座位置,再放大广告。",
+      "用「充电站+176lb承重+轻量安装」做差异化拦截Set of 2竞品流量,避开与mopio比容量。",
+      "投放充电/小空间/USB-C长尾词,减少与高评论竞品正面比价。",
+      "围绕价格、Coupon、A+、视频、评论增长做周度复盘,持续跟踪竞品AC标与Deal档期。"
+    ]
+  },
+  "fieldMatrix": {
+    "groups": [
+      {
+        "name": "链接基本信息",
+        "rows": [
+          {
+            "label": "产品图片",
+            "type": "image",
+            "values": [
+              "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%3C%2Ftext%3E%3C%2Fsvg%3E",
+              "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%3C%2Ftext%3E%3C%2Fsvg%3E",
+              "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%3C%2Ftext%3E%3C%2Fsvg%3E",
+              "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27280%27%20height%3D%27280%27%3E%3Crect%20width%3D%27280%27%20height%3D%27280%27%20rx%3D%2711%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%27140%27%20y%3D%27153%27%20font-family%3D%27Arial%27%20font-size%3D%2740%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%3C%2Ftext%3E%3C%2Fsvg%3E"
+            ]
+          },
+          {
+            "label": "产品链接",
+            "type": "link",
+            "values": [
+              "https://www.amazon.com/dp/B0FY5PZCXQ",
+              "https://www.amazon.com/dp/B0CQJZ8XQG",
+              "https://www.amazon.com/dp/B0DMN566D4",
+              "https://www.amazon.com/dp/B0FKT9HHN6"
+            ]
+          },
+          {
+            "label": "品牌",
+            "type": "text",
+            "values": [
+              "AMADA HOMEFURNISHING",
+              "SICOTAS",
+              "mopio",
+              "SICOTAS"
+            ]
+          },
+          {
+            "label": "ASIN",
+            "type": "text",
+            "values": [
+              "B0FY5PZCXQ",
+              "B0CQJZ8XQG",
+              "B0DMN566D4",
+              "B0FKT9HHN6"
+            ]
+          },
+          {
+            "label": "变体数 + SKU",
+            "type": "text",
+            "values": [
+              "3;Color: Natural Oak | Number of Items: 1",
+              "8;Color: White Alder | Size: 2 Pieces",
+              "12;Size: Dresser | Color: Black Oak",
+              "6;Color: Grey | Size: 2 Pieces"
+            ]
+          },
+          {
+            "label": "评论数",
+            "type": "number",
+            "values": [
+              14,
+              690,
+              60,
+              15
+            ]
+          },
+          {
+            "label": "星级",
+            "type": "number",
+            "values": [
+              4.6,
+              4.6,
+              4.6,
+              4.6
+            ]
+          },
+          {
+            "label": "上架时间",
+            "type": "text",
+            "values": [
+              "2025-10-29",
+              "2023-12-18",
+              "2024-11-08",
+              "2025-04-18"
+            ]
+          },
+          {
+            "label": "卖家(店铺)名称",
+            "type": "text",
+            "values": [
+              "Bestqi Ergonomic / FBM",
+              "SICOTAS / FBM",
+              "MopioInc / FBM",
+              "SICOTAS / FBM"
+            ]
+          },
+          {
+            "label": "店铺链接",
+            "type": "link",
+            "values": [
+              "https://www.amazon.com/stores/AMADAHOMEFURNISHING/page/EC1BABB9-63E9-492A-A770-DC1A3F3201D9?lp_asin=B0FY5PZCXQ&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+              "https://www.amazon.com/stores/SICOTAS/page/A2032DF5-D588-4911-925A-039CD32575E0?lp_asin=B0CQJZ8XQG&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+              "https://www.amazon.com/stores/mopio/page/8F21C6E4-1401-43A7-BE27-84E818B2A9D3?lp_asin=B0DMN566D4&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto",
+              "https://www.amazon.com/stores/SICOTAS/page/A2032DF5-D588-4911-925A-039CD32575E0?lp_asin=B0FKT9HHN6&ref_=ast_bln&store_ref=bl_ast_dp_brandlogo_sto"
+            ]
+          },
+          {
+            "label": "卖家链接",
+            "type": "link",
+            "values": [
+              "https://www.amazon.com/sp?seller=A1GPOKKOFRQBRD",
+              "https://www.amazon.com/sp?seller=ARK26W8MDF1PO",
+              "https://www.amazon.com/sp?seller=A2XKW1B7QZP4RD",
+              "https://www.amazon.com/sp?seller=ARK26W8MDF1PO"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "市场表现",
+        "rows": [
+          {
+            "label": "售价",
+            "type": "money",
+            "values": [
+              85.49,
+              199.99,
+              358.99,
+              199.99
+            ]
+          },
+          {
+            "label": "成交价(averagePrice代理)",
+            "type": "money",
+            "values": [
+              89.99,
+              209.99,
+              349.99,
+              199.99
+            ]
+          },
+          {
+            "label": "大类BSR",
+            "type": "text",
+            "values": [
+              "大类#689,057 Home & Kitchen",
+              "大类#56,211 Home & Kitchen",
+              "大类#184,806 Home & Kitchen",
+              "大类#215,340 Home & Kitchen"
+            ]
+          },
+          {
+            "label": "小类BSR",
+            "type": "text",
+            "values": [
+              "小类#1,103 Nightstands",
+              "小类#95 Nightstands",
+              "小类#473 Nightstands",
+              "小类#912 Nightstands"
+            ]
+          },
+          {
+            "label": "月销量",
+            "type": "number",
+            "values": [
+              53,
+              654,
+              395,
+              54
+            ]
+          },
+          {
+            "label": "月销售额",
+            "type": "money",
+            "values": [
+              4530.97,
+              130793.46,
+              141805.0,
+              10799.46
+            ]
+          },
+          {
+            "label": "月销量增长率",
+            "type": "percent",
+            "values": [
+              60.0,
+              12.3,
+              -5.4,
+              null
+            ]
+          },
+          {
+            "label": "BSR增长率",
+            "type": "percent",
+            "values": [
+              -32.56,
+              -8.2,
+              4.1,
+              null
+            ]
+          },
+          {
+            "label": "留评率",
+            "type": "percent",
+            "values": [
+              1.89,
+              1.83,
+              0.0,
+              1.2
+            ]
+          },
+          {
+            "label": "利润 / FBA费",
+            "type": "text",
+            "values": [
+              "利润$55.16;FBA费$25.51",
+              "利润$57.28;FBA费$55.44",
+              "利润$60.69;FBA费$87.27",
+              "利润$58.40;FBA费$45.20"
+            ]
+          },
+          {
+            "label": "Listing质量分",
+            "type": "number",
+            "values": [
+              100.0,
+              92.0,
+              88.0,
+              90.0
+            ]
+          }
+        ]
+      },
+      {
+        "name": "产品与物流",
+        "rows": [
+          {
+            "label": "类目路径",
+            "type": "text",
+            "values": [
+              "Home & Kitchen:Furniture:Bedroom Furniture:Nightstands",
+              "Home & Kitchen:Furniture:Bedroom Furniture:Nightstands",
+              "Home & Kitchen:Furniture:Bedroom Furniture:Dressers & Chests of Drawers",
+              "Home & Kitchen:Furniture:Bedroom Furniture:Nightstands"
+            ]
+          },
+          {
+            "label": "商品尺寸",
+            "type": "text",
+            "values": [
+              "15.6 x 17.6 x 22.8 inches",
+              "15.4 x 22.7 x 24.1 inches",
+              "15.7 x 31.6 x 32.3 inches",
+              "15.75 x 31.5 x 24.8 inches"
+            ]
+          },
+          {
+            "label": "重量",
+            "type": "text",
+            "values": [
+              "25.35 pounds",
+              "63.9 pounds",
+              null,
+              "77 pounds"
+            ]
+          },
+          {
+            "label": "包装尺寸",
+            "type": "status",
+            "values": [
+              "需前台/Keepa接口补抓",
+              "需前台/Keepa接口补抓",
+              "需前台/Keepa接口补抓",
+              "需前台/Keepa接口补抓"
+            ]
+          },
+          {
+            "label": "包装重量",
+            "type": "status",
+            "values": [
+              "需前台/Keepa接口补抓",
+              "需前台/Keepa接口补抓",
+              "需前台/Keepa接口补抓",
+              "需前台/Keepa接口补抓"
+            ]
+          },
+          {
+            "label": "配送方式",
+            "type": "text",
+            "values": [
+              "FBM",
+              "FBM",
+              "FBM",
+              "FBM"
+            ]
+          },
+          {
+            "label": "变体数",
+            "type": "number",
+            "values": [
+              3,
+              8,
+              12,
+              6
+            ]
+          }
+        ]
+      },
+      {
+        "name": "前台模块状态",
+        "rows": [
+          {
+            "label": "A+页面",
+            "type": "badge",
+            "values": [
+              "是",
+              "是",
+              "是",
+              "是"
+            ]
+          },
+          {
+            "label": "视频",
+            "type": "badge",
+            "values": [
+              "是",
+              "是",
+              "否",
+              "是"
+            ]
+          },
+          {
+            "label": "Coupon",
+            "type": "status",
+            "values": [
+              "页面存在Coupon模块;未发现公开Code",
+              "页面存在Coupon模块;未发现公开Code",
+              "页面存在Coupon模块;未发现公开Code",
+              "页面存在Coupon模块;未发现公开Code"
+            ]
+          },
+          {
+            "label": "Deal",
+            "type": "status",
+            "values": [
+              "页面存在Deal模块,价格需前台稳定渲染/Keepa确认",
+              "页面存在Deal模块,价格需前台稳定渲染/Keepa确认",
+              "页面存在Deal模块,价格需前台稳定渲染/Keepa确认",
+              "需活动档期数据"
+            ]
+          },
+          {
+            "label": "BS/AC标",
+            "type": "status",
+            "values": [
+              "页面存在BS/AC模块",
+              "Amazon's Choice",
+              "Amazon's Choice",
+              null
+            ]
+          },
+          {
+            "label": "Badge(徽章汇总)",
+            "type": "badge",
+            "values": [
+              [
+                "EBC",
+                "视频"
+              ],
+              [
+                "Amazon's Choice",
+                "EBC",
+                "视频"
+              ],
+              [
+                "Amazon's Choice",
+                "EBC"
+              ],
+              [
+                "EBC",
+                "视频"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "name": "五点与卖点",
+        "rows": [
+          {
+            "label": "五点描述原文",
+            "type": "text",
+            "values": [
+              [
+                "【Smart Storage Design】This fluted bedside table masterfully blends style and function. The open top shelf offers easy access to daily essentials, while the deep drawer keeps personal items discreetly stored. Its grooved texture adds a contemporary touch—ideal for bedrooms with limited space at the headboard, helping you achieve a clutter-free space.",
+                "【Multi-Scene Versatility】With compact dimensions of 15.6\" D x 17.6\" W x 22.8\" H, this nightstand adapts seamlessly to multiple settings: use it as a bedside companion in the bedroom, a chic side table in the living room, or a stylish accent in the hallway. Its clean design and neutral finish harmonize effortlessly with any interior style.",
+                "【Built-in Charging Hub】Equipped with 2 AC outlets (125V/12A), 1 USB-A (5V/2A), 1 USB-C (5V/2A) ports, this smart nightstand powers all your devices at once. The integrated charging hub organizes cords neatly—a smart, functional upgrade for any tech-friendly bedroom.",
+                "【Premium Eco-Friendly Material】Crafted from P2-grade engineered wood that meets CARB Phase 2 standards, this nightstand features a scratch-resistant and water-repellent natural finish. The grooved detailing and sleek metal handle enhance durability while delivering a refined, contemporary look.",
+                "【Effortless Assembly】Includes clear illustrated instructions, labeled components, and all necessary tools. Whether you're new to DIY or a seasoned pro, you'll enjoy a smooth and satisfying assembly experience—designed to be frustration-free."
+              ],
+              [
+                "【Larger & Wider Size】- Overall dimensions: 15.4\"D x 22.7\"W x 24.1\"H. Our large nightstand provides ample storage space for all your bedside essentials. From books and reading glasses to electronic devices and personal items, everything can find its place within this spacious night stand. With its roomy desktop, large drawer, and open compartment, our bedside table allows you to keep your belongings tidy and within reach.",
+                "【Minimalist & Practical】- Our bed side table boasts a minimalist curve profile and a drawer with a unique waveform panel, perfectly balancing modern aesthetics with functional design. The chic appearance complements various bedroom styles, from contemporary to mid-century modern. The smooth lines and rounded corners make it safe for kids and families, creating a standout piece that elevates the ambiance of your room.",
+                "【Sturdy & Durable】- Crafted with a thickened high-quality board and scratch-proof, water-resistant surfaces, this end table is built to withstand daily use and remain a reliable companion for years to come. The frame is made of FSC-Certified engineered wood. The sturdy construction ensures stability and durability, making it a practical and long-lasting addition to your bedroom.",
+                "【Multiple Applications】- This 2-tier night stand is not only perfect for a bedside table in bedrooms but also ideal as an end table or side table next to your sofa, couch, or armchair in your living room, hallway, or office. Additionally, it can serve as a toy storage solution in the nursery. It brings a clean and crisp charm to any room it graces.",
+                "【Easy to Assemble】- Our nightstand comes with clear and detailed assembly instructions, making it easy to set up without any hassle. We are dedicated to providing you with professional customer service before and after your purchase.",
+                "【Color Variation Notice】- Slight Color Variations May Occur Due To Material Batches, Manufacturing Processes, Or Display Settings. These Are Normal And Do Not Impact Quality. Thank You For Your Understanding."
+              ],
+              [
+                "1. Dimensions: Overall: 31.6\"W x 15.7\"D x 32.3\"H, 1-year warranty.",
+                "2. Classic Elevated details like accented legs and rectangular frames, paired with a warm finish, create a timeless and inviting look with modern sophistication.",
+                "3. Modular Design for Your Needs: Arrange the pieces into a solution that perfectly fits your space — build a tall cabinet by adding on additional units, or mix and match with other pieces from the Blake collection.",
+                "4. Versatile for Any Space: Dresser, nightstand, or entryway cabinet — adapts to any space and any need.",
+                "5. Organized Space: Keep your belongings tucked away behind smooth self-closing drawers."
+              ],
+              [
+                "【Oversized 31\" Wide Design】- Extra large bedside table offers a spacious tabletop and 3 storage drawers per stand, holding lamps, books, chargers and more with room to spare.",
+                "【Farmhouse Tall Profile】- 24.8\" height pairs perfectly with taller bed frames; the grey wood-grain finish fits farmhouse and modern bedrooms alike.",
+                "【3 Smooth Storage Drawers】- Generous drawer space keeps essentials organized and out of sight; metal runners glide smoothly.",
+                "【Sturdy Construction】- Thickened engineered wood board with scratch-proof, water-resistant surface stands up to daily use.",
+                "【Set of 2, Easy Assembly】- Ships in two boxes with illustrated instructions, labeled parts and all tools included."
+              ]
+            ]
+          },
+          {
+            "label": "标题/五点分析摘要",
+            "type": "text",
+            "values": [
+              "标题前80字符建议:Nightstand with Charging Station, USB-C/AC Outlets, 17.6 in Fluted Bedside Table;五点补线长、插座位置、承重、安装时长、包裹数。",
+              "竞品优势在Set of 2、宽台面、评论体量;我司可用充电站和176lb承重做差异化拦截。",
+              "该款更偏dresser/storage cabinet,标题混类但客单高;我司不宜正面比容量,应避开dresser词。",
+              "竞品有Set of 2和3 drawers,但评论少、重量高;我司可强调轻量安装和充电功能。"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "VOC",
+        "rows": [
+          {
+            "label": "好评点Top3",
+            "type": "text",
+            "values": [
+              "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+              [
+                "安装简单省力(证据: Sturdy, Stylish, and Easy to Assemble – Great Value for the )",
+                "外观/中古风设计好评(证据: Hermosassss: sleek, modern, and with a beautiful mid-century)",
+                "质量/稳定性扎实(证据: Sturdy, Stylish, and Easy to Assemble: once assembled, they')"
+              ],
+              "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+              [
+                "尺寸大/性价比高(证据: GREAT size and look, especially for the price!!!: Beautiful )",
+                "做工扎实稳固(证据: Good quality: Took a while to assemble but very sturdy)",
+                "外观搭配farmhouse卧室(证据: Looks good: Look good with new bedroom set. May order 1 more)"
+              ]
+            ]
+          },
+          {
+            "label": "差评点Top3",
+            "type": "text",
+            "values": [
+              "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+              [
+                "实物质感低于图片预期(证据: GOOD SET BUT LOOK CHEAP: the actual product looks cheaper th)",
+                "包装箱偏重,搬运不便(证据: Good but heavy boxes: be aware the boxes are heavy — get hel)"
+              ],
+              "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+              [
+                "抽屉拉伸行程不足(证据: Drawers barely extend: Look nice but drawers barely extend)",
+                "安装过程困难/存在缺件(证据: Assembly process was difficult.: took 1 star for inconvenien)"
+              ]
+            ]
+          },
+          {
+            "label": "未被满足需求",
+            "type": "text",
+            "values": [
+              "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+              [
+                "更清晰的安装指引/步骤标注(证据: Nice but instructions could be better: A few steps in the in)",
+                "颜色实物与页面一致性(ivory偏米白)(证据: GOOD SET BUT LOOK CHEAP: I bought the ivory color, which is )"
+              ],
+              "Amazon评论模块要求账户验证;卖家精灵评论分析未创建报告,无法输出真实评论聚类",
+              [
+                "更清晰的安装标注与更快的缺件补发(证据: Assembly process was difficult.: it was not clearly marked. )"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "name": "媒体与推荐",
+        "rows": [
+          {
+            "label": "套图",
+            "type": "images",
+            "values": [
+              [
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%204%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%205%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23ede3d0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a744e%27%3EAMADA%206%3C%2Ftext%3E%3C%2Fsvg%3E"
+              ],
+              [
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%204%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%205%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23e9e6e0%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%238a8578%27%3ESICOTAS%206%3C%2Ftext%3E%3C%2Fsvg%3E"
+              ],
+              [
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%204%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%232f2f34%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%23c9c9cf%27%3Emopio%205%3C%2Ftext%3E%3C%2Fsvg%3E"
+              ],
+              [
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%201%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%202%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%203%3C%2Ftext%3E%3C%2Fsvg%3E",
+                "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27120%27%20height%3D%27120%27%3E%3Crect%20width%3D%27120%27%20height%3D%27120%27%20rx%3D%275%27%20fill%3D%27%23d7d9dc%27%2F%3E%3Ctext%20x%3D%2760%27%20y%3D%2766%27%20font-family%3D%27Arial%27%20font-size%3D%2718%27%20text-anchor%3D%27middle%27%20fill%3D%27%235f6b7a%27%3ESICO-XL%204%3C%2Ftext%3E%3C%2Fsvg%3E"
+              ]
+            ]
+          },
+          {
+            "label": "视频入口",
+            "type": "link",
+            "values": [
+              {
+                "url": "https://www.amazon.com/vdp/0d1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c?ref=dp_vse_rvc_0",
+                "text": "打开视频播放"
+              },
+              {
+                "url": "https://www.amazon.com/vdp/1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b?ref=dp_vse_rvc_0",
+                "text": "打开视频播放"
+              },
+              null,
+              {
+                "url": "https://www.amazon.com/vdp/2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c?ref=dp_vse_rvc_0",
+                "text": "打开视频播放"
+              }
+            ]
+          },
+          {
+            "label": "Amazon推荐商品",
+            "type": "images",
+            "values": [
+              [
+                {
+                  "asin": "B0GLGPSFY5",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Nightstand with Charging Station"
+                },
+                {
+                  "asin": "B0DQYJSNBW",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Fluted Bedside Table"
+                },
+                {
+                  "asin": "B0F8VHKYCH",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Wood Side Table"
+                },
+                {
+                  "asin": "B0GHQ5FY2N",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "End Table with USB Ports"
+                },
+                {
+                  "asin": "B0FZJY9W81",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Modern Nightstand"
+                },
+                {
+                  "asin": "B0DY7N2LRB",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Bedside Table with Drawer"
+                }
+              ],
+              [
+                {
+                  "asin": "B0GCMVP19Z",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Nightstand Set of 2"
+                },
+                {
+                  "asin": "B0D69SFLGF",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Fluted Bedside Table"
+                },
+                {
+                  "asin": "B0F4863L65",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Wide Night Stand"
+                }
+              ],
+              null,
+              [
+                {
+                  "asin": "B0GCMVP19Z",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Nightstand Set of 2"
+                },
+                {
+                  "asin": "B0F4863L65",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Wide Night Stand"
+                }
+              ]
+            ]
+          },
+          {
+            "label": "经常一起购买",
+            "type": "images",
+            "values": [
+              [
+                {
+                  "asin": "B0DQYJSNBW",
+                  "imageUrl": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%2796%27%20height%3D%2796%27%3E%3Crect%20width%3D%2796%27%20height%3D%2796%27%20rx%3D%274%27%20fill%3D%27%23eef1f5%27%2F%3E%3Ctext%20x%3D%2748%27%20y%3D%2754%27%20font-family%3D%27Arial%27%20font-size%3D%2720%27%20text-anchor%3D%27middle%27%20fill%3D%27%2394a3b8%27%3E%E6%8E%A8%E8%8D%90%3C%2Ftext%3E%3C%2Fsvg%3E",
+                  "title": "Matching Dresser, Natural Oak"
+                }
+              ],
+              null,
+              null,
+              null
+            ]
+          }
+        ]
+      },
+      {
+        "name": "策略",
+        "rows": [
+          {
+            "label": "策略建议",
+            "type": "text",
+            "values": [
+              "高销量竞品用AC标+高评论承接自然/广告流量;我司应先修Listing转化,再投充电/小空间/USB-C长尾词",
+              "竞品以Set of 2+AC标承接大流量;我司单只SKU应打「充电站+小空间」差异化,避开正面比价。",
+              "mopio走高客单模块化收纳路线,与我司目标人群部分重叠;我司主打床头场景+充电,不与其比容量。",
+              "竞品缺充电功能,我司可在广告与A+中直接对比「充电站+轻量安装」优势拦截其流量。"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "sopMatrix": [
+    {
+      "category": "链接基本信息",
+      "attr": "产品图片",
+      "sop": "Excel内嵌缩略图;HTML可点击打开大图。"
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "产品链接",
+      "sop": ""
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "品牌",
+      "sop": ""
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "ASIN",
+      "sop": ""
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "变体数量占比",
+      "sop": "变体数来自卖家精灵;销量占比按当前4个ASIN样本计算。"
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "评论数",
+      "sop": ""
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "星级",
+      "sop": ""
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "上架时间",
+      "sop": ""
+    },
+    {
+      "category": "链接基本信息",
+      "attr": "卖家(店铺)名称信息(通过天眼查等)",
+      "sop": "卖家精灵给出公司主体;天眼查/企查查仅适用于中国主体进一步验证。"
+    },
+    {
+      "category": "市场表现",
+      "attr": "售价",
+      "sop": ""
+    },
+    {
+      "category": "市场表现",
+      "attr": "成交价",
+      "sop": "用卖家精灵averagePrice作为近30天成交均价代理。"
+    },
+    {
+      "category": "市场表现",
+      "attr": "小类BSR",
+      "sop": ""
+    },
+    {
+      "category": "市场表现",
+      "attr": "销量趋势(月趋势变化)",
+      "sop": ""
+    },
+    {
+      "category": "市场表现",
+      "attr": "父体月销量",
+      "sop": ""
+    },
+    {
+      "category": "市场表现",
+      "attr": "主推子体月销量",
+      "sop": ""
+    },
+    {
+      "category": "市场表现",
+      "attr": "主推子体销量占比",
+      "sop": ""
+    },
+    {
+      "category": "市场表现",
+      "attr": "品牌品类市占率",
+      "sop": "Amazon口径:按同一末级类目/小类Top样本月销量汇总为分母,品牌月销量为分子。"
+    },
+    {
+      "category": "市场表现",
+      "attr": "链接产品市占率",
+      "sop": "Amazon口径:按同一末级类目/小类Top样本月销量汇总为分母,当前ASIN月销量为分子。"
+    },
+    {
+      "category": "运营端需求",
+      "attr": "标题",
+      "sop": ""
+    },
+    {
+      "category": "运营端需求",
+      "attr": "标题-Alexa/Rufus优缺点分析",
+      "sop": "LLM按Alexa/Rufus检索心智输出优点/缺点/改进三段。"
+    },
+    {
+      "category": "运营端需求",
+      "attr": "五点描述原文",
+      "sop": ""
+    },
+    {
+      "category": "运营端需求",
+      "attr": "五点-Alexa/Rufus优缺点分析",
+      "sop": "LLM按Alexa/Rufus检索心智输出优点/缺点/改进三段。"
+    },
+    {
+      "category": "VOC",
+      "attr": "好评点/差评点/未被满足需求",
+      "sop": "每条聚类必须带评论原文证据引用;无真实评论数据时如实标注不可用,不编造。"
+    },
+    {
+      "category": "媒体与推荐",
+      "attr": "套图/视频/推荐商品",
+      "sop": "套图缩略图可点开大图;推荐商品取Amazon前台推荐位可解析的ASIN。"
+    },
+    {
+      "category": "策略",
+      "attr": "策略建议",
+      "sop": "LLM基于市场指标+VOC产出;单产品一句可执行建议。"
+    }
+  ]
+}

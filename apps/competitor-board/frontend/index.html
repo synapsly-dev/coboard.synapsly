@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>竞品分析看板</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar" id="hero">
+  <div class="hero-decor" aria-hidden="true">
+    <span class="blob blob-a"></span>
+    <span class="blob blob-b"></span>
+    <span class="hero-grid"></span>
+  </div>
+  <div class="topbar-inner">
+    <p class="hero-kicker" id="hero-kicker">COMPETITOR INTELLIGENCE · AMAZON</p>
+    <h1 id="board-title">竞品分析看板</h1>
+    <p id="board-subtitle">站点 + ASIN 一键分析 · 卖家精灵/亚马逊前台字段 · 标题五点 Alexa/Rufus 分析 · VOC 聚类 · 字段矩阵</p>
+    <div class="hero-chips" id="hero-chips">
+      <span class="chip">卖家精灵 57 字段</span>
+      <span class="chip">标题五点 Alexa/Rufus</span>
+      <span class="chip">VOC 证据聚类</span>
+      <span class="chip">字段矩阵</span>
+      <span class="chip">数据可溯源 · 不编造</span>
+    </div>
+  </div>
+</header>
+
+<nav class="anchor-nav" id="anchor-nav">
+  <div class="anchor-nav-inner">
+    <a href="#sec-overview" data-sec="sec-overview">产品概览</a>
+    <a href="#sec-analysis" data-sec="sec-analysis">标题五点分析</a>
+    <a href="#sec-voc" data-sec="sec-voc">VOC聚类</a>
+    <a href="#sec-reviews" data-sec="sec-reviews">Review明细</a>
+    <a href="#sec-matrix" data-sec="sec-matrix">字段矩阵</a>
+    <a href="#sec-conclusion" data-sec="sec-conclusion">综合结论</a>
+    <a href="#sec-sop" data-sec="sec-sop">SOP定义</a>
+    <span class="nav-indicator" id="nav-indicator" aria-hidden="true"></span>
+  </div>
+</nav>
+
+<main class="page">
+
+  <div id="dev-banner" class="dev-banner hidden">
+    开发预览模式:当前渲染 <code>sample-dashboard.json</code>(契约示例数据,仅供前端预览,非实时拉取结果)
+  </div>
+
+  <!-- 控制区 -->
+  <section class="card control-card" id="control-card">
+    <h2 class="section-title">发起分析</h2>
+    <form id="run-form" autocomplete="off">
+      <div class="control-grid">
+        <label class="ctl">
+          <span class="ctl-label">站点</span>
+          <select id="inp-market">
+            <option value="US" selected>US 美国站</option>
+            <option value="UK">UK 英国站</option>
+            <option value="DE">DE 德国站</option>
+            <option value="FR">FR 法国站</option>
+            <option value="JP">JP 日本站</option>
+            <option value="CA">CA 加拿大站</option>
+          </select>
+        </label>
+        <label class="ctl">
+          <span class="ctl-label">我司 ASIN</span>
+          <input id="inp-my" type="text" value="B0FY5PZCXQ" placeholder="B0XXXXXXXX" maxlength="10">
+        </label>
+        <label class="ctl">
+          <span class="ctl-label">竞品 ASIN 1</span>
+          <input id="inp-c1" type="text" value="B0CQJZ8XQG" placeholder="B0XXXXXXXX(可空)" maxlength="10">
+        </label>
+        <label class="ctl">
+          <span class="ctl-label">竞品 ASIN 2</span>
+          <input id="inp-c2" type="text" value="B0DMN566D4" placeholder="B0XXXXXXXX(可空)" maxlength="10">
+        </label>
+        <label class="ctl">
+          <span class="ctl-label">竞品 ASIN 3</span>
+          <input id="inp-c3" type="text" value="B0FKT9HHN6" placeholder="B0XXXXXXXX(可空)" maxlength="10">
+        </label>
+        <div class="ctl ctl-actions">
+          <button type="submit" id="btn-start" class="btn-primary">开始分析</button>
+        </div>
+        <label class="ctl">
+          <span class="ctl-label">历史运行</span>
+          <select id="sel-history">
+            <option value="">— 选择历史运行 —</option>
+          </select>
+        </label>
+        <label class="ctl ctl-check">
+          <input id="inp-cache" type="checkbox" checked>
+          <span>使用缓存(命中则不重复消耗 LinkFox 积分)</span>
+        </label>
+      </div>
+    </form>
+
+    <div id="progress-panel" class="progress-panel hidden">
+      <div class="progress-head">
+        <span id="progress-stage" class="progress-stage">准备中…</span>
+        <span id="progress-pct" class="progress-pct">0%</span>
+      </div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+      <div id="progress-logs" class="progress-logs"></div>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+  </section>
+
+  <!-- 空状态 -->
+  <section id="empty-state" class="card empty-card">
+    <p>暂无已完成的分析结果。填写站点与 ASIN 后点击「开始分析」,或从「历史运行」中选择一份已完成的看板。</p>
+    <p class="empty-hint">无后端时可在地址栏加 <code>?dev=1</code> 加载开发样例预览页面结构。</p>
+  </section>
+
+  <!-- 看板主体(数据驱动渲染) -->
+  <div id="dashboard-root" class="hidden">
+    <section id="sec-overview" class="card">
+      <h2 class="section-title">产品概览</h2>
+      <div id="product-grid" class="product-grid"></div>
+      <div id="notes-block"></div>
+    </section>
+
+    <section id="sec-analysis" class="card">
+      <h2 class="section-title">标题与五点 Alexa/Rufus 分析</h2>
+      <div id="analysis-list"></div>
+    </section>
+
+    <section id="sec-voc" class="card">
+      <h2 class="section-title">VOC 聚类</h2>
+      <div id="voc-list"></div>
+    </section>
+
+    <section id="sec-reviews" class="card">
+      <h2 class="section-title">Review 原文明细</h2>
+      <div id="reviews-list"></div>
+    </section>
+
+    <section id="sec-matrix" class="card">
+      <h2 class="section-title">字段矩阵实例</h2>
+      <p class="section-desc">横向滚动查看全部产品列;属性列与表头保持固定。</p>
+      <div id="matrix-wrap" class="matrix-wrap"></div>
+    </section>
+
+    <section id="sec-conclusion" class="card">
+      <h2 class="section-title">跨产品综合结论</h2>
+      <div id="conclusion-block"></div>
+    </section>
+
+    <section id="sec-sop" class="card">
+      <h2 class="section-title">字段矩阵 SOP 定义</h2>
+      <div class="sop-wrap" id="sop-wrap"></div>
+    </section>
+
+    <footer id="board-footer" class="board-footer"></footer>
+  </div>
+
+</main>
+
+<script src="vendor/gsap.min.js"></script>
+<script src="vendor/ScrollTrigger.min.js"></script>
+<script src="vendor/ScrollToPlugin.min.js"></script>
+<script src="app.js"></script>
+<script src="motion.js"></script>
+</body>
+</html>

@@ -45,8 +45,29 @@ services:
       SYNAPSLY_SINGLE_LOGOUT: ${SYNAPSLY_SINGLE_LOGOUT:-true}
       # 仅在非 production 下生效的本地假登录入口，生产必须关闭
       DEV_LOGIN: ${DEV_LOGIN:-false}
+      # 竞品分析看板 sidecar(内网服务名);置空可停用该栏目的反代
+      COMPETITOR_UPSTREAM: http://competitor:8916
     ports:
       - '${PORT:-3000}:3000'
 
+  # 竞品分析看板 sidecar(apps/competitor-board, Python FastAPI)。
+  # 仅在 compose 内网暴露 8916,不映射宿主端口;经 app 的
+  # /apps/competitor/* 反代访问(受平台登录保护)。
+  competitor:
+    build:
+      context: ./apps/competitor-board
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://www.dmxapi.cn/v1/}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-5.5}
+      LINKFOXAGENT_BASE_URL: ${LINKFOXAGENT_BASE_URL:-https://agent-api.linkfox.com}
+      LINKFOXAGENT_API_KEY: ${LINKFOXAGENT_API_KEY:-}
+    volumes:
+      # 分析产物与 LinkFox 结果缓存(缓存命中可避免重复计费)
+      - competitor-data:/app/data
+
 volumes:
   coboard-db:
+  competitor-data:

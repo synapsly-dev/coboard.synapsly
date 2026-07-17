@@ -12,6 +12,11 @@ build/
 .env
 .env.local
 
+# 竞品分析看板 sidecar(apps/competitor-board)运行时产物
+apps/competitor-board/data/
+__pycache__/
+*.pyc
+
 # Logs
 *.log
 

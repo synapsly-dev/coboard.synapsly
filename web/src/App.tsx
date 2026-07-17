@@ -23,6 +23,7 @@ import IdeasPage from './pages/IdeasPage';
 import OrgPage from './pages/OrgPage';
 import AnnouncementsPage from './pages/AnnouncementsPage';
 import StatsPage from './pages/StatsPage';
+import CompetitorPage from './pages/CompetitorPage';
 import AdminPage from './pages/AdminPage';
 import AccountProfilePage from './pages/AccountProfile';
 
@@ -93,6 +94,7 @@ function AuthedRoutes(): JSX.Element {
         <Route path="/org" element={<OrgPage />} />
         <Route path="/info" element={<AnnouncementsPage />} />
         <Route path="/stats" element={<StatsPage />} />
+        <Route path="/competitor" element={<CompetitorPage />} />
         <Route
           path="/admin"
           element={

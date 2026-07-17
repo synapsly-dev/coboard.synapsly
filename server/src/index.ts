@@ -91,6 +91,11 @@ async function main(): Promise<void> {
     authRuntime,
     webDistPath: WEB_DIST,
     logger: true,
+    // 竞品分析看板 sidecar(apps/competitor-board, FastAPI)。设为空字符串可停用。
+    competitorUpstream:
+      process.env.COMPETITOR_UPSTREAM === ''
+        ? undefined
+        : (process.env.COMPETITOR_UPSTREAM ?? 'http://127.0.0.1:8916'),
   });
 
   const shutdown = async (signal: string): Promise<void> => {

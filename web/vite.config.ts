@@ -25,6 +25,13 @@ export default defineConfig({
         // SSE endpoint must not be buffered by the proxy.
         ws: false,
       },
+      // 竞品分析看板子应用:走 :3000 的 Fastify 反代(带 requireAuth),
+      // 而非直连 8916,使 dev 与生产的鉴权行为一致。
+      '/apps': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        ws: false,
+      },
     },
   },
   build: {

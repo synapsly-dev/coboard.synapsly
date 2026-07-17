@@ -6,7 +6,9 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import staticPlugin from '@fastify/static';
 import autoload from '@fastify/autoload';
+import httpProxy from '@fastify/http-proxy';
 import { registerRoutes as registerRoutesExplicit } from './route-registry.js';
+import { requireAuth } from './lib/guards.js';
 import type { Database } from './db/index.js';
 import { loadAuthRuntime, type AuthRuntime } from './auth/config.js';
 import { bus, type RealtimeBus } from './realtime/bus.js';
@@ -52,6 +54,12 @@ export interface BuildAppOptions {
    * transform and cannot resolve the source modules.
    */
   routeLoader?: 'autoload' | 'explicit';
+  /**
+   * Upstream of the competitor-analysis sidecar (apps/competitor-board, FastAPI).
+   * When set, /apps/competitor/* is reverse-proxied there behind requireAuth.
+   * Omit (tests) to skip registration entirely.
+   */
+  competitorUpstream?: string | undefined;
 }
 
 /** Methods that mutate state and therefore require the CSRF header (§8). */
@@ -150,6 +158,21 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       dir: join(here, 'routes'),
       options: { prefix: '/api' },
       forceESM: true,
+    });
+  }
+
+  // --- Competitor-analysis sidecar proxy (/apps/competitor → FastAPI) ------
+  // Registered before static hosting so proxied paths never fall through to the
+  // SPA fallback. Platform session is required; the sidecar itself stays
+  // unauthenticated and must only be reachable on the internal network.
+  if (options.competitorUpstream) {
+    await app.register(httpProxy, {
+      upstream: options.competitorUpstream,
+      prefix: '/apps/competitor',
+      rewritePrefix: '/',
+      preHandler: async (request) => {
+        requireAuth(request);
+      },
     });
   }
 
