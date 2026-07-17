@@ -1,26 +1,35 @@
 import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro';
 import { Switch, Text, View } from '@tarojs/components';
-import { QueryClientProvider, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import type { Notification, NotificationDelivery } from 'shared';
+import { QueryClientProvider, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import type { Notification, NotificationDelivery, NotificationTopic } from 'shared';
 import { coboardClient } from '../../platform/coboard-client';
 import { useSessionToken } from '../../lib/auth';
 import { AuthGate } from '../../components/AuthGate';
-import { ActionButton, Badge, Card, Empty, PageHeader, Segmented } from '../../components/ui';
+import { ActionButton, AppIcon, Badge, Card, Empty, InlineError, PageHeader, Segmented, type AppIconName } from '../../components/ui';
 import { queryClient } from '../../lib/query';
 import './index.scss';
 
 type Filter = 'all' | 'unread' | 'action';
+const optionalTopics: Array<{ topic: NotificationTopic; label: string; description: string }> = [
+  { topic: 'deadlines', label: '截止提醒', description: '临近截止与逾期提醒' },
+  { topic: 'announcements', label: '公告', description: '团队新公告发布提醒' },
+  { topic: 'points', label: '点数与灵感', description: '点数到账和灵感采纳提醒' },
+  { topic: 'watched_updates', label: '关注对象更新', description: '主动关注的任务和项目动态' },
+];
 function NotificationsPage(): JSX.Element {
   const token = useSessionToken();
   const client = useQueryClient();
   const [filter, setFilter] = useState<Filter>('all');
   const [settings, setSettings] = useState(false);
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ['notifications', filter, token],
     enabled: Boolean(token),
-    queryFn: () => coboardClient.notifications.list(filter, 50),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => coboardClient.notifications.list(filter, 30, pageParam),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const notifications = useMemo(() => query.data?.pages.flatMap((page) => page.notifications) ?? [], [query.data]);
   const counts = useQuery({
     queryKey: ['notifications', 'counts', token],
     enabled: Boolean(token),
@@ -88,26 +97,29 @@ function NotificationsPage(): JSX.Element {
         {settings ? (
           <View className="stack">
             <Card className="notification-settings-intro"><Text className="title">应用内通知</Text><Text className="caption">指派、提及、审核、申请和权限变化属于直接工作事项，始终保留。</Text></Card>
-            {prefs.data
-              ?.filter((item) => item.channel === 'in_app')
-              .map((item) => (
-                <Card key={`${item.topic}:${item.channel}`} className="row-between">
-                  <View>
-                    <Text className="title">{topicLabel(item.topic)}</Text>
-                    <Text className="caption">应用内通知</Text>
+            {optionalTopics.map((item) => {
+              const preference = prefs.data?.find((row) => row.topic === item.topic && row.channel === 'in_app');
+              return (
+                <Card key={item.topic} className="row-between">
+                  <View className="account-copy">
+                    <Text className="title">{item.label}</Text>
+                    <Text className="caption">{item.description}</Text>
                   </View>
                   <Switch
-                    checked={item.delivery !== 'off'}
+                    checked={preference?.delivery !== 'off'}
+                    disabled={prefs.isLoading || setPref.isPending}
                     onChange={(event) =>
                       setPref.mutate({
                         topic: item.topic,
-                        channel: item.channel,
+                        channel: 'in_app',
                         delivery: event.detail.value ? 'immediate' : 'off',
                       })
                     }
                   />
                 </Card>
-              ))}
+              );
+            })}
+            <InlineError message={setPref.error instanceof Error ? setPref.error.message : null} />
           </View>
         ) : (
           <>
@@ -138,17 +150,17 @@ function NotificationsPage(): JSX.Element {
             </View>
             {query.isLoading ? (
               <Empty title="加载通知…" />
-            ) : (query.data?.notifications.length ?? 0) === 0 ? (
+            ) : notifications.length === 0 ? (
               <Empty title="暂无通知" />
             ) : (
               <View className="notification-list">
-                {query.data?.notifications.map((item) => (
+                {notifications.map((item) => (
                   <View
                     key={item.id}
                     className={`notification-item ${item.readAt ? '' : 'notification-item--unread'}`}
                     onClick={() => openNotification(item)}
                   >
-                    <View className="notification-item__dot" /><View className="notification-item__content">
+                    <View className={`notification-item__icon notification-item__icon--${notificationTone(item)}`}><AppIcon name={notificationIcon(item)} size={17} /></View><View className="notification-item__content">
                       <View className="row-between">
                         <Text className="notification-item__title">{item.title}</Text>
                         <View className="row">
@@ -165,6 +177,8 @@ function NotificationsPage(): JSX.Element {
                 ))}
               </View>
             )}
+            {query.hasNextPage && <View className="notification-load-more"><ActionButton tone="secondary" loading={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? '加载中…' : '加载更多'}</ActionButton></View>}
+            <InlineError message={query.error instanceof Error ? query.error.message : null} />
           </>
         )}
       </AuthGate>
@@ -178,18 +192,18 @@ export default function NotificationsPageRoot(): JSX.Element {
     </QueryClientProvider>
   );
 }
-function topicLabel(value: string): string {
-  const labels: Record<string, string> = {
-    assignments: '任务分配',
-    mentions: '提及与回复',
-    reviews: '审核进度',
-    deadlines: '截止提醒',
-    applications: '岗位申请',
-    membership: '成员与权限',
-    announcements: '团队公告',
-    watched_updates: '关注更新',
-    points: '贡献点数',
-    security: '账号安全',
-  };
-  return labels[value] ?? value;
+function notificationIcon(item: Notification): AppIconName {
+  if (item.entityType === 'task') return 'board';
+  if (item.entityType === 'project') return 'projects';
+  if (item.entityType === 'announcement') return 'info';
+  if (item.entityType === 'idea') return 'ideas';
+  if (item.entityType === 'asset') return 'assets';
+  if (item.entityType === 'org_node' || item.entityType === 'org_application') return 'org';
+  return 'notifications';
+}
+
+function notificationTone(item: Notification): string {
+  if (item.priority === 'urgent') return 'danger';
+  if (item.actionRequired) return 'warning';
+  return item.readAt ? 'neutral' : 'primary';
 }

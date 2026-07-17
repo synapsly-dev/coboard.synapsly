@@ -90,7 +90,7 @@ export function TaskCard({
         {task.claimants.length > 0 && (
           <View className="task-card__claimants">
             {task.claimants.slice(0, 3).map((person) => (
-              <Avatar key={person.userId} name={person.displayName} color={person.avatarColor} />
+              <Avatar key={person.userId} name={person.displayName} color={person.avatarColor} userId={person.userId} hasAvatar={person.hasAvatar} size="small" />
             ))}
             {task.claimants.length > 3 && <Text className="task-card__claimant-more">+{task.claimants.length - 3}</Text>}
           </View>

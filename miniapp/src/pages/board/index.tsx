@@ -133,7 +133,7 @@ function BoardPage(): JSX.Element {
         items={TASK_STATUS_ORDER.map((value) => ({
           value,
           label: TASK_STATUS_META[value].label,
-          count: tasks.filter((task) => task.status === value).length,
+          count: filteredTasks.filter((task) => task.status === value).length,
         }))}
       />
 
@@ -152,7 +152,7 @@ function BoardPage(): JSX.Element {
                 if (searchOpen[status]) setSearches((value) => ({ ...value, [status]: '' }));
               }}
             >
-              <Text>⌕</Text>
+              <Text>搜索</Text>
             </View>
             <Picker
               mode="selector"
@@ -161,7 +161,7 @@ function BoardPage(): JSX.Element {
               onChange={(event) => setSortKeys((value) => ({ ...value, [status]: SORTS[Number(event.detail.value)]?.value ?? 'default' }))}
             >
               <View className={`board-icon-button ${sortKey !== 'default' ? 'board-icon-button--active' : ''}`}>
-                <Text>⇅</Text>
+                <Text>排序</Text>
               </View>
             </Picker>
           </View>

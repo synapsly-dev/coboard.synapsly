@@ -32,7 +32,7 @@ function Person({ person, lead = false }: { person: OrgNodeMember; lead?: boolea
   return (
     <View className="org-person">
       <View className="org-person__avatar">
-        <Avatar name={person.displayName} color={person.avatarColor} />
+        <Avatar name={person.displayName} color={person.avatarColor} userId={person.userId} hasAvatar={person.hasAvatar} />
         {lead && <Text className="org-person__crown">♛</Text>}
       </View>
       <Text className="org-person__name">{person.displayName}</Text>
@@ -176,7 +176,7 @@ export function GalaxyView(props: OrgViewProps & { onModeToggle: () => void }): 
             const top = 50 + Math.sin(angle) * 19;
             return (
               <View className="org-galaxy__member" key={person.userId} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => canManageMembers(focus) && onManageMembers(focus)}>
-                <Avatar name={person.displayName} color={person.avatarColor} />
+                <Avatar name={person.displayName} color={person.avatarColor} userId={person.userId} hasAvatar={person.hasAvatar} />
                 {lead && <Text className="org-galaxy__crown">♛</Text>}
                 <Text className="org-galaxy__member-name">{person.displayName}</Text>
               </View>

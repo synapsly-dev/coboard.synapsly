@@ -5,7 +5,8 @@ import { useState } from 'react';
 import type { Announcement } from 'shared';
 import { coboardClient } from '../../platform/coboard-client';
 import { useCurrentUser, useSessionToken } from '../../lib/auth';
-import { ActionButton, Avatar, Card, Empty, Field, PageHeader } from '../../components/ui';
+import { ActionButton, Avatar, Card, Empty, Field, InlineError, PageHeader } from '../../components/ui';
+import { Markdown } from '../../components/Markdown';
 import { StateView } from '../../components/StateView';
 import { queryClient } from '../../lib/query';
 import './index.scss';
@@ -69,8 +70,8 @@ function InfoPage(): JSX.Element {
   return (
     <View className="page">
       <PageHeader
-        title="团队信息"
-        description="重要公告、制度更新与团队动态。"
+        title="信息"
+        description={isAdmin ? '发布团队公告与通知，所有成员可见。' : '团队公告与通知。'}
         action={
           isAdmin ? (
             <ActionButton
@@ -102,7 +103,7 @@ function InfoPage(): JSX.Element {
             onClick={() => (editing ? update.mutate() : create.mutate())}
           >
             {editing ? '保存修改' : '发布公告'}
-          </ActionButton></View>
+          </ActionButton></View><InlineError message={create.error instanceof Error ? create.error.message : update.error instanceof Error ? update.error.message : null} />
         </Card>
       </View></View>}
       <StateView
@@ -119,8 +120,8 @@ function InfoPage(): JSX.Element {
               <Card key={item.id}>
                 <View className="stack">
                   <Text className="info-card__title">{item.title}</Text>
-                  <View className="info-card__author"><Avatar name={item.author.displayName} color={item.author.avatarColor} /><Text className="caption">{item.author.displayName} · {new Date(item.createdAt).toLocaleString('zh-CN')}{item.updatedAt !== item.createdAt ? '（已编辑）' : ''}</Text></View>
-                  <Text className="info-card__body">{item.body}</Text>
+                  <View className="info-card__author"><Avatar name={item.author.displayName} color={item.author.avatarColor} userId={item.author.id} hasAvatar={item.author.hasAvatar} size="small" /><Text className="caption">{item.author.displayName} · {new Date(item.createdAt).toLocaleString('zh-CN')}{item.updatedAt !== item.createdAt ? '（已编辑）' : ''}</Text></View>
+                  <Markdown source={item.body} />
                   <View className="row-between">
                     <View />
                     {isAdmin && (

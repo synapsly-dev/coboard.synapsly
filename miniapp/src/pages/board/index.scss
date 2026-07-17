@@ -89,13 +89,15 @@
 
 .board-icon-button {
   display: flex;
-  width: 32px;
+  min-width: 32px;
   height: 32px;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   color: var(--muted-foreground);
-  font-size: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .board-icon-button:active { background: var(--secondary); }

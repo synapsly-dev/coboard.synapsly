@@ -1,0 +1,17 @@
+.profile-page { display:flex; flex-direction:column; gap:16px; }
+.profile-login { min-height:calc(100vh - 32px); justify-content:center; }
+.profile-login__brand { display:flex; flex-direction:column; align-items:center; gap:7px; margin-bottom:8px; text-align:center; }
+.profile-login__mark { display:flex; width:52px; height:52px; align-items:center; justify-content:center; border-radius:16px; background:var(--secondary); }
+.profile-login__title { font-size:22px; font-weight:700; letter-spacing:-.4px; }
+.profile-login__description,.profile-login__legal { color:var(--muted-foreground); font-size:12px; line-height:1.6; text-align:center; }
+.profile-dev-login { margin-top:4px; }
+.profile-card { display:flex; flex-direction:column; gap:15px; }
+.profile-card__identity { display:flex; align-items:center; gap:14px; }
+.profile-avatar { position:relative; width:64px; height:64px; flex:none; }
+.profile-avatar__edit { position:absolute; inset:auto 0 0; display:flex; justify-content:center; padding:4px 0; background:rgba(0,0,0,.52); color:white; font-size:9px; }
+.profile-card__actions { display:flex; gap:8px; }
+.profile-divider { height:1px; background:var(--border); }
+.profile-syna__identity { border:1px solid var(--border); border-radius:9px; padding:11px 12px; background:var(--secondary); }
+.profile-syna__actions { flex-wrap:wrap; }
+.profile-admin__icon { display:flex; width:38px; height:38px; align-items:center; justify-content:center; border-radius:10px; background:var(--secondary); }
+.profile-chevron { color:var(--muted-foreground); font-size:26px; }

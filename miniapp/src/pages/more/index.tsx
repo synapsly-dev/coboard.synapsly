@@ -7,8 +7,6 @@ import { queryClient } from '../../lib/query';
 import { coboardClient } from '../../platform/coboard-client';
 import './index.scss';
 
-console.info('[more/page] module evaluated');
-
 interface Entry {
   title: string;
   description: string;
@@ -44,7 +42,6 @@ function EntryRow({ entry }: { entry: Entry }): JSX.Element {
 }
 
 function MorePage(): JSX.Element {
-  console.info('[more/page] component render');
   const token = useSessionToken();
   const user = useCurrentUser();
   const isAdmin = user.data?.role === 'admin' || user.data?.role === 'super_admin';
@@ -63,7 +60,7 @@ function MorePage(): JSX.Element {
     </View>
 
     <View className="more-account" onClick={() => openPage('/pages/profile/index')}>
-      {user.data ? <Avatar name={user.data.displayName} color={user.data.avatarColor} /> : <View className="more-account__placeholder"><AppIcon name="profile" size={22} /></View>}
+      {user.data ? <Avatar name={user.data.displayName} color={user.data.avatarColor} userId={user.data.id} hasAvatar={user.data.hasAvatar} /> : <View className="more-account__placeholder"><AppIcon name="profile" size={22} /></View>}
       <View className="more-account__copy">
         <Text className="more-account__name">{user.isLoading ? '正在读取账号…' : user.data?.displayName ?? '登录 Coboard'}</Text>
         <Text className="more-account__email">{user.data?.email ?? '登录后同步网页版账号、角色和项目权限'}</Text>

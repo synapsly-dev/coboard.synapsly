@@ -24,7 +24,10 @@ export default function AuthCallbackPage(): JSX.Element {
       const response = await coboardClient.auth.miniappExchange({ code });
       acceptNativeSession(response);
       await Taro.showToast({ title: '登录成功', icon: 'success' });
-      await Taro.switchTab({ url: '/pages/profile/index' });
+      // The callback is reached from a web-view redirect and may sit on top of an
+      // old profile/login stack. Re-launching avoids leaving the auth web-view
+      // behind and works for non-tab pages (switchTab does not).
+      await Taro.reLaunch({ url: '/pages/profile/index' });
     } catch {
       setError('登录凭证已失效或网络异常，请重新登录');
     }

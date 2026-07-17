@@ -309,7 +309,7 @@ export function MembersDialog({
                     className={`org-candidate ${assignment !== 'none' || picked ? 'is-selected' : ''}`}
                     onClick={() => mode === 'add' ? toggleSelected(candidate.id) : cycle(candidate.id)}
                   >
-                    <Avatar name={candidate.displayName} color={candidate.avatarColor} />
+                    <Avatar name={candidate.displayName} color={candidate.avatarColor} userId={candidate.id} hasAvatar={candidate.hasAvatar} />
                     <Text className="org-candidate__name">{candidate.displayName}</Text>
                     {mode === 'add' ? (
                       <Text className={`org-candidate__check ${picked ? 'is-checked' : ''}`}>{picked ? '✓' : ''}</Text>

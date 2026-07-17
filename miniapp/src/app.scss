@@ -1,5 +1,6 @@
 @use 'design-tokens/miniapp.scss' as *;
 @use './components/ui.scss';
+@use './components/markdown.scss';
 
 page {
   box-sizing: border-box;
@@ -32,6 +33,7 @@ button::after {
 }
 
 .stack { display: flex; flex-direction: column; gap: $space-md; }
+.stack--tight { gap: $space-sm; }
 .row { display: flex; align-items: center; gap: $space-sm; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: $space-sm; }
 .title { font-size: 14px; font-weight: 600; }
@@ -39,3 +41,5 @@ button::after {
 .caption { font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
 .account-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
 .divider { height: 1px; background: var(--border); }
+.surface-muted { border-radius: 10px; padding: $space-md; background: color-mix(in srgb,var(--secondary) 65%,transparent); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

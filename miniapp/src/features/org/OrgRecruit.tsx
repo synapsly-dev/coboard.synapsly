@@ -112,7 +112,7 @@ export function OrgRecruit({
           <View className="org-recruit__cards">
             {pendingJoinRequests.map((application) => (
               <View className="org-join-request" key={application.id}>
-                <Avatar name={application.applicant.displayName} color={application.applicant.avatarColor} />
+                <Avatar name={application.applicant.displayName} color={application.applicant.avatarColor} userId={application.applicant.id} hasAvatar={application.applicant.hasAvatar} />
                 <View className="org-join-request__copy">
                   <Text className="org-join-request__title">{application.applicant.displayName} 申请加入 {application.nodeTitle}</Text>
                   <Text className="org-join-request__meta">{application.note || '未填写申请理由'} · {relativeTime(application.createdAt)}</Text>
@@ -155,8 +155,8 @@ export function OrgRecruit({
                         {node.description && <Text className="org-position-card__description">{node.description}</Text>}
                         {holders.length > 0 && (
                           <View className="org-position-card__people">
-                            {node.leads.map((person) => <View className="org-position-person" key={person.userId}><Avatar name={person.displayName} color={person.avatarColor} /><Text className="org-position-person__crown">♛</Text><Text>{person.displayName}</Text></View>)}
-                            {node.members.slice(0, 6).map((person) => <View className="org-position-person" key={person.userId}><Avatar name={person.displayName} color={person.avatarColor} /><Text>{person.displayName}</Text></View>)}
+                            {node.leads.map((person) => <View className="org-position-person" key={person.userId}><Avatar name={person.displayName} color={person.avatarColor} userId={person.userId} hasAvatar={person.hasAvatar} /><Text className="org-position-person__crown">♛</Text><Text>{person.displayName}</Text></View>)}
+                            {node.members.slice(0, 6).map((person) => <View className="org-position-person" key={person.userId}><Avatar name={person.displayName} color={person.avatarColor} userId={person.userId} hasAvatar={person.hasAvatar} /><Text>{person.displayName}</Text></View>)}
                           </View>
                         )}
                       </View>
@@ -172,7 +172,7 @@ export function OrgRecruit({
                         <Text className="org-position-card__review-title">待处理申报 · {requests.length}</Text>
                         {requests.map((application) => (
                           <View className="org-application" key={application.id}>
-                            <Avatar name={application.applicant.displayName} color={application.applicant.avatarColor} />
+                            <Avatar name={application.applicant.displayName} color={application.applicant.avatarColor} userId={application.applicant.id} hasAvatar={application.applicant.hasAvatar} />
                             <View className="org-application__copy"><Text>{application.applicant.displayName}</Text><Text>{application.note || '未填写申报理由'} · {relativeTime(application.createdAt)}</Text></View>
                             <View className="org-application__actions"><Text onClick={() => void confirmDecision(application, 'approve')}>录用</Text><Text onClick={() => void confirmDecision(application, 'reject')}>婉拒</Text></View>
                           </View>

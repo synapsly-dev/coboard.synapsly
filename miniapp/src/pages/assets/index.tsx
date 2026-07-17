@@ -12,10 +12,13 @@ import {
   Card,
   Empty,
   Field,
+  InlineError,
+  Modal,
   PageHeader,
   Segmented,
   SelectField,
 } from '../../components/ui';
+import { Markdown } from '../../components/Markdown';
 import { StateView } from '../../components/StateView';
 import { queryClient } from '../../lib/query';
 import './index.scss';
@@ -167,6 +170,7 @@ function AssetsPage(): JSX.Element {
           >
             {editing ? '保存修改' : '保存资产'}
           </ActionButton>
+          <InlineError message={create.error instanceof Error ? create.error.message : update.error instanceof Error ? update.error.message : null} />
         </Card>
       </View></View>}
       <View className="asset-tools"><Picker mode="selector" range={trackFilterOptions.map((item) => item.name)} value={trackFilterIndex} onChange={(event) => setTrackFilter(trackFilterOptions[Number(event.detail.value)]?.id ?? 'all')}><View className="asset-track-filter"><Text>{trackFilterOptions[trackFilterIndex]?.name}</Text><Text>⌄</Text></View></Picker><View className="field__control asset-search">
@@ -236,7 +240,7 @@ function AssetsPage(): JSX.Element {
           </View>
         )}
       </StateView>
-      {viewing && <View className="asset-modal" onClick={() => setViewing(null)}><View className="asset-dialog" onClick={(event) => event.stopPropagation()}><Card className="asset-detail"><View className="row-between"><View className="row"><Badge>{labels[viewing.kind]}</Badge><Badge>{viewing.trackName ?? '通用'}</Badge></View><Text className="asset-close" onClick={() => setViewing(null)}>×</Text></View><Text className="asset-detail__title">{viewing.title}</Text>{viewing.body && <Text className="asset-detail__body">{viewing.body}</Text>}{viewing.url && <ActionButton tone="secondary" size="small" onClick={() => void Taro.setClipboardData({ data: viewing.url! })}>复制外部链接</ActionButton>}{viewing.taskId && <ActionButton tone="ghost" size="small" onClick={() => void Taro.navigateTo({ url: `/pages/task/index?id=${viewing.taskId}` })}>查看来源任务</ActionButton>}<View className="row"><Avatar name={viewing.creator.displayName} color={viewing.creator.avatarColor} /><Text className="caption">{viewing.creator.displayName} · {new Date(viewing.createdAt).toLocaleString('zh-CN')}</Text></View></Card></View></View>}
+      <Modal open={Boolean(viewing)} title={viewing?.title ?? '资产详情'} description={viewing ? `${viewing.creator.displayName} · ${new Date(viewing.createdAt).toLocaleString('zh-CN')}${viewing.updatedAt !== viewing.createdAt ? ' · 已编辑' : ''}` : undefined} onClose={() => setViewing(null)}>{viewing && <View className="stack"><View className="row"><Badge>{labels[viewing.kind]}</Badge><Badge>{viewing.trackName ?? '通用'}</Badge></View><Markdown source={viewing.body} empty="该资产仅包含外部链接。" />{viewing.url && <ActionButton tone="secondary" size="small" onClick={() => void Taro.setClipboardData({ data: viewing.url! })}>复制外部链接</ActionButton>}{viewing.taskId && <ActionButton tone="ghost" size="small" onClick={() => void Taro.navigateTo({ url: `/pages/task/index?id=${viewing.taskId}` })}>查看来源任务</ActionButton>}<View className="row"><Avatar name={viewing.creator.displayName} color={viewing.creator.avatarColor} userId={viewing.creator.id} hasAvatar={viewing.creator.hasAvatar} /><Text className="caption">{viewing.creator.displayName}</Text></View></View>}</Modal>
     </View>
   );
 }

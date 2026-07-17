@@ -11,6 +11,7 @@ export default defineAppConfig({
     'pages/info/index',
     'pages/stats/index',
     'pages/profile/index',
+    'pages/syna-account/index',
     'pages/admin/index',
     'pages/auth-login/index',
     'pages/auth-callback/index',
