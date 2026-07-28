@@ -111,21 +111,38 @@ docker compose restart app
 
 ---
 
-## 三、升级
+## 三、生产部署与升级
 
-Coboard 在容器启动时会**自动执行数据库迁移**，因此升级只需拉新镜像并重建：
+生产环境固定由 `bastion` 构建镜像，`app-2` 只负责运行；不要在
+`app-2` 上执行源码构建。Coboard 启动时会自动执行数据库迁移，升级前仍应先备份。
 
 ```bash
-# 拉取/重建最新代码
-git pull            # 若用源码构建
+# 在 bastion 上
+cd /srv/cluster/source/coboard.synapsly
+git pull --ff-only origin main
+TAG=$(git rev-parse --short=12 HEAD)
 
-# 重新构建并平滑重启（迁移在启动时自动应用）
-docker compose up -d --build
+sudo docker buildx build --platform linux/amd64 --load \
+  -t "coboardsynapsly-app:${TAG}" .
+sudo docker save "coboardsynapsly-app:${TAG}" \
+  | gzip -1 > "/srv/cluster/images/coboard_${TAG}.tar.gz"
+
+rsync -ah --partial "/srv/cluster/images/coboard_${TAG}.tar.gz" \
+  app-2:/tmp/cluster-images/
+ssh app-2 "gzip -dc /tmp/cluster-images/coboard_${TAG}.tar.gz | sudo docker load"
+
+# Compose 文件可随代码更新；.env 只保存在运行节点，禁止覆盖或提交。
+rsync -a docker-compose.yml compose.cluster.yaml \
+  app-2:/srv/apps/coboard.synapsly/
+ssh app-2 "cd /srv/apps/coboard.synapsly && \
+  sudo env IMAGE=coboardsynapsly-app:${TAG} \
+  docker compose -f docker-compose.yml -f compose.cluster.yaml \
+  up -d --no-build --remove-orphans"
 ```
 
-> 升级前建议先执行一次备份（见上）。迁移是向前兼容的，但生产环境养成「先备份再升级」的习惯最稳妥。
-
-> **本项目的部署路径**：本地 `git push origin main` 后，经跳板登录到部署主机（`ssh dev` → `ssh hk-01`），在项目目录内拉取最新代码并重建：`git pull && docker compose up -d --build`。
+验证 `http://127.0.0.1:3200/healthz`、容器日志和公网登录后，再清理
+`app-2` 上的旧镜像与传输归档。通用回滚和镜像保留规则见
+`bastion:/home/ubuntu/README_cluster.md`。
 
 ---
 

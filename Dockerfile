@@ -5,14 +5,21 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# Enable pnpm via corepack (pinned by the root package.json packageManager field).
-RUN corepack enable
+# The registry is overridable for build hosts whose route to registry.npmjs.org
+# is slow or unavailable. The default remains the official npm registry.
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG PNPM_VERSION=11.5.2
+ENV npm_config_registry=${NPM_REGISTRY}
+RUN npm install --global "pnpm@${PNPM_VERSION}" --registry="${NPM_REGISTRY}"
 
 # Copy manifests first for better layer caching.
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* tsconfig.base.json drizzle.config.ts ./
 COPY packages/shared/package.json packages/shared/
+COPY packages/client-core/package.json packages/client-core/
+COPY packages/design-tokens/package.json packages/design-tokens/
 COPY server/package.json server/
 COPY web/package.json web/
+COPY miniapp/package.json miniapp/
 
 # Install the full workspace (dev deps needed for building).
 RUN pnpm install --frozen-lockfile || pnpm install
@@ -20,10 +27,9 @@ RUN pnpm install --frozen-lockfile || pnpm install
 # Copy the rest of the source.
 COPY . .
 
-# Build in dependency order: shared -> web (vite) -> server (tsc).
-RUN pnpm --filter shared build \
-  && pnpm --filter web build \
-  && pnpm --filter server build
+# Use the root build script so every workspace dependency is built in the
+# repository-defined order before the web and server packages.
+RUN pnpm build
 
 # Prune to production dependencies for the runtime image.
 # --config.confirm-modules-purge=false: Docker build has no TTY, so pnpm would

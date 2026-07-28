@@ -1,0 +1,30 @@
+# Production cluster overlay.
+# Secrets stay in the host-only .env file; this file is safe to commit.
+
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+
+  app:
+    image: ${IMAGE:-coboardsynapsly-app:latest}
+    environment:
+      DATABASE_URL: postgres://coboard:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/coboard
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://auth.synapsly.org}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID in .env}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email roles}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-https://coboard.synapsly.org/api/auth/synapsly/callback}
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.6.1
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      app:
+        condition: service_started
+    restart: unless-stopped
