@@ -200,7 +200,7 @@ A: 修改 `.env` 的 `PORT`（例如 `PORT=8080`），重启即可。映射形�
 A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://auth.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 Synapsly 账号角色决定：`admin`/`super_admin` 首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
 
 **Q: 数据存在哪里？删除容器会丢吗？**
-A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。日常升级用 `up -d --build` 不影响数据。
+A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。生产升级应在 `bastion` 构建并发送镜像，再在 `app-2` 使用 `docker compose up -d --no-build` 切换版本；不要在运行节点执行 `--build`。
 
 **Q: 支持多实例 / 横向扩展吗？**
 A: v1 为单实例单进程（实时用进程内事件总线），足以支撑数十人团队。多实例扩展（Redis pub/sub）在 v2 路线图中。
