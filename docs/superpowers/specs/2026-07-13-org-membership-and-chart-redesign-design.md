@@ -1,5 +1,7 @@
 # 团队架构：自助加入 + 图谱可视化重设计
 
+> **历史文档：** 本文记录实施时的旧环境，涉及 `dev`、`hk-01`、`/root/...` 或运行节点构建的命令均已退役。当前部署以仓库 README 和 `bastion:/home/ubuntu/README_cluster.md` 为准。
+
 Date: 2026-07-13 · Status: approved (user: 完成所有任务)
 
 ## 背景 / 现状

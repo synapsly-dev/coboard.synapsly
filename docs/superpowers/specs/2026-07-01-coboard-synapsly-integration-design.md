@@ -1,5 +1,7 @@
 # Coboard × Synapsly — Brand + syna-core Integration (Design)
 
+> **Historical note:** Commands targeting `dev`, `hk-01`, `/root/...`, or building on a runtime node are retired. Use the repository README and `bastion:/home/ubuntu/README_cluster.md`.
+
 **Date:** 2026-07-01
 **Status:** Approved
 **Author:** yzl (with Claude)
