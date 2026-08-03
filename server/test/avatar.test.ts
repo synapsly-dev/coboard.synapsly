@@ -27,7 +27,9 @@ describe('avatar upload', () => {
     await ctx.cleanup();
   });
 
-  async function seedUserCookie(): Promise<{ id: string; cookie: string }> {
+  async function seedUserCookie(
+    synaPictureUrl: string | null = null,
+  ): Promise<{ id: string; cookie: string }> {
     const [user] = await ctx.db
       .insert(users)
       .values({
@@ -36,6 +38,7 @@ describe('avatar upload', () => {
         displayName: '头像测试',
         avatarColor: '#3b82f6',
         role: 'member',
+        synaPictureUrl,
       })
       .returning();
     if (!user) throw new Error('seed failed');
@@ -147,6 +150,19 @@ describe('avatar upload', () => {
       headers: { cookie: me.cookie, 'x-requested-with': 'fetch' },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('uses the first-login Syna picture when no local avatar overrides it', async () => {
+    const me = await seedUserCookie();
+    const picture = 'https://accounts.synapsly.org/assets/avatar.png';
+    const target = await seedUserCookie(picture);
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: `/api/users/${target.id}/avatar`,
+      headers: { cookie: me.cookie, 'x-requested-with': 'fetch' },
+    });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe(picture);
   });
 
   it('requires auth to fetch an avatar', async () => {

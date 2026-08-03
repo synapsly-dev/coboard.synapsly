@@ -37,11 +37,12 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:3000}
       # 设为 true 时，空库首启会写入演示数据
       SEED_DEMO: ${SEED_DEMO:-false}
-      # Synapsly ID 单点登录（OIDC）—— 详见 README「接入 Synapsly ID」
-      SYNAPSLY_ISSUER: ${SYNAPSLY_ISSUER:-https://accounts.synapsly.org}
-      SYNAPSLY_CLIENT_ID: ${SYNAPSLY_CLIENT_ID:-}
-      SYNAPSLY_CLIENT_SECRET: ${SYNAPSLY_CLIENT_SECRET:-}
-      SYNAPSLY_REDIRECT_URI: ${SYNAPSLY_REDIRECT_URI:-}
+      # Syna ID 单点登录（OIDC）—— 详见 README「接入 Syna ID」
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.synapsly.org}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email phone roles membership}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
       SYNAPSLY_SINGLE_LOGOUT: ${SYNAPSLY_SINGLE_LOGOUT:-true}
       # 仅在非 production 下生效的本地假登录入口，生产必须关闭
       DEV_LOGIN: ${DEV_LOGIN:-false}

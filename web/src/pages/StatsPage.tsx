@@ -73,7 +73,8 @@ export default function StatsPage(): JSX.Element {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">贡献统计</h1>
             <p className="text-sm text-muted-foreground">
-              按完成任务数与点数衡量团队贡献，支持按项目与时间范围筛选。
+              按完成任务数与 Coboard 贡献点数衡量团队贡献；这里的点数不是 Syna
+              Credits，也不是可消费余额。
             </p>
           </div>
           {/* CSV 导出 (P3 §2) — carries the current resolved time window; renders
@@ -106,10 +107,7 @@ export default function StatsPage(): JSX.Element {
 
           {/* Right rail: charts */}
           <div className="flex flex-col gap-5">
-            <ChartCard
-              title="我的完成趋势"
-              caption={bucket === 'day' ? '按天统计' : '按周统计'}
-            >
+            <ChartCard title="我的完成趋势" caption={bucket === 'day' ? '按天统计' : '按周统计'}>
               <TrendChart
                 points={trend.data}
                 bucket={bucket}
@@ -117,10 +115,7 @@ export default function StatsPage(): JSX.Element {
                 isLoading={trend.isLoading}
               />
             </ChartCard>
-            <ChartCard
-              title="成员对比"
-              caption={filters.sort === 'points' ? '按点数' : '按完成数'}
-            >
+            <ChartCard title="成员对比" caption={filters.sort === 'points' ? '按点数' : '按完成数'}>
               <PerPersonChart
                 entries={leaderboard.data}
                 metric={filters.sort}

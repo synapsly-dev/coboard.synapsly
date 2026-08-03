@@ -184,6 +184,10 @@ export interface IdTokenClaims {
   name?: string;
   picture?: string;
   role?: string;
+  phone_number?: string;
+  phone_number_verified?: boolean;
+  membership_tier?: string;
+  membership_expires_at?: string | null;
   [k: string]: unknown;
 }
 
@@ -261,6 +265,10 @@ export interface UserInfo {
   name?: string;
   picture?: string;
   role?: string;
+  phone_number?: string;
+  phone_number_verified?: boolean;
+  membership_tier?: string;
+  membership_expires_at?: string | null;
   [k: string]: unknown;
 }
 

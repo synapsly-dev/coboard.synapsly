@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   customType,
   date,
   index,
@@ -31,6 +32,7 @@ import {
   taskTypes,
   trackMemberRoles,
   userRoles,
+  type CoreRole,
   type EntitySubscriptionMode,
   type NotificationChannel,
   type NotificationDelivery,
@@ -38,6 +40,8 @@ import {
   type NotificationPriority,
   type NotificationTopic,
   type NotificationType,
+  type MembershipTier,
+  type LocalUserRole,
   type SubscriptionEntityType,
 } from 'shared';
 
@@ -95,20 +99,35 @@ export const users = pgTable(
   {
     id: primaryId,
     email: text('email').notNull(),
-    // Nullable: local password auth was replaced by Synapsly ID SSO. Retained so
+    // Core identity fields are authoritative and overwritten on every Syna ID
+    // login. Legacy/pre-provisioned rows use the safe defaults until linked.
+    emailVerified: boolean('email_verified').notNull().default(false),
+    phoneNumber: text('phone_number'),
+    phoneNumberVerified: boolean('phone_number_verified').notNull().default(false),
+    // Nullable: local password auth was replaced by Syna ID SSO. Retained so
     // historical rows migrate cleanly; never written going forward.
     passwordHash: text('password_hash'),
-    // Stable Synapsly ID subject (OIDC `sub`) — the identity foreign key. Set on
+    // Stable Syna ID subject (OIDC `sub`) — the identity foreign key. Set on
     // first SSO login, unique across users. Null for rows an admin pre-provisioned
     // by email that have not logged in yet.
     synapslySub: text('synapsly_sub'),
+    // Initial Syna picture snapshot. Uploaded Coboard avatars remain the local
+    // customization and later Syna logins never overwrite either display field.
+    synaPictureUrl: text('syna_picture_url'),
     displayName: text('display_name').notNull(),
     avatarColor: text('avatar_color').notNull(),
     // Mime of the uploaded avatar (e.g. 'image/jpeg') when one exists; null
     // otherwise. Kept on the user row (vs the bytes) so list selects can derive
     // `hasAvatar` cheaply without ever fetching the image data.
     avatarMime: text('avatar_mime'),
+    // Materialized effective role used by hot-path authorization. It is always
+    // max(core_role, local_role); super_admin can only originate in core_role.
     role: userRoleEnum('role').notNull().default('member'),
+    coreRole: text('core_role').$type<CoreRole>().notNull().default('user'),
+    localRole: userRoleEnum('local_role').$type<LocalUserRole>(),
+    membershipTier: text('membership_tier').$type<MembershipTier>().notNull().default('none'),
+    membershipExpiresAt: timestamp('membership_expires_at', { withTimezone: true }),
+    identitySyncedAt: timestamp('identity_synced_at', { withTimezone: true }),
     isActive: boolean('is_active').notNull().default(true),
     createdAt,
   },
@@ -119,6 +138,29 @@ export const users = pgTable(
     uniqueIndex('users_super_admin_uniq')
       .on(table.role)
       .where(sql`role = 'super_admin'`),
+    uniqueIndex('users_core_super_admin_uniq')
+      .on(table.coreRole)
+      .where(sql`core_role = 'super_admin'`),
+    check(
+      'users_core_role_allowed',
+      sql`${table.coreRole} in ('user', 'staff', 'admin', 'super_admin')`,
+    ),
+    check(
+      'users_local_role_allowed',
+      sql`${table.localRole} is null or ${table.localRole} in ('member', 'admin')`,
+    ),
+    check(
+      'users_super_admin_source_valid',
+      sql`(${table.role} = 'super_admin') = (${table.coreRole} = 'super_admin')`,
+    ),
+    check(
+      'users_membership_pair_valid',
+      sql`(${table.membershipTier} = 'none' and ${table.membershipExpiresAt} is null) or (${table.membershipTier} in ('plus', 'pro') and ${table.membershipExpiresAt} is not null)`,
+    ),
+    check(
+      'users_phone_verified_requires_number',
+      sql`not ${table.phoneNumberVerified} or (${table.phoneNumber} is not null and ${table.phoneNumber} <> '')`,
+    ),
   ],
 );
 
@@ -151,7 +193,7 @@ export const sessions = pgTable(
     createdAt,
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
-    // Synapsly ID token captured at login; used as `id_token_hint` for
+    // Syna ID token captured at login; used as `id_token_hint` for
     // RP-initiated single logout (/end_session). Null for dev-login sessions.
     oidcIdToken: text('oidc_id_token'),
   },

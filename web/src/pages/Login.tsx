@@ -42,7 +42,7 @@ export default function LoginPage(): JSX.Element {
               <SynapseMark className="h-7 w-7" />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">登录 Coboard</h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">使用 Syna 账号继续你的团队协作</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">使用 Syna ID 继续你的团队协作</p>
           </div>
 
           <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
@@ -80,7 +80,7 @@ export default function LoginPage(): JSX.Element {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            登录即表示同意由 <span className="font-medium text-foreground">Syna 账号</span>{' '}
+            登录即表示同意由 <span className="font-medium text-foreground">Syna ID</span>{' '}
             统一管理你的身份
           </p>
         </div>

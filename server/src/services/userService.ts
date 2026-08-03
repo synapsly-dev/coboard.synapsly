@@ -1,6 +1,9 @@
 import { asc, eq, sql } from 'drizzle-orm';
 import type {
+  CoreRole,
   CreateUserInput,
+  LocalUserRole,
+  MembershipTier,
   UpdateUserInput,
   User,
   UserRole,
@@ -29,6 +32,10 @@ import { createNotifications } from './notificationService.js';
  * `password_hash` and converts the timestamptz Date into an ISO-8601 string.
  */
 export function serializeUser(row: UserRow): User {
+  const membershipActive =
+    (row.membershipTier === 'plus' || row.membershipTier === 'pro') &&
+    row.membershipExpiresAt !== null &&
+    row.membershipExpiresAt.getTime() > Date.now();
   return {
     id: row.id,
     email: row.email,
@@ -36,9 +43,23 @@ export function serializeUser(row: UserRow): User {
     avatarColor: row.avatarColor,
     role: row.role,
     isActive: row.isActive,
-    hasAvatar: row.avatarMime != null,
+    hasAvatar: row.avatarMime != null || row.synaPictureUrl != null,
+    coreRole: row.coreRole,
+    localRole: normalizeLocalRole(row.localRole),
+    membershipTier: membershipActive ? row.membershipTier : 'none',
+    membershipExpiresAt: membershipActive ? row.membershipExpiresAt!.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+function normalizeLocalRole(value: string | null | undefined): LocalUserRole | null {
+  return value === 'admin' || value === 'member' ? value : null;
+}
+
+function effectiveRole(coreRole: CoreRole, localRole: LocalUserRole | null): UserRole {
+  if (coreRole === 'super_admin') return 'super_admin';
+  if (coreRole === 'admin' || localRole === 'admin') return 'admin';
+  return 'member';
 }
 
 /** Count all users — used by the first-run setup gate (§8). */
@@ -47,9 +68,13 @@ export async function countUsers(db: Database): Promise<number> {
   return rows[0]?.count ?? 0;
 }
 
-/** Look up a user by (case-sensitive, already-normalized) email, or null. */
+/** Look up an identity email case-insensitively, or null. */
 export async function findUserByEmail(db: Database, email: string): Promise<UserRow | null> {
-  const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const rows = await db
+    .select()
+    .from(users)
+    .where(sql`lower(${users.email}) = lower(${email})`)
+    .limit(1);
   return rows[0] ?? null;
 }
 
@@ -64,17 +89,10 @@ export async function listUsers(db: Database): Promise<UserRow[]> {
   return db.select().from(users).orderBy(asc(users.createdAt));
 }
 
-/** The one local super admin, if already assigned. */
+/** The single highest role, sourced exclusively from Syna ID (or dev fake Core). */
 export async function findSuperAdmin(db: Database): Promise<UserRow | null> {
-  const rows = await db.select().from(users).where(eq(users.role, 'super_admin')).limit(1);
+  const rows = await db.select().from(users).where(eq(users.coreRole, 'super_admin')).limit(1);
   return rows[0] ?? null;
-}
-
-async function assertSuperAdminSlotAvailable(db: Database, targetUserId?: string): Promise<void> {
-  const existing = await findSuperAdmin(db);
-  if (existing && existing.id !== targetUserId) {
-    throw conflict('超级管理员只能有一位');
-  }
 }
 
 /**
@@ -122,29 +140,32 @@ export interface CreateUserParams {
 /**
  * Create a passwordless user account. Throws 409 on a duplicate email. Used by
  * the admin "add by email" flow (pre-provision before first SSO login) and, via
- * {@link createSsoUser}, by SSO provisioning. Identity is Synapsly ID, not a
+ * {@link createSsoUser}, by SSO provisioning. Identity is Syna ID, not a
  * password, so `password_hash` is always null.
  */
 export async function createUser(db: Database, params: CreateUserParams): Promise<UserRow> {
-  const existing = await findUserByEmail(db, params.email);
+  const email = params.email.toLowerCase();
+  const existing = await findUserByEmail(db, email);
   if (existing) {
     throw conflict('该邮箱已被注册');
   }
   if (params.role === 'super_admin') {
-    await assertSuperAdminSlotAvailable(db);
+    throw validationError('超级管理员只能由 Syna ID 的 Core role 自动授予');
   }
 
-  const avatarColor = params.avatarColor ?? pickAvatarColor(params.email);
+  const avatarColor = params.avatarColor ?? pickAvatarColor(email);
 
   const inserted = await db
     .insert(users)
     .values({
-      email: params.email,
+      email,
       passwordHash: null,
       synapslySub: params.synapslySub ?? null,
       displayName: params.displayName,
       avatarColor,
       role: params.role,
+      coreRole: 'user',
+      localRole: params.role,
       isActive: true,
     })
     .returning();
@@ -181,53 +202,49 @@ export async function findUserBySynapslySub(db: Database, sub: string): Promise<
 
 export interface CreateSsoUserParams {
   email: string;
+  emailVerified: boolean;
+  phoneNumber: string | null;
+  phoneNumberVerified: boolean;
   displayName: string;
-  role: UserRole;
+  synaPictureUrl: string | null;
   synapslySub: string;
+  coreRole: CoreRole;
+  membershipTier: MembershipTier;
+  membershipExpiresAt: Date | null;
   avatarColor?: string | undefined;
 }
 
-/** Provision a new user from a verified Synapsly identity (link the sub). */
+/** Provision from a verified Syna ID snapshot; display fields are seeded once. */
 export async function createSsoUser(db: Database, params: CreateSsoUserParams): Promise<UserRow> {
-  return createUser(db, {
-    email: params.email,
-    displayName: params.displayName,
-    role: params.role,
-    avatarColor: params.avatarColor,
-    synapslySub: params.synapslySub,
-  });
-}
-
-/** Attach a Synapsly subject to an existing (email-matched) user row. */
-export async function linkSynapslySub(db: Database, userId: string, sub: string): Promise<UserRow> {
-  const updated = await db
-    .update(users)
-    .set({ synapslySub: sub })
-    .where(eq(users.id, userId))
+  const email = params.email.toLowerCase();
+  const existing = await findUserByEmail(db, email);
+  if (existing) throw conflict('该邮箱已被注册');
+  const avatarColor = params.avatarColor ?? pickAvatarColor(email);
+  const inserted = await db
+    .insert(users)
+    .values({
+      email,
+      emailVerified: params.emailVerified,
+      phoneNumber: params.phoneNumber,
+      phoneNumberVerified: params.phoneNumberVerified,
+      passwordHash: null,
+      synapslySub: params.synapslySub,
+      synaPictureUrl: params.synaPictureUrl,
+      displayName: params.displayName,
+      avatarColor,
+      coreRole: params.coreRole,
+      localRole: null,
+      role: effectiveRole(params.coreRole, null),
+      membershipTier: params.membershipTier,
+      membershipExpiresAt: params.membershipTier === 'none' ? null : params.membershipExpiresAt,
+      identitySyncedAt: new Date(),
+      isActive: true,
+    })
     .returning();
-  const row = updated[0];
-  if (!row) throw notFound('用户不存在');
-  return row;
-}
-
-/**
- * Set a user's global role. Used by the SSO role-floor (authService), which folds
- * Synapsly's baseline `role` claim into the local role on every login — only ever
- * upward, never a downgrade.
- */
-export async function setUserRole(db: Database, userId: string, role: UserRole): Promise<UserRow> {
-  const target = await findUserById(db, userId);
-  if (!target) throw notFound('用户不存在');
-  if (target.role === 'super_admin' && role !== 'super_admin') {
-    throw validationError('不能降级唯一超级管理员');
+  if (!inserted[0]) {
+    throw new Error('创建 Syna ID 用户失败：未返回插入行');
   }
-  if (role === 'super_admin') {
-    await assertSuperAdminSlotAvailable(db, userId);
-  }
-  const updated = await db.update(users).set({ role }).where(eq(users.id, userId)).returning();
-  const row = updated[0];
-  if (!row) throw notFound('用户不存在');
-  return row;
+  return inserted[0];
 }
 
 /**
@@ -246,21 +263,20 @@ export async function updateUser(
   if (!target) {
     throw notFound('用户不存在');
   }
-  if (target.role === 'super_admin') {
-    if (input.role !== undefined && input.role !== 'super_admin') {
-      throw validationError('不能降级唯一超级管理员');
-    }
-    if (input.isActive === false) {
-      throw validationError('不能停用唯一超级管理员');
-    }
+  if (target.coreRole === 'super_admin' || target.role === 'super_admin') {
+    throw validationError('Syna ID 超级管理员不能通过应用内管理操作修改');
   }
   if (input.role === 'super_admin') {
-    await assertSuperAdminSlotAvailable(db, id);
+    throw validationError('超级管理员只能由 Syna ID 的 Core role 自动授予');
   }
 
   const patch: Partial<UserRow> = {};
   if (input.displayName !== undefined) patch.displayName = input.displayName;
-  if (input.role !== undefined) patch.role = input.role;
+  if (input.role !== undefined) {
+    const localRole = input.role as LocalUserRole;
+    patch.localRole = localRole;
+    patch.role = effectiveRole(target.coreRole, localRole);
+  }
   if (input.isActive !== undefined) patch.isActive = input.isActive;
   if (input.avatarColor !== undefined) patch.avatarColor = input.avatarColor;
 
@@ -276,9 +292,8 @@ export async function updateUser(
     await deleteUserSessions(db, id);
   }
 
-  if (input.role !== undefined && input.role !== target.role) {
-    const roleLabel =
-      input.role === 'super_admin' ? '超级管理员' : input.role === 'admin' ? '管理员' : '成员';
+  if (input.role !== undefined && row.role !== target.role) {
+    const roleLabel = row.role === 'admin' ? '管理员' : '成员';
     await createNotifications(db, realtimeBus, {
       recipientUserIds: [id],
       actorUserId,
@@ -289,7 +304,7 @@ export async function updateUser(
       body: `当前角色：${roleLabel}`,
       priority: 'high',
       groupKey: `user:${id}:security`,
-      payload: { role: input.role },
+      payload: { role: row.role },
     });
   }
   if (input.isActive === true && target.isActive === false) {
@@ -307,6 +322,17 @@ export async function updateUser(
   }
 
   return row;
+}
+
+/** Self-service local display-name customization; Core identity fields stay read-only. */
+export async function updateOwnProfile(
+  db: Database,
+  id: string,
+  displayName: string,
+): Promise<UserRow> {
+  const updated = await db.update(users).set({ displayName }).where(eq(users.id, id)).returning();
+  if (!updated[0]) throw notFound('用户不存在');
+  return updated[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -408,7 +434,8 @@ export async function clearUserAvatar(db: Database, userId: string): Promise<Use
   return row;
 }
 
-export interface AvatarData {
+export interface StoredAvatarData {
+  kind: 'stored';
   mime: string;
   /** Raw decoded image bytes. */
   bytes: Buffer;
@@ -416,11 +443,16 @@ export interface AvatarData {
   etag: string;
 }
 
+export interface SynaAvatarData {
+  kind: 'syna';
+  redirectUrl: string;
+}
+
+export type AvatarData = StoredAvatarData | SynaAvatarData;
+
 /**
- * Load a user's avatar bytes for the GET /users/:id/avatar endpoint. Joins the
- * mime off `users` with the base64 body in `user_avatars`. Returns null when the
- * user has no avatar so the route can 404. The base64 never leaks into any other
- * response — it is only ever read here and decoded to raw bytes.
+ * Prefer a locally uploaded avatar; otherwise redirect to the first-login Syna
+ * picture snapshot. Later Syna logins never overwrite that local initial value.
  */
 export async function getUserAvatar(db: Database, userId: string): Promise<AvatarData | null> {
   const rows = await db
@@ -428,18 +460,20 @@ export async function getUserAvatar(db: Database, userId: string): Promise<Avata
       mime: users.avatarMime,
       data: userAvatars.data,
       updatedAt: userAvatars.updatedAt,
+      synaPictureUrl: users.synaPictureUrl,
     })
     .from(users)
-    .innerJoin(userAvatars, eq(userAvatars.userId, users.id))
+    .leftJoin(userAvatars, eq(userAvatars.userId, users.id))
     .where(eq(users.id, userId))
     .limit(1);
 
   const row = rows[0];
-  if (!row || !row.mime) {
-    return null;
-  }
+  if (!row) return null;
 
-  const bytes = Buffer.from(row.data, 'base64');
-  const etag = `"${userId}-${row.updatedAt.getTime()}"`;
-  return { mime: row.mime, bytes, etag };
+  if (row.mime && row.data && row.updatedAt) {
+    const bytes = Buffer.from(row.data, 'base64');
+    const etag = `"${userId}-${row.updatedAt.getTime()}"`;
+    return { kind: 'stored', mime: row.mime, bytes, etag };
+  }
+  return row.synaPictureUrl ? { kind: 'syna', redirectUrl: row.synaPictureUrl } : null;
 }

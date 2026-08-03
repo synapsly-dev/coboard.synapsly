@@ -10,12 +10,12 @@ import { useAuth } from '../lib/auth-context';
 import { avatarUrl } from '../lib/utils';
 import { Avatar, Button, Input, Label, Tooltip } from '../components/ui';
 
-/** Synapsly account self-service (password / email / security) lives in core. */
+/** Syna ID self-service (password / email / security) lives in core. */
 const SYNAPSLY_ACCOUNT_URL = 'https://accounts.synapsly.org/';
 
 /**
- * Account self-service page. With Synapsly ID SSO, password / email / security are
- * managed in the Synapsly account (linked out below). Coboard keeps the local
+ * Account self-service page. With Syna ID SSO, password / email / security are
+ * managed in Syna ID (linked out below). Coboard keeps the local
  * profile knobs: avatar upload/preview/remove and the display name (§7 PATCH
  * /auth/profile). The server only lets a user change their own data.
  */
@@ -117,9 +117,7 @@ function ProfileSection(): JSX.Element {
 
   if (!user) return <Section>{null}</Section>;
 
-  const previewUrl = user.hasAvatar
-    ? `${avatarUrl(user.id)}?t=${version}`
-    : undefined;
+  const previewUrl = user.hasAvatar ? `${avatarUrl(user.id)}?t=${version}` : undefined;
 
   async function handleFile(file: File): Promise<void> {
     setError(null);
@@ -284,12 +282,7 @@ function DisplayNameForm(): JSX.Element {
         <Label htmlFor="display-name" required className="sr-only">
           显示名称
         </Label>
-        <Tooltip
-          content="其他成员看到的名字。"
-          side="bottom"
-          align="start"
-          open={showNameTip}
-        >
+        <Tooltip content="其他成员看到的名字。" side="bottom" align="start" open={showNameTip}>
           <Input
             id="display-name"
             placeholder="你的名字"
@@ -326,23 +319,32 @@ function DisplayNameForm(): JSX.Element {
 }
 
 // ---------------------------------------------------------------------------
-// Section: Synapsly account (password / email / security live in core)
+// Section: Syna ID (password / email / security live in core)
 // ---------------------------------------------------------------------------
 
 function SynapslyAccountSection(): JSX.Element {
   const { user } = useAuth();
   return (
-    <Section title="Syna 账号">
+    <Section title="Syna ID">
       <div className="flex flex-col gap-4">
         <p className="-mt-2 text-sm text-muted-foreground">
-          密码、邮箱与安全设置由 Syna 账号统一管理。
+          邮箱、手机、会员与安全设置由 Syna ID 统一管理，Coboard 内只读。
         </p>
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">
-              {user?.displayName}
-            </p>
+            <p className="truncate text-sm font-medium text-foreground">{user?.displayName}</p>
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              会员：
+              {user?.membershipTier === 'plus'
+                ? 'Plus'
+                : user?.membershipTier === 'pro'
+                  ? 'Pro'
+                  : '无'}
+              {user?.membershipExpiresAt
+                ? ` · 有效至 ${new Date(user.membershipExpiresAt).toLocaleDateString()}`
+                : ''}
+            </p>
           </div>
           <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
             Syna ID
@@ -352,12 +354,10 @@ function SynapslyAccountSection(): JSX.Element {
           <Button
             type="button"
             variant="outline"
-            onClick={() =>
-              window.open(SYNAPSLY_ACCOUNT_URL, '_blank', 'noopener,noreferrer')
-            }
+            onClick={() => window.open(SYNAPSLY_ACCOUNT_URL, '_blank', 'noopener,noreferrer')}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
-            管理 Syna 账号
+            管理 Syna ID
           </Button>
         </div>
       </div>

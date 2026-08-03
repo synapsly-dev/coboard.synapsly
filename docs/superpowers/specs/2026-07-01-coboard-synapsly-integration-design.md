@@ -1,6 +1,10 @@
 # Coboard × Synapsly — Brand + syna-core Integration (Design)
 
 > **Historical note:** Commands targeting `dev`, `hk-01`, `/root/...`, or building on a runtime node are retired. Use the repository README and `bastion:/home/ubuntu/README_cluster.md`.
+>
+> This July design is also superseded for current identity, role, membership and
+> wallet boundaries by `docs/integration/syna-app-spec-v2.md`; keep it only as
+> implementation history.
 
 **Date:** 2026-07-01
 **Status:** Approved
@@ -44,10 +48,11 @@ Authorization Code + PKCE flow **entirely server-side**. After verifying the
 identity, it mints coboard's **existing** session (the `sessions` table +
 `coboard_session` signed httpOnly cookie). The whole current session model — the
 `preHandler` cookie→user resolver, CSRF header check, sliding expiry — is
-unchanged; only *how a user proves who they are* changes. No OIDC tokens are ever
+unchanged; only _how a user proves who they are_ changes. No OIDC tokens are ever
 exposed to the browser.
 
 **Config** (`server/src/auth/synapsly.ts`):
+
 - `SYNAPSLY_ISSUER` (default `https://accounts.synapsly.org`)
 - `SYNAPSLY_CLIENT_ID`, `SYNAPSLY_CLIENT_SECRET`
 - `SYNAPSLY_REDIRECT_URI` (default `${PUBLIC_URL}/api/auth/synapsly/callback`)
@@ -55,6 +60,7 @@ exposed to the browser.
   JWKS rotation handled by the library). Lazily initialized + cached.
 
 **Routes** (`server/src/routes/auth.ts`, replacing password login):
+
 - `GET /api/auth/synapsly/start`
   - Generate `state`, `nonce`, PKCE `code_verifier`/`code_challenge` (S256).
   - Persist `{state, nonce, verifier, returnTo}` in a short-lived signed,
@@ -80,6 +86,7 @@ exposed to the browser.
     login for this purpose.
 
 **Dev fake-login** (`DEV_LOGIN=true`, non-production only):
+
 - `POST /api/auth/dev-login` `{ email }` → find-or-create that user (admin if in
   `ADMIN_EMAILS`, else member) and mint a session, bypassing Synapsly. Hard
   guarded: returns 404 unless `DEV_LOGIN==='true' && NODE_ENV!=='production'`.
@@ -89,11 +96,13 @@ exposed to the browser.
 ## 2. User resolution & access control
 
 Schema change (`users`):
+
 - add `synapsly_sub TEXT UNIQUE` (nullable — links on first SSO login).
 - `password_hash` becomes **nullable** (no longer written; retained so existing
   rows migrate cleanly; local-auth code that reads it is removed).
 
 Resolution order in the callback:
+
 1. **By `synapsly_sub`** → returning user. Refresh `displayName`/`email`/avatar
    from claims (display only — never a trust boundary). Log in.
 2. **Else by verified `email`** (`email_verified === true`) → link
@@ -127,7 +136,7 @@ entirely in coboard, which is exactly core's boundary model.
   JSON (light bg `#fbfbfa`, ink `#0b0b0c`, neutral grays, ink primary action).
   Adopt **Inter Variable** (`@fontsource-variable/inter`) as the type family
   (keep CJK fallbacks). This keeps coboard on **Tailwind v3 + HSL CSS-vars** —
-  we replicate token *values*, not the `@synapsly/tokens` package (private,
+  we replicate token _values_, not the `@synapsly/tokens` package (private,
   UNLICENSED, vanilla-extract + Tailwind v4 — a hard dep would force a fragile
   registry install and a v3→v4 migration for no visual gain).
 - `web/index.html`: title, `theme-color`, favicon, OG.
@@ -159,6 +168,7 @@ entirely in coboard, which is exactly core's boundary model.
 
 Register a **confidential, first-party** OIDC client on core (super_admin creds
 provided out-of-band) via `POST /api/admin/clients` or the `/admin` UI:
+
 - redirect URI: `https://coboard.synapsly.org/api/auth/synapsly/callback`
   (+ `http://localhost:3000/api/auth/synapsly/callback` for local real-SSO tests)
 - post-logout URI: `https://coboard.synapsly.org/`

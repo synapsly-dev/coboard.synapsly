@@ -88,7 +88,7 @@ async function main(): Promise<void> {
   if (!authRuntime.synapsly) {
     // eslint-disable-next-line no-console
     console.warn(
-      '[auth] 未配置 Synapsly SSO（缺少 SYNAPSLY_CLIENT_ID/SECRET）——' +
+      '[auth] 未配置 Syna ID（缺少 OIDC_CLIENT_ID/SECRET）——' +
         (authRuntime.devLogin ? '仅开发假登录可用' : '将无法登录'),
     );
   }

@@ -36,7 +36,7 @@ export type {
   ActivityWithActor,
   // errors
   ApiError,
-  // auth (Synapsly ID SSO)
+  // auth (Syna ID SSO)
   AuthConfigResponse,
   CompleteJoinInput,
   DevLoginInput,

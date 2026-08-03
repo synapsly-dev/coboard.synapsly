@@ -358,3 +358,85 @@ describe('0022/0023 Track organization migration', () => {
     expect(legacyRows.rows[0]?.count).toBe(0);
   });
 });
+
+describe('0027 Syna identity/membership authority migration', () => {
+  it('preserves legacy grants, removes local SA, and enforces authority constraints', async () => {
+    pglite = new PGlite();
+    const tags = await orderedTags();
+    const identityTag = '0027_sparkling_chameleon';
+    const identityIndex = tags.indexOf(identityTag);
+    expect(identityIndex).toBeGreaterThan(0);
+
+    for (const tag of tags.slice(0, identityIndex)) await applyMigration(pglite, tag);
+    await pglite.exec(`
+      INSERT INTO users (email, display_name, avatar_color, role)
+      VALUES
+        ('legacy-sa@x.com', 'Legacy SA', '#111111', 'super_admin'),
+        ('legacy-admin@x.com', 'Legacy Admin', '#222222', 'admin'),
+        ('legacy-member@x.com', 'Legacy Member', '#333333', 'member');
+    `);
+
+    await applyMigration(pglite, identityTag);
+
+    const rows = await pglite.query<{
+      email: string;
+      role: string;
+      core_role: string;
+      local_role: string | null;
+      membership_tier: string;
+      membership_expires_at: string | null;
+    }>(`
+      SELECT email, role::text, core_role, local_role::text, membership_tier,
+             membership_expires_at::text
+      FROM users ORDER BY email;
+    `);
+    expect(rows.rows).toEqual([
+      {
+        email: 'legacy-admin@x.com',
+        role: 'admin',
+        core_role: 'user',
+        local_role: 'admin',
+        membership_tier: 'none',
+        membership_expires_at: null,
+      },
+      {
+        email: 'legacy-member@x.com',
+        role: 'member',
+        core_role: 'user',
+        local_role: 'member',
+        membership_tier: 'none',
+        membership_expires_at: null,
+      },
+      {
+        email: 'legacy-sa@x.com',
+        role: 'admin',
+        core_role: 'user',
+        local_role: 'admin',
+        membership_tier: 'none',
+        membership_expires_at: null,
+      },
+    ]);
+
+    await expect(
+      pglite.exec(
+        `UPDATE users SET local_role = 'super_admin' WHERE email = 'legacy-member@x.com'`,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      pglite.exec(`UPDATE users SET membership_tier = 'plus' WHERE email = 'legacy-member@x.com'`),
+    ).rejects.toThrow();
+    await expect(
+      pglite.exec(`UPDATE users SET role = 'super_admin' WHERE email = 'legacy-member@x.com'`),
+    ).rejects.toThrow();
+    await pglite.exec(`
+      UPDATE users SET core_role = 'super_admin', role = 'super_admin'
+      WHERE email = 'legacy-sa@x.com'
+    `);
+    await expect(
+      pglite.exec(`
+        UPDATE users SET core_role = 'super_admin', role = 'super_admin'
+        WHERE email = 'legacy-admin@x.com'
+      `),
+    ).rejects.toThrow();
+  });
+});

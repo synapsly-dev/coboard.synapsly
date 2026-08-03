@@ -5,10 +5,7 @@ import { createTestContext } from './helpers.js';
 import { SESSION_COOKIE, createSession } from '../src/auth/session.js';
 import { users, type UserRow } from '../src/db/schema.js';
 import { updateRegistrationSettings } from '../src/services/settingsService.js';
-import {
-  completeSsoJoin,
-  type SsoIdentity,
-} from '../src/services/authService.js';
+import { completeSsoJoin, type SsoIdentity } from '../src/services/authService.js';
 
 /**
  * Member self-join gate (§8). With Synapsly SSO, a brand-new identity can only be
@@ -25,9 +22,13 @@ function identity(sub: string, email: string): SsoIdentity {
     sub,
     email,
     emailVerified: true,
+    phoneNumber: null,
+    phoneNumberVerified: false,
     name: '新成员',
     picture: null,
-    role: null,
+    coreRole: 'user',
+    membershipTier: 'none',
+    membershipExpiresAt: null,
     idToken: 'test-id-token',
   };
 }
@@ -43,9 +44,7 @@ describe('member self-join gate', () => {
     await ctx.cleanup();
   });
 
-  async function seedUser(
-    role: 'admin' | 'member',
-  ): Promise<{ user: UserRow; cookie: string }> {
+  async function seedUser(role: 'admin' | 'member'): Promise<{ user: UserRow; cookie: string }> {
     const [user] = await ctx.db
       .insert(users)
       .values({
@@ -113,11 +112,7 @@ describe('member self-join gate', () => {
       registrationEnabled: true,
       registrationCode: CODE,
     });
-    const user = await completeSsoJoin(
-      ctx.db,
-      identity('sub:new', 'new@coboard.local'),
-      CODE,
-    );
+    const user = await completeSsoJoin(ctx.db, identity('sub:new', 'new@coboard.local'), CODE);
     expect(user.role).toBe('member');
     expect(user.email).toBe('new@coboard.local');
     expect(user.synapslySub).toBe('sub:new');
@@ -134,5 +129,29 @@ describe('member self-join gate', () => {
     // Second call with a WRONG code still returns the existing user (no re-gate).
     const second = await completeSsoJoin(ctx.db, id, 'wrong-code');
     expect(second.id).toBe(first.id);
+  });
+
+  it('hydrates a paid membership expiry from the signed pending-join cookie', async () => {
+    await updateRegistrationSettings(ctx.db, {
+      registrationEnabled: true,
+      registrationCode: CODE,
+    });
+    const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
+    const pending = {
+      ...identity('sub:plus', 'plus@coboard.local'),
+      membershipTier: 'plus',
+      membershipExpiresAt: expiresAt,
+    };
+    const cookie = `coboard_join=${encodeURIComponent(ctx.app.signCookie(JSON.stringify(pending)))}`;
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/api/auth/synapsly/complete-join',
+      headers: { ...CSRF_HEADERS, cookie },
+      payload: { code: CODE },
+    });
+    expect(res.statusCode).toBe(200);
+    const [saved] = await ctx.db.select().from(users);
+    expect(saved?.membershipTier).toBe('plus');
+    expect(saved?.membershipExpiresAt?.toISOString()).toBe(expiresAt);
   });
 });

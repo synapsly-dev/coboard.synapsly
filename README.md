@@ -11,11 +11,15 @@ Coboard 是一款**自部署**的团队运营协同平台，面向 16–50 人�
   A 类或 8 点以上任务自动进入 初审 → 总运营复核 两级链
 - **组织架构与岗位申报**：可编辑架构树（部门/小组/岗位+名额）；BOSS直聘式招募视图，
   成员申报 → 负责人录用自动入编
-- **个人工作台**：待我审核、我的进行中（DDL 预警）、可认领、被退回、本周点数
-- **贡献统计与导出**：个人/赛道维度点数统计、排行榜、趋势图；成员分数表与任务明细 CSV 导出
+- **个人工作台**：待我审核、我的进行中（DDL 预警）、可认领、被退回、本周贡献点数
+- **贡献统计与导出**：个人/赛道维度贡献点数统计、排行榜、趋势图；成员分数表与任务明细 CSV 导出
 - **资产沉淀**：内容库/反馈库/资源库/问题清单，支持从已完成任务一键沉淀
 - **真实时**：看板、审核、申报、统计通过 SSE 即时联动
-- **单点登录**：使用 Synapsly ID（Synapsly 账号）单点登录（SSO），无需在 coboard 内单独管理密码
+- **单点登录**：使用 Syna ID 单点登录（SSO），无需在 Coboard 内单独管理密码
+
+> Coboard 的任务/贡献 `points` 只是团队绩效指标，**不是 Syna Credits（Syna
+> 额度）**，不能消费、充值或兑换。Coboard 当前没有 AI 计量操作，因此不接入
+> Wallet debit/refund；会员身份仅从 Syna ID 同步并只读展示。
 
 技术栈：单个应用容器（Node 22 + Fastify，内置打包后的 React 前端）+ 一个 Postgres 数据库。**备份只需备份这一个数据库**，零件越少越省心。
 
@@ -40,44 +44,46 @@ docker compose up -d
 
 启动后打开浏览器访问 `http://<服务器IP>:3000`：
 
-- Coboard 现已改为 **Synapsly ID 单点登录（SSO）**，不再有 `/setup` 页面或密码登录。
-- 首次登录统一使用 **Synapsly ID**（在 https://accounts.synapsly.org 完成认证）。
-- Synapsly 账号角色为 `admin`/`super_admin` 者首次登录即**自动成为管理员**，无需邀请码。
+- Coboard 使用 **Syna ID 单点登录（SSO）**，不再有 `/setup` 页面或密码登录。
+- 首次登录统一使用 **Syna ID**（在 https://accounts.synapsly.org 完成认证）。
+- Syna ID 角色为 `admin`/`super_admin` 者首次登录即自动获得相应管理权限，无需邀请码。
 - 其他新用户首次登录，需输入管理员在「**后台设置**」里预设的**邀请码**才能加入为成员。
 - 已有账号（历史用户）在登录时会按邮箱**自动关联**到既有账号。
 
-> 部署前需先在 Synapsly 注册 coboard 为 OIDC client 并填好 `SYNAPSLY_CLIENT_ID` / `SYNAPSLY_CLIENT_SECRET`，详见下文「[接入 Synapsly ID](#接入-synapsly-id)」。
+> 部署前需先在 Syna ID 注册 Coboard 为 OIDC client，并填好
+> `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`，详见下文「[接入 Syna ID](#接入-syna-id)」。
 
 > **可选：体验演示数据**。在 `.env` 中设置 `SEED_DEMO=true` 后首次启动（空库时）会写入一个演示项目与样例任务（生产环境请勿开启）。
 
 ### 环境变量说明（`.env`）
 
-| 变量 | 说明 |
-|---|---|
-| `DATABASE_URL` | Postgres 连接串。compose 默认指向内部 `db` 服务。 |
-| `SESSION_SECRET` | 会话 Cookie 签名密钥，**生产必须修改**为随机长字符串。 |
-| `PORT` | 对外端口（默认 3000）。 |
-| `NODE_ENV` | `production` / `development`。 |
-| `PUBLIC_URL` | 对外访问地址（反代场景填写完整域名）。 |
-| `SEED_DEMO` | 设为 `true` 时空库首启写入演示数据。 |
-| `SYNAPSLY_ISSUER` | OIDC 签发方，默认 `https://accounts.synapsly.org`（一般无需修改）。 |
-| `SYNAPSLY_CLIENT_ID` | 在 Synapsly 管理台注册 coboard client 后获得。**生产必填**。 |
-| `SYNAPSLY_CLIENT_SECRET` | confidential client 密钥。**生产必填**，妥善保管、勿入库。 |
-| `SYNAPSLY_REDIRECT_URI` | 回调地址，默认 `${PUBLIC_URL}/api/auth/synapsly/callback`（一般无需显式设置；若设置须与注册的 redirect URI 完全一致）。 |
-| `SYNAPSLY_SINGLE_LOGOUT` | `true` / `false`，默认 `true`：退出 coboard 时一并结束 Synapsly 会话（RP-initiated logout）。 |
-| `DEV_LOGIN` | `true` / `false`，默认 `false`：仅在 `NODE_ENV!=production` 下生效，开启后提供本地假登录入口用于开发调试（生产环境无效且必须关闭）。 |
+| 变量                     | 说明                                                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`           | Postgres 连接串。compose 默认指向内部 `db` 服务。                                                                                    |
+| `SESSION_SECRET`         | 会话 Cookie 签名密钥，**生产必须修改**为随机长字符串。                                                                               |
+| `PORT`                   | 对外端口（默认 3000）。                                                                                                              |
+| `NODE_ENV`               | `production` / `development`。                                                                                                       |
+| `PUBLIC_URL`             | 对外访问地址（反代场景填写完整域名）。                                                                                               |
+| `SEED_DEMO`              | 设为 `true` 时空库首启写入演示数据。                                                                                                 |
+| `OIDC_ISSUER`            | Syna ID issuer，固定使用 `https://accounts.synapsly.org`。                                                                           |
+| `OIDC_CLIENT_ID`         | 在 Syna ID 管理台注册 Coboard client 后获得。**生产必填**。                                                                          |
+| `OIDC_CLIENT_SECRET`     | confidential client 密钥。**生产必填**，妥善保管、勿入库。                                                                           |
+| `OIDC_SCOPES`            | 必须为 `openid profile email phone roles membership`（可额外加 `offline_access`）；缺少任一必需 scope 会拒绝启动/登录。              |
+| `OIDC_REDIRECT_URI`      | 回调地址，默认 `${PUBLIC_URL}/api/auth/synapsly/callback`（若设置须与注册值完全一致）。                                              |
+| `SYNAPSLY_SINGLE_LOGOUT` | `true` / `false`，默认 `true`：退出 coboard 时一并结束 Synapsly 会话（RP-initiated logout）。                                        |
+| `DEV_LOGIN`              | `true` / `false`，默认 `false`：仅在 `NODE_ENV!=production` 下生效，开启后提供本地假登录入口用于开发调试（生产环境无效且必须关闭）。 |
 
-### 接入 Synapsly ID
+### 接入 Syna ID
 
-Coboard 是一个 **confidential OIDC client**，登录流程委托给 Synapsly ID 完成。部署前需在 Synapsly 管理台注册一个 client：
+Coboard 是一个 **confidential OIDC client**，登录流程委托给 Syna ID 完成。部署前需在 Syna ID 管理台注册一个 client：
 
 1. 打开 https://accounts.synapsly.org/admin ，新建一个 client（应用类型选 confidential / web）。
 2. 填写回调与登出地址（把 `<你的域名>` 换成实际域名）：
    - **Redirect URI**：`https://<你的域名>/api/auth/synapsly/callback`
    - **Post-logout redirect URI**：`https://<你的域名>/`
-   - **Scopes**：`openid profile email`
-3. 保存后拿到 `client_id` 与 `client_secret`，填入 `.env` 的 `SYNAPSLY_CLIENT_ID` / `SYNAPSLY_CLIENT_SECRET`。
-4. `SYNAPSLY_ISSUER` 保持默认 `https://accounts.synapsly.org` 即可；`SYNAPSLY_REDIRECT_URI` 一般无需显式设置（默认由 `PUBLIC_URL` 推导），若设置须与上面注册的 redirect URI 完全一致。
+   - **Scopes**：`openid profile email phone roles membership`
+3. 保存后拿到 `client_id` 与 `client_secret`，填入 `.env` 的 `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`。
+4. `OIDC_ISSUER` 保持 `https://accounts.synapsly.org`；`OIDC_REDIRECT_URI` 一般由 `PUBLIC_URL` 推导。
 
 ---
 
@@ -197,7 +203,9 @@ A: 使用默认密钥存在安全风险（会话可被伪造）。请用 `openss
 A: 修改 `.env` 的 `PORT`（例如 `PORT=8080`），重启即可。映射形如 `8080:3000`。
 
 **Q: 登录 / 权限相关怎么处理？**
-A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://accounts.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 Synapsly 账号角色决定：`admin`/`super_admin` 首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
+A: Coboard 使用 Syna ID 单点登录，应用内不保存密码。邮箱、手机、Core role
+与会员状态每次登录强制同步；本地授权与 Core role 就高生效。`super_admin` 唯一且只能来自
+Syna ID。普通成员首次加入仍需管理员在「后台设置」预设的邀请码。
 
 **Q: 数据存在哪里？删除容器会丢吗？**
 A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。生产升级应在 `bastion` 构建并发送镜像，再在 `app-2` 使用 `docker compose up -d --no-build` 切换版本；不要在运行节点执行 `--build`。

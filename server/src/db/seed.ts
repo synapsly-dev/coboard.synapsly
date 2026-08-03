@@ -3,13 +3,7 @@ import { resolve } from 'node:path';
 import { sql } from 'drizzle-orm';
 import type { Database } from './index.js';
 import { createDb, resolveDatabaseUrl } from './index.js';
-import {
-  projectMembers,
-  projects,
-  tasks,
-  users,
-  type NewTaskRow,
-} from './schema.js';
+import { projectMembers, projects, tasks, users, type NewTaskRow } from './schema.js';
 import { AVATAR_COLORS } from '../lib/avatarPalette.js';
 
 /**
@@ -25,9 +19,7 @@ function rankFor(index: number): string {
 }
 
 export async function maybeSeed(db: Database): Promise<void> {
-  const existing = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(users);
+  const existing = await db.select({ count: sql<number>`count(*)::int` }).from(users);
   if ((existing[0]?.count ?? 0) > 0) {
     // eslint-disable-next-line no-console
     console.log('[seed] 已存在用户，跳过演示数据');
@@ -37,16 +29,20 @@ export async function maybeSeed(db: Database): Promise<void> {
   // eslint-disable-next-line no-console
   console.log('[seed] 写入演示数据...');
 
-  // Passwordless: identity is Synapsly ID. With DEV_LOGIN=true these demo
+  // Passwordless: identity is Syna ID. With DEV_LOGIN=true these demo
   // accounts can be entered by email via the local fake-login.
   const [admin] = await db
     .insert(users)
     .values({
       email: 'admin@coboard.local',
+      emailVerified: false,
       passwordHash: null,
+      synapslySub: 'dev:admin@coboard.local',
       displayName: '演示管理员',
       avatarColor: AVATAR_COLORS[0]!,
       role: 'super_admin',
+      coreRole: 'super_admin',
+      localRole: null,
       isActive: true,
     })
     .returning();
@@ -56,10 +52,14 @@ export async function maybeSeed(db: Database): Promise<void> {
     .insert(users)
     .values({
       email: 'member@coboard.local',
+      emailVerified: false,
       passwordHash: null,
+      synapslySub: 'dev:member@coboard.local',
       displayName: '演示成员',
       avatarColor: AVATAR_COLORS[1]!,
       role: 'member',
+      coreRole: 'user',
+      localRole: null,
       isActive: true,
     })
     .returning();
@@ -126,8 +126,7 @@ export async function maybeSeed(db: Database): Promise<void> {
 
 // Standalone runner: `pnpm --filter server seed`.
 const invokedDirectly =
-  process.argv[1] !== undefined &&
-  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   const { db, close } = createDb(resolveDatabaseUrl());

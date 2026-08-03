@@ -10,7 +10,7 @@ export interface SynapslyConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;
-  /** Space-delimited OIDC scopes. Includes `roles` so core emits the `role` claim. */
+  /** Space-delimited mandatory identity/membership scopes. */
   scopes: string;
   /** When true, logout also ends the Synapsly session (RP-initiated). */
   singleLogout: boolean;
@@ -26,8 +26,15 @@ export interface AuthRuntime {
 }
 
 const DEFAULT_ISSUER = 'https://accounts.synapsly.org';
-/** `roles` is required so core emits the `role` claim the role-floor consumes. */
-const DEFAULT_SCOPES = 'openid profile email roles';
+export const REQUIRED_OIDC_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'phone',
+  'roles',
+  'membership',
+] as const;
+const DEFAULT_SCOPES = REQUIRED_OIDC_SCOPES.join(' ');
 
 /** First non-empty trimmed value among the given env keys, else undefined. */
 function pickEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string | undefined {
@@ -48,8 +55,8 @@ function pickEnv(env: NodeJS.ProcessEnv, ...keys: string[]): string | undefined 
  * - SSO is enabled only when BOTH a client id AND secret are set (a confidential
  *   client needs its secret).
  * - The redirect URI defaults to `${publicUrl}/api/auth/synapsly/callback`.
- * - Scopes default to `openid profile email roles` (the `roles` scope is what
- *   makes core emit the baseline `role` claim).
+ * - Every required identity scope must be requested. Failing at boot prevents
+ *   a silently narrowed client configuration from preserving stale local data.
  * - `DEV_LOGIN` is honored only when NOT in production, so a prod misconfig can
  *   never open the fake-login door.
  */
@@ -63,6 +70,10 @@ export function loadAuthRuntime(opts: {
   const clientId = pickEnv(env, 'OIDC_CLIENT_ID', 'SYNAPSLY_CLIENT_ID');
   const clientSecret = pickEnv(env, 'OIDC_CLIENT_SECRET', 'SYNAPSLY_CLIENT_SECRET');
 
+  if (opts.production && (!clientId || !clientSecret)) {
+    throw new Error('生产环境必须配置 OIDC_CLIENT_ID 与 OIDC_CLIENT_SECRET');
+  }
+
   let synapsly: SynapslyConfig | null = null;
   if (clientId && clientSecret) {
     const issuer = (pickEnv(env, 'OIDC_ISSUER', 'SYNAPSLY_ISSUER') || DEFAULT_ISSUER).replace(
@@ -73,6 +84,11 @@ export function loadAuthRuntime(opts: {
       pickEnv(env, 'OIDC_REDIRECT_URI', 'SYNAPSLY_REDIRECT_URI') ||
       `${opts.publicUrl.replace(/\/+$/, '')}/api/auth/synapsly/callback`;
     const scopes = pickEnv(env, 'OIDC_SCOPES', 'SYNAPSLY_SCOPES') || DEFAULT_SCOPES;
+    const requested = new Set(scopes.split(/\s+/).filter(Boolean));
+    const missing = REQUIRED_OIDC_SCOPES.filter((scope) => !requested.has(scope));
+    if (missing.length > 0) {
+      throw new Error(`OIDC_SCOPES 缺少必需 scope: ${missing.join(', ')}`);
+    }
     synapsly = {
       issuer,
       clientId,

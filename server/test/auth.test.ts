@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import type { AuthConfigResponse, AuthUserResponse, UserRole, UsersListResponse } from 'shared';
 import type { TestContext } from './helpers.js';
 import { createTestContext } from './helpers.js';
@@ -40,6 +41,8 @@ describe('auth + users', () => {
         displayName: role === 'super_admin' ? '超级管理员' : role === 'admin' ? '管理员' : '成员',
         avatarColor: '#0b0b0c',
         role,
+        coreRole: role === 'super_admin' ? 'super_admin' : 'user',
+        localRole: role === 'admin' ? 'admin' : null,
         isActive: true,
       })
       .returning();
@@ -130,6 +133,7 @@ describe('auth + users', () => {
   it('ordinary admin cannot create admins or adjust global roles', async () => {
     const { cookie: adminCookie } = await seedUser('admin');
     const { user: member } = await seedUser('member', 'role-target@coboard.local');
+    const { user: otherAdmin } = await seedUser('admin', 'other-admin@coboard.local');
 
     const createAdmin = await ctx.app.inject({
       method: 'POST',
@@ -146,6 +150,14 @@ describe('auth + users', () => {
       payload: { role: 'admin' },
     });
     expect(promote.statusCode).toBe(403);
+
+    const deactivateAdmin = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${otherAdmin.id}`,
+      headers: { ...CSRF_HEADERS, cookie: adminCookie },
+      payload: { isActive: false },
+    });
+    expect(deactivateAdmin.statusCode).toBe(403);
   });
 
   it('super admin can promote and demote ordinary admins', async () => {
@@ -206,6 +218,36 @@ describe('auth + users', () => {
       payload: { isActive: false },
     });
     expect(deactivateSelf.statusCode).toBe(400);
+
+    const renameSelfAsAdmin = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${superAdmin.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { displayName: '应用内改名' },
+    });
+    expect(renameSelfAsAdmin.statusCode).toBe(400);
+  });
+
+  it('cannot lower a Core admin below the Syna ID baseline', async () => {
+    const { cookie: superAdminCookie } = await seedUser('super_admin');
+    const { user: target } = await seedUser('admin', 'core-admin@coboard.local');
+    await ctx.db
+      .update(users)
+      .set({ coreRole: 'admin', localRole: null })
+      .where(eq(users.id, target.id));
+
+    const res = await ctx.app.inject({
+      method: 'PATCH',
+      url: `/api/users/${target.id}`,
+      headers: { ...CSRF_HEADERS, cookie: superAdminCookie },
+      payload: { role: 'member' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as AuthUserResponse).user).toMatchObject({
+      coreRole: 'admin',
+      localRole: 'member',
+      role: 'admin',
+    });
   });
 
   it('creating a user with a duplicate email returns 409', async () => {

@@ -11,6 +11,21 @@ export const userRoles = ['super_admin', 'admin', 'member'] as const;
 export const userRoleSchema = z.enum(userRoles);
 export type UserRole = (typeof userRoles)[number];
 
+/** Syna ID's ecosystem-wide baseline role vocabulary. */
+export const coreRoles = ['user', 'staff', 'admin', 'super_admin'] as const;
+export const coreRoleSchema = z.enum(coreRoles);
+export type CoreRole = (typeof coreRoles)[number];
+
+/** App-local elevations never include super_admin; that role can only come from Syna ID. */
+export const localUserRoles = ['member', 'admin'] as const;
+export const localUserRoleSchema = z.enum(localUserRoles);
+export type LocalUserRole = (typeof localUserRoles)[number];
+
+/** Central, read-only Syna membership tiers. */
+export const membershipTiers = ['none', 'plus', 'pro'] as const;
+export const membershipTierSchema = z.enum(membershipTiers);
+export type MembershipTier = (typeof membershipTiers)[number];
+
 /** Highest local role. Exactly one active Coboard account may hold it. */
 export function isSuperAdminRole(role: UserRole | null | undefined): boolean {
   return role === 'super_admin';

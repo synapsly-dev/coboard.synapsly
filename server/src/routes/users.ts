@@ -5,6 +5,7 @@ import {
   updateUserInputSchema,
   type AuthUserResponse,
   type UsersListResponse,
+  isAdminRole,
   isSuperAdminRole,
 } from 'shared';
 import { requireAdmin, requireAuth } from '../lib/guards.js';
@@ -13,6 +14,7 @@ import { parseBody, parseParams } from '../lib/validate.js';
 import {
   createUser,
   createUserParamsFromInput,
+  findUserById,
   getUserAvatar,
   listUsersWithProjects,
   serializeUser,
@@ -49,6 +51,11 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     const actor = requireAdmin(request);
     const { id } = parseParams(idParamSchema, request.params);
     const input = parseBody(updateUserInputSchema, request.body);
+    const target = await findUserById(fastify.db, id);
+    if (!target) throw notFound('用户不存在');
+    if (!isSuperAdminRole(actor.role) && isAdminRole(target.role)) {
+      throw forbidden('管理员只能管理普通成员账号');
+    }
     if (input.role !== undefined) {
       if (!isSuperAdminRole(actor.role)) {
         throw forbidden('只有超级管理员可以调整全局角色');
@@ -73,6 +80,9 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     const avatar = await getUserAvatar(fastify.db, id);
     if (!avatar) {
       throw notFound('该用户没有头像');
+    }
+    if (avatar.kind === 'syna') {
+      return reply.header('Cache-Control', 'private, max-age=300').redirect(avatar.redirectUrl);
     }
 
     reply.header('Cache-Control', 'private, max-age=0, must-revalidate');

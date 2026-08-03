@@ -1,1 +1,1 @@
-export default definePageConfig({ navigationBarTitleText: 'Syna 账号' });
+export default definePageConfig({ navigationBarTitleText: 'Syna ID' });

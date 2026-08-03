@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   activityTypeSchema,
   applicationStatusSchema,
+  coreRoleSchema,
   entitySubscriptionModeSchema,
   ideaStatusSchema,
   notificationChannelSchema,
@@ -10,6 +11,8 @@ import {
   notificationPrioritySchema,
   notificationTopicSchema,
   notificationTypeSchema,
+  localUserRoleSchema,
+  membershipTierSchema,
   orgMemberRoleSchema,
   orgNodeKindSchema,
   prioritySchema,
@@ -88,8 +91,14 @@ export const userSchema = z.object({
   avatarColor: avatarColorSchema,
   role: userRoleSchema,
   isActive: z.boolean(),
-  /** Whether the user has uploaded a profile picture (fetch via /users/:id/avatar). */
+  /** Whether a local upload or first-login Syna picture is available via /users/:id/avatar. */
   hasAvatar: z.boolean(),
+  /** Current Syna ID baseline and optional Coboard-local elevation. */
+  coreRole: coreRoleSchema.optional(),
+  localRole: localUserRoleSchema.nullable().optional(),
+  /** Read-only Syna membership snapshot; Coboard neither sells nor mutates it. */
+  membershipTier: membershipTierSchema.optional(),
+  membershipExpiresAt: isoDateTimeSchema.nullable().optional(),
   createdAt: isoDateTimeSchema,
 });
 export type User = z.infer<typeof userSchema>;
@@ -911,7 +920,7 @@ export const apiErrorSchema = z.object({
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
 // ---------------------------------------------------------------------------
-// Auth — Synapsly ID SSO (§7)
+// Auth — Syna ID SSO (§7)
 // ---------------------------------------------------------------------------
 
 /**
@@ -1088,7 +1097,7 @@ export type UsersListResponse = z.infer<typeof usersListResponseSchema>;
 
 /**
  * POST /users — admin pre-provisions an account by email. There is no password:
- * the person signs in with their Synapsly ID, which links to this row by email on
+ * the person signs in with their Syna ID, which links to this row by email on
  * first login. Lets admins add people to projects before they ever log in.
  */
 export const createUserInputSchema = z.object({

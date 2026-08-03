@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import {
   completeJoinInputSchema,
   devLoginInputSchema,
+  emailSchema,
   miniappAuthExchangeInputSchema,
   updateAvatarInputSchema,
   updateProfileInputSchema,
@@ -34,6 +35,8 @@ import { isAppError, unauthorized } from '../lib/errors.js';
 import {
   completeSsoJoin,
   devLogin as devLoginService,
+  parseCoreRole,
+  parseMembershipClaims,
   resolveSsoLogin,
   startSession,
   type SsoIdentity,
@@ -43,7 +46,7 @@ import {
   findUserById,
   serializeUser,
   setUserAvatar,
-  updateUser,
+  updateOwnProfile,
 } from '../services/userService.js';
 
 /**
@@ -115,6 +118,20 @@ interface OidcFlowState {
   nonce: string;
   verifier: string;
   returnTo: string;
+}
+
+type SerializedSsoIdentity = Omit<SsoIdentity, 'membershipExpiresAt'> & {
+  membershipExpiresAt: string | null;
+};
+
+/** JSON cookies turn Date into strings; revalidate + hydrate before provisioning. */
+function hydratePendingIdentity(raw: SerializedSsoIdentity): SsoIdentity {
+  const coreRole = parseCoreRole(raw.coreRole);
+  const { membershipTier, membershipExpiresAt } = parseMembershipClaims(
+    raw.membershipTier,
+    raw.membershipExpiresAt,
+  );
+  return { ...raw, coreRole, membershipTier, membershipExpiresAt };
 }
 
 const MINIAPP_BRIDGE_PATH = '/api/auth/miniapp/bridge';
@@ -246,12 +263,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
     async (request, reply): Promise<AuthUserResponse> => {
-      const identity = readSignedJson<SsoIdentity>(request, JOIN_COOKIE);
-      if (!identity) {
+      const serializedIdentity = readSignedJson<SerializedSsoIdentity>(request, JOIN_COOKIE);
+      if (!serializedIdentity) {
         return reply.code(401).send({
           error: { code: 'UNAUTHORIZED', message: '加入会话已失效，请重新登录' },
         }) as unknown as AuthUserResponse;
       }
+      const identity = hydratePendingIdentity(serializedIdentity);
       const { code } = parseBody(completeJoinInputSchema, request.body);
       const user = await completeSsoJoin(fastify.db, identity, code);
 
@@ -383,9 +401,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.patch('/auth/profile', async (request): Promise<AuthUserResponse> => {
     const user = requireAuth(request);
     const input = parseBody(updateProfileInputSchema, request.body);
-    const updated = await updateUser(fastify.db, user.id, {
-      displayName: input.displayName,
-    });
+    const updated = await updateOwnProfile(fastify.db, user.id, input.displayName);
     return { user: serializeUser(updated) };
   });
 
@@ -406,8 +422,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
 /**
  * Exchange the auth code, verify the id_token, and distill a trusted identity.
- * Prefers fresh `/userinfo` claims (incl. `role`, if the provider emits it) but
- * falls back to the id_token; requires the two subjects to agree.
+ * Prefers fresh `/userinfo` claims but treats each scoped claim family as one
+ * coherent snapshot. Missing/invalid authoritative claims fail closed instead
+ * of preserving stale local identity or membership data.
  */
 async function verifiedIdentity(
   cfg: SynapslyConfig,
@@ -422,16 +439,89 @@ async function verifiedIdentity(
   if (info.sub !== claims.sub) {
     throw new Error('userinfo 与 id_token 的 sub 不一致');
   }
-  const email = (info.email ?? claims.email ?? null)?.toLowerCase() ?? null;
-  const emailVerified = Boolean(info.email_verified ?? claims.email_verified);
-  const role = (info.role ?? claims.role ?? null) as string | null;
+  if (typeof claims.sub !== 'string' || claims.sub.trim().length === 0) {
+    throw new Error('sub claim 缺失或非法');
+  }
+
+  const hasOwn = (source: object, key: string): boolean =>
+    Object.prototype.hasOwnProperty.call(source, key);
+  const familySource = (keys: string[]): typeof claims | typeof info =>
+    keys.some((key) => hasOwn(info, key)) ? info : claims;
+
+  const emailSource = familySource(['email', 'email_verified']);
+  if (typeof emailSource.email !== 'string' || emailSource.email.trim().length === 0) {
+    throw new Error('email claim 缺失或非法');
+  }
+  if (emailSource.email_verified !== undefined && typeof emailSource.email_verified !== 'boolean') {
+    throw new Error('email_verified claim 非法');
+  }
+  const parsedEmail = emailSchema.safeParse(emailSource.email);
+  if (!parsedEmail.success) throw new Error('email claim 格式非法');
+  const email = parsedEmail.data.toLowerCase();
+  const emailVerified = emailSource.email_verified === true;
+
+  const phoneSource = familySource(['phone_number', 'phone_number_verified']);
+  // The provider's standard UserInfo encoder omits both fields when the Core
+  // phone is empty. Treat that coherent absence as the authoritative empty
+  // snapshot so a removed phone clears stale local data.
+  const phoneAbsent =
+    phoneSource.phone_number === undefined && phoneSource.phone_number_verified === undefined;
+  if (!phoneAbsent && typeof phoneSource.phone_number !== 'string') {
+    throw new Error('phone_number claim 非法');
+  }
+  if (
+    phoneSource.phone_number_verified !== undefined &&
+    typeof phoneSource.phone_number_verified !== 'boolean'
+  ) {
+    throw new Error('phone_number_verified claim 非法');
+  }
+  const phoneNumber =
+    typeof phoneSource.phone_number === 'string' ? phoneSource.phone_number.trim() || null : null;
+  const phoneNumberVerified =
+    typeof phoneSource.phone_number_verified === 'boolean'
+      ? phoneSource.phone_number_verified
+      : false;
+  if (phoneNumberVerified && phoneNumber === null) {
+    throw new Error('已验证手机 claim 缺少 phone_number');
+  }
+
+  const roleSource = familySource(['role']);
+  const coreRole = parseCoreRole(roleSource.role);
+  const membershipSource = familySource(['membership_tier', 'membership_expires_at']);
+  const { membershipTier, membershipExpiresAt } = parseMembershipClaims(
+    membershipSource.membership_tier,
+    membershipSource.membership_expires_at,
+  );
+  const pictureRaw =
+    typeof info.picture === 'string'
+      ? info.picture.trim()
+      : typeof claims.picture === 'string'
+        ? claims.picture.trim()
+        : '';
+  let picture: string | null = null;
+  if (pictureRaw) {
+    const pictureUrl = new URL(pictureRaw);
+    if (pictureUrl.protocol !== 'https:' && pictureUrl.protocol !== 'http:') {
+      throw new Error('picture claim URL 非法');
+    }
+    picture = pictureUrl.toString();
+  }
   return {
     sub: claims.sub,
     email,
     emailVerified,
-    name: info.name ?? claims.name ?? null,
-    picture: info.picture ?? claims.picture ?? null,
-    role,
+    phoneNumber,
+    phoneNumberVerified,
+    name:
+      typeof info.name === 'string'
+        ? info.name
+        : typeof claims.name === 'string'
+          ? claims.name
+          : null,
+    picture,
+    coreRole,
+    membershipTier,
+    membershipExpiresAt,
     idToken: tokens.id_token,
   };
 }

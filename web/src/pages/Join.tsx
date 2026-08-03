@@ -59,7 +59,7 @@ export default function JoinPage(): JSX.Element {
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">加入 Coboard</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              你的 Syna 账号尚未加入本团队，请输入管理员提供的邀请码
+              你的 Syna ID 尚未加入本团队，请输入管理员提供的邀请码
             </p>
           </div>
 

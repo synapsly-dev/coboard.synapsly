@@ -1,37 +1,31 @@
 import { timingSafeEqual } from 'node:crypto';
-import type { UserRole } from 'shared';
+import { eq, or } from 'drizzle-orm';
+import type { CoreRole, LocalUserRole, MembershipTier, UserRole } from 'shared';
 import type { Database } from '../db/index.js';
-import type { UserRow } from '../db/schema.js';
+import { users, type UserRow } from '../db/schema.js';
 import { createSession, type CreatedSession } from '../auth/session.js';
-import { forbidden, unauthorized } from '../lib/errors.js';
+import { conflict, forbidden, unauthorized } from '../lib/errors.js';
 import { getRegistrationSettings } from './settingsService.js';
 import {
   createSsoUser,
-  findUserByEmail,
   findSuperAdmin,
+  findUserByEmail,
   findUserBySynapslySub,
-  linkSynapslySub,
-  setUserRole,
 } from './userService.js';
 
-/**
- * Authentication domain service. With Synapsly ID SSO, this layer no longer
- * touches passwords: it maps a verified Synapsly identity onto a local user
- * (matching by `synapsly_sub`, then verified email, else provisioning), decides
- * admin-ness from the `role` claim / email allowlist, and gates brand-new members
- * behind the admin's invite code. Cookie/session wiring lives in the routes.
- */
-
-/** A verified identity distilled from the OIDC id_token + userinfo. */
+/** A verified, complete identity snapshot distilled from ID Token + UserInfo. */
 export interface SsoIdentity {
   sub: string;
-  email: string | null;
+  email: string;
   emailVerified: boolean;
+  phoneNumber: string | null;
+  phoneNumberVerified: boolean;
   name: string | null;
   picture: string | null;
-  /** Synapsly-side role, if the provider emits it: `user|admin|super_admin`. */
-  role: string | null;
-  /** The raw id_token, stored on the session for RP-initiated logout. */
+  coreRole: CoreRole;
+  membershipTier: MembershipTier;
+  membershipExpiresAt: Date | null;
+  /** Raw ID token retained only for RP-initiated logout. */
   idToken: string;
 }
 
@@ -40,134 +34,239 @@ export interface AuthenticatedUser {
   session: CreatedSession;
 }
 
-/**
- * Outcome of resolving an SSO identity: either an existing/eligible user we can
- * log in, or a brand-new person who must supply the invite code to join.
- */
 export type SsoResolution =
   { status: 'ok'; user: UserRow } | { status: 'needs-join'; identity: SsoIdentity };
 
-/**
- * Map Syna ID's baseline platform role (the `role` claim carried by the `roles`
- * scope) onto coboard's local role vocabulary (`member | admin | super_admin`).
- *
- * Per core's app-authz-protocol §3.0, core `admin` is only an *admin candidate*:
- * it must NOT auto-grant local admin — a super_admin assigns those powers in-app.
- * So ONLY core `super_admin` maps to coboard's highest role (`super_admin`); `admin`,
- * the reserved `staff`, and `user` all map to `member`. A missing/unknown claim
- * also maps to `member` — the no-op floor that keeps things correct before core
- * emits the `role` claim.
- */
-const CORE_ROLE_TO_LOCAL: Record<string, UserRole> = {
-  user: 'member',
-  staff: 'member',
-  admin: 'member', // admin candidate — no auto-privilege (§3.0)
-  super_admin: 'super_admin',
-};
-
-/** Local role ordering used by the floor. Higher wins. */
+const CORE_ROLES = new Set<CoreRole>(['user', 'staff', 'admin', 'super_admin']);
+const LOCAL_ROLES = new Set<LocalUserRole>(['member', 'admin']);
+const MEMBERSHIP_TIERS = new Set<MembershipTier>(['none', 'plus', 'pro']);
 const ROLE_RANK: Record<UserRole, number> = { member: 0, admin: 1, super_admin: 2 };
+const RFC3339 =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
 
-/** Map a raw Synapsly `role` claim to a local role (baseline `member`). */
-export function mapCoreRole(coreRole: string | null | undefined): UserRole {
-  return CORE_ROLE_TO_LOCAL[(coreRole ?? '').trim()] ?? 'member';
+function isValidRfc3339(value: string): boolean {
+  const match = RFC3339.exec(value);
+  if (!match) return false;
+  const [year, month, day, hour, minute, second, offsetHour = 0, offsetMinute = 0] = match
+    .slice(1)
+    .map((part) => Number.parseInt(part ?? '0', 10));
+  if (
+    year === undefined ||
+    month === undefined ||
+    day === undefined ||
+    hour === undefined ||
+    minute === undefined ||
+    second === undefined ||
+    month < 1 ||
+    month > 12 ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  ) {
+    return false;
+  }
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  return (
+    calendar.getUTCFullYear() === year &&
+    calendar.getUTCMonth() === month - 1 &&
+    calendar.getUTCDate() === day
+  );
 }
 
-/**
- * Fold Synapsly's baseline role into the local role as a *floor*.
- *
- * The core role is only a baseline: a coboard admin may locally elevate a
- * specific user beyond it, so we take the HIGHER of the existing local role and
- * the mapped core baseline — never downgrading a locally-granted admin. A
- * missing/unknown core role maps to `member` (a no-op floor), which also keeps
- * things correct before the `roles` scope is live on core.
- */
+/** Strict parser used at the OIDC trust boundary; missing/unknown roles fail closed. */
+export function parseCoreRole(value: unknown): CoreRole {
+  if (typeof value !== 'string' || !CORE_ROLES.has(value as CoreRole)) {
+    throw new Error('role claim 缺失或非法');
+  }
+  return value as CoreRole;
+}
+
+/** Strictly validate the membership tier/expiry pair emitted by Syna ID. */
+export function parseMembershipClaims(
+  tierRaw: unknown,
+  expiresRaw: unknown,
+  now = Date.now(),
+): { membershipTier: MembershipTier; membershipExpiresAt: Date | null } {
+  if (typeof tierRaw !== 'string' || !MEMBERSHIP_TIERS.has(tierRaw as MembershipTier)) {
+    throw new Error('membership_tier claim 缺失或非法');
+  }
+  const tier = tierRaw as MembershipTier;
+  if (tier === 'none') {
+    if (expiresRaw !== null) {
+      throw new Error('none 会员的 membership_expires_at 必须为 null');
+    }
+    return { membershipTier: 'none', membershipExpiresAt: null };
+  }
+  if (typeof expiresRaw !== 'string' || !isValidRfc3339(expiresRaw)) {
+    throw new Error('有效会员缺少合法的 membership_expires_at');
+  }
+  const membershipExpiresAt = new Date(expiresRaw);
+  if (!Number.isFinite(membershipExpiresAt.getTime())) {
+    throw new Error('membership_expires_at 格式非法');
+  }
+  if (membershipExpiresAt.getTime() <= now) {
+    throw new Error('有效会员的 membership_expires_at 已到期');
+  }
+  return { membershipTier: tier, membershipExpiresAt };
+}
+
+/** Expired/invalid persisted paid membership is never effective in an open session. */
+export function effectiveMembership(
+  tier: MembershipTier | string | null | undefined,
+  expiresAt: Date | null | undefined,
+  now = Date.now(),
+): MembershipTier {
+  if (tier !== 'plus' && tier !== 'pro') return 'none';
+  if (!expiresAt || !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= now) {
+    return 'none';
+  }
+  return tier;
+}
+
+/** Map Syna ID's baseline vocabulary onto Coboard's effective-role vocabulary. */
+export function mapCoreRole(coreRole: string | null | undefined): UserRole {
+  if (coreRole === 'super_admin') return 'super_admin';
+  if (coreRole === 'admin') return 'admin';
+  return 'member'; // staff intentionally has ordinary-member permissions here.
+}
+
+export function normalizeLocalRole(value: string | null | undefined): LocalUserRole | null {
+  return LOCAL_ROLES.has(value as LocalUserRole) ? (value as LocalUserRole) : null;
+}
+
+/** Effective RBAC is the higher of the fresh Core baseline and local elevation. */
 export function elevateRole(
-  current: UserRole | null | undefined,
+  localRole: UserRole | null | undefined,
   coreRole: string | null | undefined,
 ): UserRole {
   const baseline = mapCoreRole(coreRole);
-  const cur = current ?? 'member';
-  return ROLE_RANK[baseline] > ROLE_RANK[cur] ? baseline : cur;
-}
-
-/**
- * Apply the role floor to an existing user on login and persist it if it changed.
- * Idempotent: returns the same row untouched when the floor is a no-op.
- */
-async function applyRoleFloor(
-  db: Database,
-  user: UserRow,
-  coreRole: string | null,
-): Promise<UserRow> {
-  const next = elevateRole(user.role, coreRole);
-  if (next === user.role) return user;
-  return setUserRole(db, user.id, next);
+  // Never accept a local super_admin value, including from legacy/corrupt data.
+  const local: UserRole = normalizeLocalRole(localRole) ?? 'member';
+  return ROLE_RANK[baseline] >= ROLE_RANK[local] ? baseline : local;
 }
 
 function displayNameFor(identity: SsoIdentity): string {
   const name = identity.name?.trim();
-  if (name) return name;
-  const local = identity.email?.split('@')[0]?.trim();
-  return local && local.length > 0 ? local : 'Syna ID 用户';
+  if (name) return Array.from(name).slice(0, 80).join('');
+  const local = identity.email.split('@')[0]?.trim();
+  return local || 'Syna ID 用户';
 }
 
 /**
- * Resolve a verified Synapsly identity to a local user (§2 of the design):
- *   1. match by `synapsly_sub` → returning user
- *   2. else by verified email → link the sub to that existing row
- *   3. else provision: super_admin if the Synapsly `role` claim maps to super_admin,
- *      otherwise defer to the invite-code join flow (`needs-join`).
- *
- * On every existing-user path the Synapsly `role` claim is folded into the local
- * role as a floor (see {@link elevateRole}): a core promotion elevates the user,
- * a lower/absent core role never downgrades a locally-granted admin. Deactivated
- * accounts are refused.
+ * Demote any stale/legacy highest-role holder before installing the one current
+ * verified Core SA. This preserves both unique indexes and ensures no app-local
+ * value can manufacture super_admin authority.
+ */
+async function clearOtherSuperAdmins(tx: Database, currentUserId: string | null): Promise<void> {
+  const holders = await tx
+    .select()
+    .from(users)
+    .where(or(eq(users.coreRole, 'super_admin'), eq(users.role, 'super_admin')));
+  for (const holder of holders) {
+    if (holder.id === currentUserId) continue;
+    const localRole = normalizeLocalRole(holder.localRole);
+    await tx
+      .update(users)
+      .set({ coreRole: 'user', localRole, role: elevateRole(localRole, 'user') })
+      .where(eq(users.id, holder.id));
+  }
+}
+
+/** Overwrite every Core-authoritative field while preserving local name/picture customizations. */
+async function syncExistingIdentity(
+  tx: Database,
+  current: UserRow,
+  identity: SsoIdentity,
+): Promise<UserRow> {
+  if (!current.isActive && identity.coreRole !== 'super_admin') {
+    throw unauthorized('账号已被停用，请联系管理员');
+  }
+
+  const emailOwner = await findUserByEmail(tx, identity.email);
+  if (emailOwner && emailOwner.id !== current.id) {
+    throw conflict('Syna ID 邮箱与另一 Coboard 账号冲突，请联系管理员处理');
+  }
+
+  if (identity.coreRole === 'super_admin') {
+    await clearOtherSuperAdmins(tx, current.id);
+  }
+  const localRole =
+    identity.coreRole === 'super_admin' ? null : normalizeLocalRole(current.localRole);
+  const updated = await tx
+    .update(users)
+    .set({
+      synapslySub: identity.sub,
+      email: identity.email,
+      emailVerified: identity.emailVerified,
+      phoneNumber: identity.phoneNumber,
+      phoneNumberVerified: identity.phoneNumberVerified,
+      coreRole: identity.coreRole,
+      localRole,
+      role: elevateRole(localRole, identity.coreRole),
+      membershipTier: identity.membershipTier,
+      membershipExpiresAt: identity.membershipTier === 'none' ? null : identity.membershipExpiresAt,
+      identitySyncedAt: new Date(),
+      // The Core SA is deployment-controlled and cannot remain locally disabled.
+      isActive: identity.coreRole === 'super_admin' ? true : current.isActive,
+    })
+    .where(eq(users.id, current.id))
+    .returning();
+  if (!updated[0]) throw new Error('同步 Syna ID 身份失败');
+  return updated[0];
+}
+
+async function provisionIdentity(db: Database, identity: SsoIdentity): Promise<UserRow> {
+  if (!identity.emailVerified) {
+    throw forbidden('需要已验证的 Syna ID 邮箱才能加入 Coboard');
+  }
+  return db.transaction(async (tx) => {
+    if (identity.coreRole === 'super_admin') await clearOtherSuperAdmins(tx, null);
+    return createSsoUser(tx, {
+      email: identity.email,
+      emailVerified: identity.emailVerified,
+      phoneNumber: identity.phoneNumber,
+      phoneNumberVerified: identity.phoneNumberVerified,
+      displayName: displayNameFor(identity),
+      synaPictureUrl: identity.picture,
+      synapslySub: identity.sub,
+      coreRole: identity.coreRole,
+      membershipTier: identity.membershipTier,
+      membershipExpiresAt: identity.membershipExpiresAt,
+    });
+  });
+}
+
+/**
+ * Resolve by permanent sub first. Verified email is only a one-time bridge for
+ * an unlinked legacy/pre-provisioned row. Every returning path force-syncs the
+ * Core identity, role and membership snapshot.
  */
 export async function resolveSsoLogin(db: Database, identity: SsoIdentity): Promise<SsoResolution> {
-  // 1. Known Synapsly subject.
   const bySub = await findUserBySynapslySub(db, identity.sub);
   if (bySub) {
-    if (!bySub.isActive) throw unauthorized('账号已被停用，请联系管理员');
-    return { status: 'ok', user: await applyRoleFloor(db, bySub, identity.role) };
-  }
-
-  const email = identity.email?.toLowerCase() ?? null;
-
-  // 2. Existing local account with the same verified email → link.
-  if (identity.emailVerified && email) {
-    const byEmail = await findUserByEmail(db, email);
-    if (byEmail) {
-      if (byEmail.synapslySub && byEmail.synapslySub !== identity.sub) {
-        throw forbidden('该邮箱已关联其他 Syna ID 账号');
-      }
-      if (!byEmail.isActive) throw unauthorized('账号已被停用，请联系管理员');
-      const linked = byEmail.synapslySub
-        ? byEmail
-        : await linkSynapslySub(db, byEmail.id, identity.sub);
-      return { status: 'ok', user: await applyRoleFloor(db, linked, identity.role) };
-    }
-  }
-
-  // 3. Brand-new person. The core role's floor seeds the local role: only a core
-  // `super_admin` maps to coboard super_admin and is provisioned straight (skipping the
-  // code). A core `admin` (admin *candidate*, §3.0), `staff`, plain `user`, or an
-  // absent role claim all map to `member` and defer to the invite-code join flow.
-  if (mapCoreRole(identity.role) === 'super_admin') {
-    if (!email) throw forbidden('缺少可用于建号的已验证邮箱');
-    const user = await createSsoUser(db, {
-      email,
-      displayName: displayNameFor(identity),
-      role: 'super_admin',
-      synapslySub: identity.sub,
-    });
+    const user = await db.transaction((tx) => syncExistingIdentity(tx, bySub, identity));
     return { status: 'ok', user };
   }
 
+  const byEmail = await findUserByEmail(db, identity.email);
+  if (identity.emailVerified && byEmail) {
+    if (byEmail.synapslySub && byEmail.synapslySub !== identity.sub) {
+      throw forbidden('该邮箱已关联其他 Syna ID 账号');
+    }
+    const user = await db.transaction((tx) => syncExistingIdentity(tx, byEmail, identity));
+    return { status: 'ok', user };
+  }
+
+  // Core admins do not need an app-local grant or invite. Staff/user still pass
+  // through Coboard's workspace membership gate.
+  if (identity.coreRole === 'admin' || identity.coreRole === 'super_admin') {
+    return { status: 'ok', user: await provisionIdentity(db, identity) };
+  }
   return { status: 'needs-join', identity };
 }
 
-/** Constant-time compare that never short-circuits on length. */
 function codeMatches(submitted: string, expected: string): boolean {
   const a = Buffer.from(submitted);
   const b = Buffer.from(expected);
@@ -178,50 +277,24 @@ function codeMatches(submitted: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-/**
- * Provision a brand-new member from a pending SSO identity + the admin invite
- * code. Self-join must be enabled AND a non-empty code configured AND the code
- * match; a failed gate returns a single generic 403. Races (the account got
- * created meanwhile) resolve to a normal login.
- */
 export async function completeSsoJoin(
   db: Database,
   identity: SsoIdentity,
   code: string,
 ): Promise<UserRow> {
-  // If they already exist now (double-submit / race), just log them in.
   const existing = await findUserBySynapslySub(db, identity.sub);
   if (existing) {
-    if (!existing.isActive) throw unauthorized('账号已被停用，请联系管理员');
-    return existing;
+    return db.transaction((tx) => syncExistingIdentity(tx, existing, identity));
   }
 
   const { registrationEnabled, registrationCode } = await getRegistrationSettings(db);
   const allowed =
     registrationEnabled && registrationCode.length > 0 && codeMatches(code, registrationCode);
-  if (!allowed) {
-    throw forbidden('邀请码无效或自助加入未开放，请联系管理员');
-  }
-
-  const email = identity.email?.toLowerCase() ?? null;
-  if (!email) throw forbidden('缺少可用于建号的已验证邮箱');
-
-  return createSsoUser(db, {
-    email,
-    displayName: displayNameFor(identity),
-    // Seed from the core floor (a plain `user`/absent claim → `member`).
-    role: mapCoreRole(identity.role),
-    synapslySub: identity.sub,
-  });
+  if (!allowed) throw forbidden('邀请码无效或自助加入未开放，请联系管理员');
+  return provisionIdentity(db, identity);
 }
 
-/**
- * Dev fake-login (non-production only). Each normalized email maps to one stable
- * local account. The first account bootstraps the workspace as super admin; once
- * that slot is occupied, every new email becomes a regular member so development
- * can exercise multi-user and permission-sensitive flows. The route hard-guards
- * on DEV_LOGIN + non-production.
- */
+/** Non-production fake identity. It mirrors the Core role source in local tests only. */
 export async function devLogin(
   db: Database,
   input: { email: string; displayName?: string | undefined },
@@ -232,16 +305,21 @@ export async function devLogin(
     if (!existing.isActive) throw unauthorized('账号已被停用');
     return existing;
   }
-  const role: UserRole = (await findSuperAdmin(db)) ? 'member' : 'super_admin';
+  const isFirst = (await findSuperAdmin(db)) === null;
   return createSsoUser(db, {
     email,
+    emailVerified: false,
+    phoneNumber: null,
+    phoneNumberVerified: false,
     displayName: input.displayName?.trim() || email.split('@')[0] || '开发用户',
-    role,
+    synaPictureUrl: null,
     synapslySub: `dev:${email}`,
+    coreRole: isFirst ? 'super_admin' : 'user',
+    membershipTier: 'none',
+    membershipExpiresAt: null,
   });
 }
 
-/** Create a session for a resolved user, stamping the id_token for logout. */
 export async function startSession(
   db: Database,
   userId: string,

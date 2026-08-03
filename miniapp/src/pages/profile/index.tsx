@@ -116,7 +116,7 @@ function ProfilePage(): JSX.Element {
 
   if (!user.data) {
     return <View className="page profile-page profile-login">
-      <View className="profile-login__brand"><View className="profile-login__mark"><AppIcon name="profile" size={28} /></View><Text className="profile-login__title">登录 Coboard</Text><Text className="profile-login__description">使用 Syna 账号继续你的团队协作</Text></View>
+      <View className="profile-login__brand"><View className="profile-login__mark"><AppIcon name="profile" size={28} /></View><Text className="profile-login__title">登录 Coboard</Text><Text className="profile-login__description">使用 Syna ID 继续你的团队协作</Text></View>
       <InlineError message={errorMessage(user.error, '') || errorMessage(authConfig.error, '')} />
       {authConfig.data?.synapslyEnabled ? <ActionButton block onClick={() => void Taro.navigateTo({ url: '/pages/auth-login/index' })}>使用 Syna ID 登录</ActionButton> : !authConfig.isLoading && <Card><Text className="caption">Syna ID 登录尚未配置，请联系管理员。</Text></Card>}
       {(isLocalDevelopment || authConfig.data?.devLogin) && <Card className="stack profile-dev-login">
@@ -125,7 +125,7 @@ function ProfilePage(): JSX.Element {
         <InlineError message={devLogin.error ? errorMessage(devLogin.error, '开发登录失败') : null} />
         <ActionButton tone="secondary" block loading={devLogin.isPending} disabled={!email.trim()} onClick={() => devLogin.mutate()}>以此邮箱登录</ActionButton>
       </Card>}
-      <Text className="profile-login__legal">登录即表示同意由 Syna 账号完成身份验证，Coboard 不保存你的密码。</Text>
+      <Text className="profile-login__legal">登录即表示同意由 Syna ID 完成身份验证，Coboard 不保存你的密码。</Text>
     </View>;
   }
 
@@ -135,7 +135,7 @@ function ProfilePage(): JSX.Element {
   const avatarError = avatar.error ? errorMessage(avatar.error, '头像上传失败') : removeAvatar.error ? errorMessage(removeAvatar.error, '头像移除失败') : null;
 
   return <View className="page profile-page">
-    <PageHeader title="账号设置" description="维护 Coboard 内展示的头像和名称；邮箱、密码与安全设置由 Syna 账号统一管理。" />
+    <PageHeader title="账号设置" description="维护 Coboard 内展示的头像和名称；邮箱、手机、会员与安全设置由 Syna ID 统一管理。" />
     <Card className="profile-card">
       <View className="profile-card__identity">
         <View className="profile-avatar" onClick={() => { if (!avatar.isPending) avatar.mutate(); }}>
@@ -157,9 +157,9 @@ function ProfilePage(): JSX.Element {
     </Card>
 
     <Card className="stack profile-syna">
-      <View className="row-between"><View><Text className="title">Syna 账号</Text><Text className="caption">密码、邮箱与安全设置由 Syna 账号统一管理。</Text></View><Badge tone="primary">Syna ID</Badge></View>
+      <View className="row-between"><View><Text className="title">Syna ID</Text><Text className="caption">邮箱、手机、会员与安全设置由 Syna ID 统一管理，Coboard 内只读。</Text><Text className="caption">会员：{user.data?.membershipTier === 'plus' ? 'Plus' : user.data?.membershipTier === 'pro' ? 'Pro' : '无'}{user.data?.membershipExpiresAt ? ` · 有效至 ${new Date(user.data.membershipExpiresAt).toLocaleDateString()}` : ''}</Text></View><Badge tone="primary">Syna ID</Badge></View>
       <View className="profile-syna__identity"><View><Text className="body">{currentUser.displayName}</Text><Text className="caption">{currentUser.email}</Text></View></View>
-      <View className="row profile-syna__actions"><ActionButton tone="secondary" size="small" onClick={() => void Taro.navigateTo({ url: '/pages/syna-account/index' })}>管理 Syna 账号</ActionButton><ActionButton tone="ghost" size="small" onClick={() => void Taro.setClipboardData({ data: SYNA_ACCOUNT_URL }).then(() => Taro.showToast({ title: '管理地址已复制', icon: 'success' }))}>复制地址</ActionButton></View>
+      <View className="row profile-syna__actions"><ActionButton tone="secondary" size="small" onClick={() => void Taro.navigateTo({ url: '/pages/syna-account/index' })}>管理 Syna ID</ActionButton><ActionButton tone="ghost" size="small" onClick={() => void Taro.setClipboardData({ data: SYNA_ACCOUNT_URL }).then(() => Taro.showToast({ title: '管理地址已复制', icon: 'success' }))}>复制地址</ActionButton></View>
     </Card>
 
     {isAdmin && <Card interactive onClick={() => void Taro.navigateTo({ url: '/pages/admin/index' })}><View className="row-between"><View className="row"><View className="profile-admin__icon"><AppIcon name="admin" size={20} /></View><View className="account-copy"><Text className="title">后台管理</Text><Text className="caption">用户、赛道、项目与注册设置</Text></View></View><Text className="profile-chevron">›</Text></View></Card>}

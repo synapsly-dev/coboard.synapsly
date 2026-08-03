@@ -55,8 +55,8 @@ export function UsersTab(): JSX.Element {
   }
 
   const toggleRole = (u: User): void => {
-    if (isSuperAdminRole(u.role)) return;
-    const nextRole: UserRole = u.role === 'admin' ? 'member' : 'admin';
+    if (u.coreRole === 'super_admin' || isSuperAdminRole(u.role)) return;
+    const nextRole: UserRole = u.localRole === 'admin' ? 'member' : 'admin';
     void patchUser(u.id, { role: nextRole });
   };
 
@@ -95,8 +95,23 @@ export function UsersTab(): JSX.Element {
    */
   function renderActionsMenu(u: UserWithProjects): JSX.Element {
     const isSelf = u.id === currentUser?.id;
-    const rowSuperAdmin = isSuperAdminRole(u.role);
+    const rowSuperAdmin = u.coreRole === 'super_admin' || isSuperAdminRole(u.role);
+    const hasCoreAdminFloor = u.coreRole === 'admin';
     const rowPending = pendingId === u.id;
+    if (rowSuperAdmin) {
+      return (
+        <Button variant="ghost" size="sm" disabled title="超级管理员由 Syna ID 唯一管理">
+          Syna ID 管理
+        </Button>
+      );
+    }
+    if (!isCurrentSuperAdmin && isAdminRole(u.role)) {
+      return (
+        <Button variant="ghost" size="sm" disabled title="管理员只能管理普通成员账号">
+          无权修改
+        </Button>
+      );
+    }
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -114,11 +129,11 @@ export function UsersTab(): JSX.Element {
             <FolderPlus className="h-4 w-4" aria-hidden />
             加入项目
           </DropdownMenuItem>
-          {isCurrentSuperAdmin && !rowSuperAdmin && (
+          {isCurrentSuperAdmin && !hasCoreAdminFloor && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => toggleRole(u)} disabled={isSelf}>
-                {u.role === 'admin' ? (
+                {u.localRole === 'admin' ? (
                   <>
                     <ShieldOff className="h-4 w-4" aria-hidden />
                     降为成员
@@ -220,6 +235,12 @@ export function UsersTab(): JSX.Element {
                   <Badge variant={isAdminRole(u.role) ? 'primary' : 'neutral'}>
                     {userRoleLabels[u.role]}
                   </Badge>
+                  {(u.coreRole === 'admin' || u.coreRole === 'super_admin') && (
+                    <Badge variant="outline">Syna ID 基线</Badge>
+                  )}
+                  {(u.membershipTier === 'plus' || u.membershipTier === 'pro') && (
+                    <Badge variant="outline">Syna {u.membershipTier.toUpperCase()}</Badge>
+                  )}
                   {u.isActive ? (
                     <Badge variant="success">已启用</Badge>
                   ) : (
@@ -288,6 +309,9 @@ export function UsersTab(): JSX.Element {
                       <Badge variant={isAdminRole(u.role) ? 'primary' : 'neutral'}>
                         {userRoleLabels[u.role]}
                       </Badge>
+                      {(u.coreRole === 'admin' || u.coreRole === 'super_admin') && (
+                        <Badge variant="outline">Syna ID 基线</Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {u.isActive ? (
