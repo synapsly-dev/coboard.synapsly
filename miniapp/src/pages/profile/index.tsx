@@ -22,7 +22,7 @@ import {
 import { queryClient } from '../../lib/query';
 import './index.scss';
 
-const SYNA_ACCOUNT_URL = 'https://auth.synapsly.org/account';
+const SYNA_ACCOUNT_URL = 'https://accounts.synapsly.org/';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;

@@ -25,7 +25,7 @@ export interface AuthRuntime {
   publicUrl: string;
 }
 
-const DEFAULT_ISSUER = 'https://auth.synapsly.org';
+const DEFAULT_ISSUER = 'https://accounts.synapsly.org';
 /** `roles` is required so core emits the `role` claim the role-floor consumes. */
 const DEFAULT_SCOPES = 'openid profile email roles';
 

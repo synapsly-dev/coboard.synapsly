@@ -10,7 +10,7 @@ services:
     image: ${IMAGE:-coboardsynapsly-app:latest}
     environment:
       DATABASE_URL: postgres://coboard:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/coboard
-      OIDC_ISSUER: ${OIDC_ISSUER:-https://auth.synapsly.org}
+      OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.synapsly.org}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?set OIDC_CLIENT_ID in .env}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?set OIDC_CLIENT_SECRET in .env}
       OIDC_SCOPES: ${OIDC_SCOPES:-openid profile email roles}

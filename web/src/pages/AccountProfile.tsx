@@ -11,7 +11,7 @@ import { avatarUrl } from '../lib/utils';
 import { Avatar, Button, Input, Label, Tooltip } from '../components/ui';
 
 /** Synapsly account self-service (password / email / security) lives in core. */
-const SYNAPSLY_ACCOUNT_URL = 'https://auth.synapsly.org/account';
+const SYNAPSLY_ACCOUNT_URL = 'https://accounts.synapsly.org/';
 
 /**
  * Account self-service page. With Synapsly ID SSO, password / email / security are

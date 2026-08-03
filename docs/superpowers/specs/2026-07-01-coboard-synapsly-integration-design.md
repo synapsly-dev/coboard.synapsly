@@ -18,7 +18,7 @@ Fold coboard into the Synapsly ecosystem:
    the now-dead local-auth surface, refresh deploy docs.
 
 Deployment path: `ssh dev → ssh hk-01`, push to `origin/main`, redeploy.
-Live at `https://coboard.synapsly.org`; core at `https://auth.synapsly.org`;
+Live at `https://coboard.synapsly.org`; core at `https://accounts.synapsly.org`;
 cookie domain `.synapsly.org` is shared.
 
 ## Context
@@ -28,7 +28,7 @@ cookie domain `.synapsly.org` is shared.
   rows, signed httpOnly `coboard_session` cookie, admin-created accounts +
   invite-code self-registration. Global roles `admin` / `member` + project roles.
 - **syna-core**: standard OIDC provider. Discovery
-  `https://auth.synapsly.org/.well-known/openid-configuration`. Auth Code + PKCE
+  `https://accounts.synapsly.org/.well-known/openid-configuration`. Auth Code + PKCE
   (S256), RS256 JWTs, JWKS rotation, `/end_session`. **Identity-only kernel** —
   claims are user-level (`sub`, `email`, `email_verified`, `name`, `picture`,
   `phone_number`) and, by a tested invariant, **never** org/role/tenant. Roles
@@ -48,7 +48,7 @@ unchanged; only *how a user proves who they are* changes. No OIDC tokens are eve
 exposed to the browser.
 
 **Config** (`server/src/auth/synapsly.ts`):
-- `SYNAPSLY_ISSUER` (default `https://auth.synapsly.org`)
+- `SYNAPSLY_ISSUER` (default `https://accounts.synapsly.org`)
 - `SYNAPSLY_CLIENT_ID`, `SYNAPSLY_CLIENT_SECRET`
 - `SYNAPSLY_REDIRECT_URI` (default `${PUBLIC_URL}/api/auth/synapsly/callback`)
 - Discovery + JWKS fetched at runtime via `openid-client` (paths not hardcoded;
@@ -146,7 +146,7 @@ entirely in coboard, which is exactly core's boundary model.
     setup-first-admin flow (`/setup`), password fields in schemas/services.
   - frontend: password field on Login, `Register.tsx`, `Setup.tsx`,
     `/account/password`, change-password UI. "管理账号" links out to
-    `https://auth.synapsly.org/account`.
+    `https://accounts.synapsly.org/`.
   - The invite code is **repurposed** from a self-register password gate into the
     SSO first-join gate (same admin setting, new meaning; settings copy updated).
   - Product features (board, ideas, announcements, stats, projects, comments,
@@ -186,4 +186,4 @@ provided out-of-band) via `POST /api/admin/clients` or the `/admin` UI:
 ## Verification
 
 `pnpm typecheck && pnpm test && pnpm build` green; manual SSO round-trip against
-`auth.synapsly.org` post-deploy; existing admin logs in and retains admin.
+`accounts.synapsly.org` post-deploy; existing admin logs in and retains admin.

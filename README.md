@@ -41,7 +41,7 @@ docker compose up -d
 启动后打开浏览器访问 `http://<服务器IP>:3000`：
 
 - Coboard 现已改为 **Synapsly ID 单点登录（SSO）**，不再有 `/setup` 页面或密码登录。
-- 首次登录统一使用 **Synapsly ID**（在 https://auth.synapsly.org 完成认证）。
+- 首次登录统一使用 **Synapsly ID**（在 https://accounts.synapsly.org 完成认证）。
 - Synapsly 账号角色为 `admin`/`super_admin` 者首次登录即**自动成为管理员**，无需邀请码。
 - 其他新用户首次登录，需输入管理员在「**后台设置**」里预设的**邀请码**才能加入为成员。
 - 已有账号（历史用户）在登录时会按邮箱**自动关联**到既有账号。
@@ -60,7 +60,7 @@ docker compose up -d
 | `NODE_ENV` | `production` / `development`。 |
 | `PUBLIC_URL` | 对外访问地址（反代场景填写完整域名）。 |
 | `SEED_DEMO` | 设为 `true` 时空库首启写入演示数据。 |
-| `SYNAPSLY_ISSUER` | OIDC 签发方，默认 `https://auth.synapsly.org`（一般无需修改）。 |
+| `SYNAPSLY_ISSUER` | OIDC 签发方，默认 `https://accounts.synapsly.org`（一般无需修改）。 |
 | `SYNAPSLY_CLIENT_ID` | 在 Synapsly 管理台注册 coboard client 后获得。**生产必填**。 |
 | `SYNAPSLY_CLIENT_SECRET` | confidential client 密钥。**生产必填**，妥善保管、勿入库。 |
 | `SYNAPSLY_REDIRECT_URI` | 回调地址，默认 `${PUBLIC_URL}/api/auth/synapsly/callback`（一般无需显式设置；若设置须与注册的 redirect URI 完全一致）。 |
@@ -71,13 +71,13 @@ docker compose up -d
 
 Coboard 是一个 **confidential OIDC client**，登录流程委托给 Synapsly ID 完成。部署前需在 Synapsly 管理台注册一个 client：
 
-1. 打开 https://auth.synapsly.org/admin ，新建一个 client（应用类型选 confidential / web）。
+1. 打开 https://accounts.synapsly.org/admin ，新建一个 client（应用类型选 confidential / web）。
 2. 填写回调与登出地址（把 `<你的域名>` 换成实际域名）：
    - **Redirect URI**：`https://<你的域名>/api/auth/synapsly/callback`
    - **Post-logout redirect URI**：`https://<你的域名>/`
    - **Scopes**：`openid profile email`
 3. 保存后拿到 `client_id` 与 `client_secret`，填入 `.env` 的 `SYNAPSLY_CLIENT_ID` / `SYNAPSLY_CLIENT_SECRET`。
-4. `SYNAPSLY_ISSUER` 保持默认 `https://auth.synapsly.org` 即可；`SYNAPSLY_REDIRECT_URI` 一般无需显式设置（默认由 `PUBLIC_URL` 推导），若设置须与上面注册的 redirect URI 完全一致。
+4. `SYNAPSLY_ISSUER` 保持默认 `https://accounts.synapsly.org` 即可；`SYNAPSLY_REDIRECT_URI` 一般无需显式设置（默认由 `PUBLIC_URL` 推导），若设置须与上面注册的 redirect URI 完全一致。
 
 ---
 
@@ -197,7 +197,7 @@ A: 使用默认密钥存在安全风险（会话可被伪造）。请用 `openss
 A: 修改 `.env` 的 `PORT`（例如 `PORT=8080`），重启即可。映射形如 `8080:3000`。
 
 **Q: 登录 / 权限相关怎么处理？**
-A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://auth.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 Synapsly 账号角色决定：`admin`/`super_admin` 首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
+A: Coboard 已改为 Synapsly ID 单点登录，coboard 内不再保存密码——忘记密码请到 https://accounts.synapsly.org 走 Synapsly 账号的找回流程。谁是管理员由 Synapsly 账号角色决定：`admin`/`super_admin` 首次登录即自动成为管理员；成员加入需管理员在「后台设置」预设的邀请码。
 
 **Q: 数据存在哪里？删除容器会丢吗？**
 A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。生产升级应在 `bastion` 构建并发送镜像，再在 `app-2` 使用 `docker compose up -d --no-build` 切换版本；不要在运行节点执行 `--build`。

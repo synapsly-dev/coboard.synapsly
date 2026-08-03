@@ -38,7 +38,7 @@ services:
       # 设为 true 时，空库首启会写入演示数据
       SEED_DEMO: ${SEED_DEMO:-false}
       # Synapsly ID 单点登录（OIDC）—— 详见 README「接入 Synapsly ID」
-      SYNAPSLY_ISSUER: ${SYNAPSLY_ISSUER:-https://auth.synapsly.org}
+      SYNAPSLY_ISSUER: ${SYNAPSLY_ISSUER:-https://accounts.synapsly.org}
       SYNAPSLY_CLIENT_ID: ${SYNAPSLY_CLIENT_ID:-}
       SYNAPSLY_CLIENT_SECRET: ${SYNAPSLY_CLIENT_SECRET:-}
       SYNAPSLY_REDIRECT_URI: ${SYNAPSLY_REDIRECT_URI:-}
