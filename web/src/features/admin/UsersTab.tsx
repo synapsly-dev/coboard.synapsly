@@ -1,6 +1,13 @@
 import { useState } from 'react';
 import { FolderPlus, MoreHorizontal, ShieldCheck, ShieldOff, UserCheck, UserX, Users as UsersIcon } from 'lucide-react';
-import { isAdminRole, isSuperAdminRole, type User, type UserRole, type UserWithProjects } from 'shared';
+import {
+  isAdminRole,
+  isSuperAdminRole,
+  membershipTierLabel,
+  type User,
+  type UserRole,
+  type UserWithProjects,
+} from 'shared';
 import {
   Avatar,
   Badge,
@@ -239,7 +246,7 @@ export function UsersTab(): JSX.Element {
                     <Badge variant="outline">Syna ID 基线</Badge>
                   )}
                   {(u.membershipTier === 'plus' || u.membershipTier === 'pro') && (
-                    <Badge variant="outline">Syna {u.membershipTier.toUpperCase()}</Badge>
+                    <Badge variant="outline">{membershipTierLabel(u.membershipTier)}</Badge>
                   )}
                   {u.isActive ? (
                     <Badge variant="success">已启用</Badge>

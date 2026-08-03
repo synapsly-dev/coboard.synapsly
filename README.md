@@ -17,8 +17,8 @@ Coboard 是一款**自部署**的团队运营协同平台，面向 16–50 人�
 - **真实时**：看板、审核、申报、统计通过 SSE 即时联动
 - **单点登录**：使用 Syna ID 单点登录（SSO），无需在 Coboard 内单独管理密码
 
-> Coboard 的任务/贡献 `points` 只是团队绩效指标，**不是 Syna Credits（Syna
-> 额度）**，不能消费、充值或兑换。Coboard 当前没有 AI 计量操作，因此不接入
+> Coboard 的任务/贡献 `points` 只是团队绩效指标，**不是 Syna币（Syna
+> Coins）**，不能消费、充值或兑换。Coboard 当前没有 AI 计量操作，因此不接入
 > Wallet debit/refund；会员身份仅从 Syna ID 同步并只读展示。
 
 技术栈：单个应用容器（Node 22 + Fastify，内置打包后的 React 前端）+ 一个 Postgres 数据库。**备份只需备份这一个数据库**，零件越少越省心。

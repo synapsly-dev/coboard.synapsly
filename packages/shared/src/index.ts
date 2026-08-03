@@ -8,5 +8,6 @@ export * from './schema.js';
 export * from './constants.js';
 export * from './domain/task.js';
 export * from './presentation/task.js';
+export * from './presentation/membership.js';
 // `types.ts` re-exports types already surfaced by enums/schema; importing it here
 // would duplicate exports, so consumers use `import type { ... } from 'shared'`.

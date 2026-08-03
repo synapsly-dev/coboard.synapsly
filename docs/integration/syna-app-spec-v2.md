@@ -46,7 +46,7 @@ app resemble metered products.
 
 The existing `tasks.points`, claimant allocations, idea `reward_points`, and
 statistics are **Coboard contribution points**. They are application business
-metrics only: they are not Syna Credits, have no spendable balance, and never
+metrics only: they are not Syna Coins, have no spendable balance, and never
 sync into the central wallet.
 
 ## Production configuration

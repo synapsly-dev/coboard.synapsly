@@ -73,8 +73,7 @@ export default function StatsPage(): JSX.Element {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">贡献统计</h1>
             <p className="text-sm text-muted-foreground">
-              按完成任务数与 Coboard 贡献点数衡量团队贡献；这里的点数不是 Syna
-              Credits，也不是可消费余额。
+              按完成任务数与 Coboard 贡献点数衡量团队贡献；这里的点数不是 Syna币，也不是可消费余额。
             </p>
           </div>
           {/* CSV 导出 (P3 §2) — carries the current resolved time window; renders

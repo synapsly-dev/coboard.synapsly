@@ -3,7 +3,7 @@ import { Input, Text, View } from '@tarojs/components';
 import { QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { queryKeys } from 'client-core';
-import type { AuthUserResponse } from 'shared';
+import { membershipTierLabel, type AuthUserResponse } from 'shared';
 import { acceptNativeSession, logout, useCurrentUser } from '../../lib/auth';
 import { coboardClient } from '../../platform/coboard-client';
 import { sessionStore } from '../../platform/session';
@@ -157,7 +157,7 @@ function ProfilePage(): JSX.Element {
     </Card>
 
     <Card className="stack profile-syna">
-      <View className="row-between"><View><Text className="title">Syna ID</Text><Text className="caption">邮箱、手机、会员与安全设置由 Syna ID 统一管理，Coboard 内只读。</Text><Text className="caption">会员：{user.data?.membershipTier === 'plus' ? 'Plus' : user.data?.membershipTier === 'pro' ? 'Pro' : '无'}{user.data?.membershipExpiresAt ? ` · 有效至 ${new Date(user.data.membershipExpiresAt).toLocaleDateString()}` : ''}</Text></View><Badge tone="primary">Syna ID</Badge></View>
+      <View className="row-between"><View><Text className="title">Syna ID</Text><Text className="caption">邮箱、手机、会员与安全设置由 Syna ID 统一管理，Coboard 内只读。</Text><Text className="caption">会员：{membershipTierLabel(user.data?.membershipTier)}{user.data?.membershipExpiresAt ? ` · 有效至 ${new Date(user.data.membershipExpiresAt).toLocaleDateString()}` : ''}</Text></View><Badge tone="primary">Syna ID</Badge></View>
       <View className="profile-syna__identity"><View><Text className="body">{currentUser.displayName}</Text><Text className="caption">{currentUser.email}</Text></View></View>
       <View className="row profile-syna__actions"><ActionButton tone="secondary" size="small" onClick={() => void Taro.navigateTo({ url: '/pages/syna-account/index' })}>管理 Syna ID</ActionButton><ActionButton tone="ghost" size="small" onClick={() => void Taro.setClipboardData({ data: SYNA_ACCOUNT_URL }).then(() => Taro.showToast({ title: '管理地址已复制', icon: 'success' }))}>复制地址</ActionButton></View>
     </Card>

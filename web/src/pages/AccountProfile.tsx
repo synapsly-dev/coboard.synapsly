@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, Camera, Check, ExternalLink, Trash2, UserCog } from 'lucide-react';
-import { updateProfileInputSchema, type UpdateProfileInput } from 'shared';
+import { membershipTierLabel, updateProfileInputSchema, type UpdateProfileInput } from 'shared';
 
 import { isApiClientError } from '../api/client';
 import { useAuth } from '../lib/auth-context';
@@ -336,11 +336,7 @@ function SynapslyAccountSection(): JSX.Element {
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               会员：
-              {user?.membershipTier === 'plus'
-                ? 'Plus'
-                : user?.membershipTier === 'pro'
-                  ? 'Pro'
-                  : '无'}
+              {membershipTierLabel(user?.membershipTier)}
               {user?.membershipExpiresAt
                 ? ` · 有效至 ${new Date(user.membershipExpiresAt).toLocaleDateString()}`
                 : ''}
