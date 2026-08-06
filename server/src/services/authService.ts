@@ -39,7 +39,7 @@ export type SsoResolution =
 
 const CORE_ROLES = new Set<CoreRole>(['user', 'staff', 'admin', 'super_admin']);
 const LOCAL_ROLES = new Set<LocalUserRole>(['member', 'admin']);
-const MEMBERSHIP_TIERS = new Set<MembershipTier>(['none', 'plus', 'pro']);
+const MEMBERSHIP_TIERS = new Set<MembershipTier>(['none', 'plus', 'pro', 'max']);
 const ROLE_RANK: Record<UserRole, number> = { member: 0, admin: 1, super_admin: 2 };
 const RFC3339 =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/;
@@ -75,39 +75,73 @@ function isValidRfc3339(value: string): boolean {
   );
 }
 
-/** Strict parser used at the OIDC trust boundary; missing/unknown roles fail closed. */
+/**
+ * Resolve the Core baseline role at the OIDC trust boundary.
+ *
+ * Degrades to the `user` floor rather than refusing the login: the Syna App Spec
+ * §2.3 defines "no `roles` scope" as ordinary user, and an unknown future role
+ * value is not something Coboard can safely interpret as *more* than a user
+ * either. Both cases therefore land on the least-privileged role — a demotion is
+ * recoverable by fixing the client's `allowed_scopes`, whereas throwing here
+ * locks every account out of the app.
+ */
 export function parseCoreRole(value: unknown): CoreRole {
-  if (typeof value !== 'string' || !CORE_ROLES.has(value as CoreRole)) {
-    throw new Error('role claim 缺失或非法');
+  if (typeof value === 'string' && CORE_ROLES.has(value as CoreRole)) {
+    return value as CoreRole;
   }
-  return value as CoreRole;
+  return 'user';
 }
 
-/** Strictly validate the membership tier/expiry pair emitted by Syna ID. */
+/**
+ * Why a `role` claim did not survive {@link parseCoreRole}, or null when it did.
+ * Both outcomes are operator misconfiguration (a narrowed `allowed_scopes`, or a
+ * Core role Coboard has not been taught), so they belong in the server log.
+ */
+export function coreRoleClaimWarning(value: unknown): string | null {
+  if (value === undefined) return 'role claim 缺失（客户端可能未获授 roles scope），按 user 处理';
+  if (typeof value !== 'string' || !CORE_ROLES.has(value as CoreRole)) {
+    return `未知的 role claim：${String(value)}，按 user 处理`;
+  }
+  return null;
+}
+
+/**
+ * Resolve the membership tier/expiry pair emitted by Syna ID.
+ *
+ * Membership is display-only data (Syna App Spec §5.2: the local tier copy takes
+ * part in no hot-path decision), so an absent, unknown or already-expired pair
+ * degrades to the free tier instead of failing the login. Core settles expiry
+ * lazily and clocks drift; neither may cost a user their session. `warning`
+ * carries the reason so the caller can log why a paid tier was not honored.
+ */
 export function parseMembershipClaims(
   tierRaw: unknown,
   expiresRaw: unknown,
   now = Date.now(),
-): { membershipTier: MembershipTier; membershipExpiresAt: Date | null } {
+): { membershipTier: MembershipTier; membershipExpiresAt: Date | null; warning?: string } {
+  const free = { membershipTier: 'none' as const, membershipExpiresAt: null };
+  if (tierRaw === undefined && expiresRaw === undefined) {
+    // The whole claim family is absent — the `membership` scope was not granted.
+    return free;
+  }
   if (typeof tierRaw !== 'string' || !MEMBERSHIP_TIERS.has(tierRaw as MembershipTier)) {
-    throw new Error('membership_tier claim 缺失或非法');
+    return { ...free, warning: `未知的 membership_tier：${String(tierRaw)}` };
   }
   const tier = tierRaw as MembershipTier;
   if (tier === 'none') {
-    if (expiresRaw !== null) {
-      throw new Error('none 会员的 membership_expires_at 必须为 null');
-    }
-    return { membershipTier: 'none', membershipExpiresAt: null };
+    return expiresRaw === null || expiresRaw === undefined
+      ? free
+      : { ...free, warning: 'none 会员携带了非空 membership_expires_at' };
   }
   if (typeof expiresRaw !== 'string' || !isValidRfc3339(expiresRaw)) {
-    throw new Error('有效会员缺少合法的 membership_expires_at');
+    return { ...free, warning: `${tier} 会员缺少合法的 membership_expires_at` };
   }
   const membershipExpiresAt = new Date(expiresRaw);
   if (!Number.isFinite(membershipExpiresAt.getTime())) {
-    throw new Error('membership_expires_at 格式非法');
+    return { ...free, warning: 'membership_expires_at 格式非法' };
   }
   if (membershipExpiresAt.getTime() <= now) {
-    throw new Error('有效会员的 membership_expires_at 已到期');
+    return { ...free, warning: `${tier} 会员已于 ${expiresRaw} 到期` };
   }
   return { membershipTier: tier, membershipExpiresAt };
 }
@@ -118,11 +152,13 @@ export function effectiveMembership(
   expiresAt: Date | null | undefined,
   now = Date.now(),
 ): MembershipTier {
-  if (tier !== 'plus' && tier !== 'pro') return 'none';
+  if (typeof tier !== 'string' || !MEMBERSHIP_TIERS.has(tier as MembershipTier)) return 'none';
+  const known = tier as MembershipTier;
+  if (known === 'none') return 'none';
   if (!expiresAt || !Number.isFinite(expiresAt.getTime()) || expiresAt.getTime() <= now) {
     return 'none';
   }
-  return tier;
+  return known;
 }
 
 /** Map Syna ID's baseline vocabulary onto Coboard's effective-role vocabulary. */
@@ -174,6 +210,25 @@ async function clearOtherSuperAdmins(tx: Database, currentUserId: string | null)
   }
 }
 
+/**
+ * Seed the Syna picture on the row's FIRST identity sync, and only then.
+ *
+ * Spec §2.4 cuts both ways: later logins must not overwrite a local avatar, but
+ * the first login must actually land one. Rows that predate SSO (legacy accounts,
+ * and accounts an admin pre-provisioned by email) reach their first Syna login
+ * through {@link syncExistingIdentity} rather than through provisioning, so
+ * without this they would never inherit the Syna ID avatar at all — which is
+ * exactly what happened to every account created before the identity-v2 rollout.
+ * `identity_synced_at` is null on precisely those never-synced rows, which makes
+ * it the honest marker for "this is the first login"; a user who later deletes
+ * their avatar keeps it deleted.
+ */
+function firstLoginPictureSeed(current: UserRow, identity: SsoIdentity): string | null {
+  if (current.identitySyncedAt !== null) return null;
+  if (current.avatarMime !== null || current.synaPictureUrl !== null) return null;
+  return identity.picture;
+}
+
 /** Overwrite every Core-authoritative field while preserving local name/picture customizations. */
 async function syncExistingIdentity(
   tx: Database,
@@ -194,10 +249,12 @@ async function syncExistingIdentity(
   }
   const localRole =
     identity.coreRole === 'super_admin' ? null : normalizeLocalRole(current.localRole);
+  const pictureSeed = firstLoginPictureSeed(current, identity);
   const updated = await tx
     .update(users)
     .set({
       synapslySub: identity.sub,
+      ...(pictureSeed === null ? {} : { synaPictureUrl: pictureSeed }),
       email: identity.email,
       emailVerified: identity.emailVerified,
       phoneNumber: identity.phoneNumber,

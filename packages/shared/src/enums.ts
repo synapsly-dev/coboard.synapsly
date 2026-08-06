@@ -21,8 +21,13 @@ export const localUserRoles = ['member', 'admin'] as const;
 export const localUserRoleSchema = z.enum(localUserRoles);
 export type LocalUserRole = (typeof localUserRoles)[number];
 
-/** Central, read-only Syna membership tiers. */
-export const membershipTiers = ['none', 'plus', 'pro'] as const;
+/**
+ * Central, read-only Syna membership tiers. This is the ecosystem-wide contract
+ * enum (Syna App Spec §4.3) — all four values must be accepted verbatim, because
+ * a tier Coboard does not know about would otherwise turn into a hard login
+ * failure for that account.
+ */
+export const membershipTiers = ['none', 'plus', 'pro', 'max'] as const;
 export const membershipTierSchema = z.enum(membershipTiers);
 export type MembershipTier = (typeof membershipTiers)[number];
 

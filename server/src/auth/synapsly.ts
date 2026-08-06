@@ -71,14 +71,53 @@ interface Jwk {
 }
 
 const DISCOVERY_TTL_MS = 10 * 60_000;
+/**
+ * Tolerance applied to `exp`. Coboard and core run on different hosts, so a
+ * couple of minutes of NTP drift must not turn into an intermittent, unexplained
+ * login failure for a token that was valid when it was minted.
+ */
+const CLOCK_SKEW_S = 120;
 const discoveryCache = new Map<string, { doc: DiscoveryDoc; at: number }>();
 const jwksCache = new Map<string, { keys: Jwk[]; at: number }>();
+
+/**
+ * A non-2xx response from a Syna ID endpoint. Carries the HTTP status and, when
+ * the body is an OAuth error object, its `error` code — the callback maps those
+ * onto messages that tell the user what actually went wrong instead of the
+ * uniform "登录失败，请稍后重试" that hides invalid_grant behind a retry prompt.
+ */
+export class OidcHttpError extends Error {
+  readonly status: number;
+  readonly oauthError: string | null;
+  readonly endpoint: string;
+
+  constructor(endpoint: string, status: number, body: string) {
+    let oauthError: string | null = null;
+    let description = '';
+    try {
+      const parsed = JSON.parse(body) as { error?: unknown; error_description?: unknown };
+      if (typeof parsed.error === 'string') oauthError = parsed.error;
+      if (typeof parsed.error_description === 'string') description = parsed.error_description;
+    } catch {
+      // Not JSON (a proxy error page, say) — the status alone is the signal.
+    }
+    super(
+      `Syna ID ${endpoint} 返回 ${status}` +
+        (oauthError ? `：${oauthError}` : '') +
+        (description ? `（${description}）` : ''),
+    );
+    this.name = 'OidcHttpError';
+    this.status = status;
+    this.oauthError = oauthError;
+    this.endpoint = endpoint;
+  }
+}
 
 async function fetchJson(url: string, init?: RequestInit): Promise<unknown> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`OIDC 请求失败 ${res.status} ${url}: ${body.slice(0, 300)}`);
+    throw new OidcHttpError(new URL(url).pathname, res.status, body.slice(0, 500));
   }
   return res.json();
 }
@@ -208,12 +247,12 @@ export async function verifyIdToken(
   opts: { nonce?: string } = {},
 ): Promise<IdTokenClaims> {
   const parts = idToken.split('.');
-  if (parts.length !== 3) throw new Error('id_token 格式非法');
+  if (parts.length !== 3) throw new Error('Syna ID 返回的登录凭证格式非法，请重新登录');
   const [headerB64, payloadB64, sigB64] = parts as [string, string, string];
 
   const header = JSON.parse(b64urlToString(headerB64)) as { alg?: string; kid?: string };
   if (header.alg !== 'RS256') {
-    throw new Error(`不支持的 id_token 签名算法：${header.alg}`);
+    throw new Error(`不支持的 id_token 签名算法：${header.alg}，请联系管理员`);
   }
 
   const signed = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
@@ -233,23 +272,23 @@ export async function verifyIdToken(
   // Try cached JWKS, then force a refresh once (handles key rotation).
   let ok = await verifyWith(await getJwks(cfg));
   if (!ok) ok = await verifyWith(await getJwks(cfg, true));
-  if (!ok) throw new Error('id_token 签名校验失败');
+  if (!ok) throw new Error('Syna ID 登录凭证签名校验失败，请重新登录；若持续出现请联系管理员');
 
   const claims = JSON.parse(b64urlToString(payloadB64)) as IdTokenClaims;
 
   if (claims.iss !== cfg.issuer) {
-    throw new Error('id_token issuer 不匹配');
+    throw new Error(`登录凭证来自非预期的签发者 ${String(claims.iss)}，请联系管理员`);
   }
   const aud = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!aud.includes(cfg.clientId)) {
-    throw new Error('id_token aud 不匹配');
+    throw new Error('登录凭证不是签发给 Coboard 的（aud 不匹配），请联系管理员核对 OIDC_CLIENT_ID');
   }
   const now = Math.floor(Date.now() / 1000);
-  if (typeof claims.exp === 'number' && now > claims.exp + 60) {
-    throw new Error('id_token 已过期');
+  if (typeof claims.exp === 'number' && now > claims.exp + CLOCK_SKEW_S) {
+    throw new Error('Syna ID 登录凭证已过期（服务器时间可能不同步），请重新登录');
   }
   if (opts.nonce && claims.nonce !== opts.nonce) {
-    throw new Error('id_token nonce 不匹配');
+    throw new Error('登录凭证与本次登录请求不匹配（nonce 不一致），请重新登录');
   }
   return claims;
 }
@@ -270,6 +309,27 @@ export interface UserInfo {
   membership_tier?: string;
   membership_expires_at?: string | null;
   [k: string]: unknown;
+}
+
+/**
+ * Resolve a `picture` claim into an absolute image URL, or null when it is
+ * absent/unusable.
+ *
+ * Returning null rather than throwing is deliberate: the avatar is decoration,
+ * and an unparseable one must never cost the user their login. Host-rooted
+ * values (Syna ID's built-in presets, e.g. `/avatars/3.svg`) are resolved
+ * against the issuer — a relying party that resolved them against its own origin
+ * would 404 instead of showing the user's face.
+ */
+export function resolvePictureUrl(issuer: string, raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.trim().length === 0) return null;
+  try {
+    const url = new URL(raw.trim(), `${issuer.replace(/\/+$/, '')}/`);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 /** Fetch the freshest user-level claims (and `role`, if the provider emits it). */

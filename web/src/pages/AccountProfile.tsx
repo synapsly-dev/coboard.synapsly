@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArrowLeft, Camera, Check, ExternalLink, Trash2, UserCog } from 'lucide-react';
-import { membershipTierLabel, updateProfileInputSchema, type UpdateProfileInput } from 'shared';
+import {
+  MEMBERSHIP_URL,
+  membershipTierLabel,
+  updateProfileInputSchema,
+  type UpdateProfileInput,
+} from 'shared';
 
 import { isApiClientError } from '../api/client';
 import { useAuth } from '../lib/auth-context';
@@ -334,12 +339,23 @@ function SynapslyAccountSection(): JSX.Element {
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{user?.displayName}</p>
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+            {/* Tier = display name only. Coboard states no benefits of its own
+                (Syna App Spec §4.1); the link is where they are defined once. */}
             <p className="mt-1 text-xs text-muted-foreground">
               会员：
               {membershipTierLabel(user?.membershipTier)}
               {user?.membershipExpiresAt
                 ? ` · 有效至 ${new Date(user.membershipExpiresAt).toLocaleDateString()}`
                 : ''}
+              {' · '}
+              <a
+                href={MEMBERSHIP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                权益说明
+              </a>
             </p>
           </div>
           <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">

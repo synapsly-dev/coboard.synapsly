@@ -20,9 +20,9 @@ import {
   PageHeader,
 } from '../../components/ui';
 import { queryClient } from '../../lib/query';
+import { SYNA_ACCOUNT_URL, SYNA_MEMBERSHIP_URL, synaAccountRoute } from '../../lib/syna';
 import './index.scss';
 
-const SYNA_ACCOUNT_URL = 'https://accounts.synapsly.org/';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -159,7 +159,8 @@ function ProfilePage(): JSX.Element {
     <Card className="stack profile-syna">
       <View className="row-between"><View><Text className="title">Syna ID</Text><Text className="caption">邮箱、手机、会员与安全设置由 Syna ID 统一管理，Coboard 内只读。</Text><Text className="caption">会员：{membershipTierLabel(user.data?.membershipTier)}{user.data?.membershipExpiresAt ? ` · 有效至 ${new Date(user.data.membershipExpiresAt).toLocaleDateString()}` : ''}</Text></View><Badge tone="primary">Syna ID</Badge></View>
       <View className="profile-syna__identity"><View><Text className="body">{currentUser.displayName}</Text><Text className="caption">{currentUser.email}</Text></View></View>
-      <View className="row profile-syna__actions"><ActionButton tone="secondary" size="small" onClick={() => void Taro.navigateTo({ url: '/pages/syna-account/index' })}>管理 Syna ID</ActionButton><ActionButton tone="ghost" size="small" onClick={() => void Taro.setClipboardData({ data: SYNA_ACCOUNT_URL }).then(() => Taro.showToast({ title: '管理地址已复制', icon: 'success' }))}>复制地址</ActionButton></View>
+      {/* 档位只做显示名映射；权益由 Syna ID 一处说明（Syna App Spec §4.1）。 */}
+      <View className="row profile-syna__actions"><ActionButton tone="secondary" size="small" onClick={() => void Taro.navigateTo({ url: synaAccountRoute() })}>管理 Syna ID</ActionButton><ActionButton tone="ghost" size="small" onClick={() => void Taro.navigateTo({ url: synaAccountRoute(SYNA_MEMBERSHIP_URL) })}>会员权益说明</ActionButton><ActionButton tone="ghost" size="small" onClick={() => void Taro.setClipboardData({ data: SYNA_ACCOUNT_URL }).then(() => Taro.showToast({ title: '管理地址已复制', icon: 'success' }))}>复制地址</ActionButton></View>
     </Card>
 
     {isAdmin && <Card interactive onClick={() => void Taro.navigateTo({ url: '/pages/admin/index' })}><View className="row-between"><View className="row"><View className="profile-admin__icon"><AppIcon name="admin" size={20} /></View><View className="account-copy"><Text className="title">后台管理</Text><Text className="caption">用户、赛道、项目与注册设置</Text></View></View><Text className="profile-chevron">›</Text></View></Card>}

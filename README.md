@@ -85,6 +85,12 @@ Coboard 是一个 **confidential OIDC client**，登录流程委托给 Syna ID �
 3. 保存后拿到 `client_id` 与 `client_secret`，填入 `.env` 的 `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`。
 4. `OIDC_ISSUER` 保持 `https://accounts.synapsly.org`；`OIDC_REDIRECT_URI` 一般由 `PUBLIC_URL` 推导。
 
+> **client 的 `allowed_scopes` 必须包含上面全部 6 个 scope。** Syna ID 会把请求
+> 的 scope **静默收窄**到 client 允许的集合——少配 `profile` 会导致新用户拿不到
+> Syna ID 头像，少配 `roles` 会让所有人按普通成员登录，少配 `membership` 会让会员
+> 档位一律显示为免费版。这些情况 Coboard 不会拒绝登录（登录不该因为展示类信息缺失
+> 而失败），而是按最低档降级并在服务端日志里 `warn` 一行说明，排查时先看那里。
+
 ---
 
 ## 二、备份与恢复
@@ -206,6 +212,18 @@ A: 修改 `.env` 的 `PORT`（例如 `PORT=8080`），重启即可。映射形�
 A: Coboard 使用 Syna ID 单点登录，应用内不保存密码。邮箱、手机、Core role
 与会员状态每次登录强制同步；本地授权与 Core role 就高生效。`super_admin` 唯一且只能来自
 Syna ID。普通成员首次加入仍需管理员在「后台设置」预设的邀请码。
+
+**Q: 登录失败了，怎么知道是什么原因？**
+A: 失败会带着**具体原因**跳回登录页（授权码过期、客户端凭据无效、连不上 Syna ID、
+state 不匹配……），照着提示做即可；同一条原因在服务端日志里还有一行更详细的 `warn`/
+`error`。登录只在身份真的不可用时才会被拒绝——头像、会员档位、Core role 这类展示信息
+缺失或异常时按最低档降级并记日志，不会把人挡在门外。
+
+**Q: 我的 Syna ID 头像没同步过来？**
+A: 头像与显示名只在**首次登录**时从 Syna ID 取一次作为初始值，之后归 Coboard 本地
+自定义（Spec §2.4）。在 Coboard 早于 Syna ID 接入就存在的老账号，以及管理员用邮箱预建
+的账号，其「首次登录」走的是同步路径——该路径过去漏掉了头像，现已修复：这些账号下次
+登录会补上。若你已在 Coboard 上传过头像或删除过头像，Syna ID 不会覆盖你的选择。
 
 **Q: 数据存在哪里？删除容器会丢吗？**
 A: 数据存于命名卷 `coboard-db`，`docker compose down` 不会删卷；只有 `docker compose down -v` 才会删除数据卷。生产升级应在 `bastion` 构建并发送镜像，再在 `app-2` 使用 `docker compose up -d --no-build` 切换版本；不要在运行节点执行 `--build`。

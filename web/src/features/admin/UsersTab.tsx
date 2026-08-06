@@ -245,7 +245,9 @@ export function UsersTab(): JSX.Element {
                   {(u.coreRole === 'admin' || u.coreRole === 'super_admin') && (
                     <Badge variant="outline">Syna ID 基线</Badge>
                   )}
-                  {(u.membershipTier === 'plus' || u.membershipTier === 'pro') && (
+                  {/* Read-only Syna ID tier, shown as its display name and nothing
+                      more — it grants no Coboard capability (Syna App Spec §4.1). */}
+                  {u.membershipTier && u.membershipTier !== 'none' && (
                     <Badge variant="outline">{membershipTierLabel(u.membershipTier)}</Badge>
                   )}
                   {u.isActive ? (

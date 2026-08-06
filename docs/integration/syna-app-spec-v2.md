@@ -13,12 +13,26 @@ repository-level Syna App Spec remains authoritative if this document drifts.
 - `email`, `email_verified`, `phone_number`, `phone_number_verified`, Core
   `role`, `membership_tier`, and `membership_expires_at` overwrite the local
   snapshot on every successful login.
-- `name` and `picture` only seed a newly created Coboard profile. A later login
-  does not overwrite the user's local display name or uploaded avatar.
-- Membership is a strict pair: `none` requires a null expiry; `plus`/`pro`
+- `name` and `picture` seed a Coboard profile **once**, at its first identity
+  sync — which for rows that predate SSO (legacy accounts, accounts an admin
+  pre-provisioned by email) happens on the sync path, not the provisioning path.
+  `identity_synced_at IS NULL` is the marker for "never synced". A later login
+  never overwrites a local display name, an uploaded avatar, or a seeded picture,
+  and a user who deletes their avatar keeps it deleted.
+- Membership is a strict pair: `none` requires a null expiry; `plus`/`pro`/`max`
   require a valid future RFC3339 expiry. An already-open session treats a paid
   tier as `none` as soon as its saved expiry passes. Coboard has no membership
   mutation, checkout, grant, or sale endpoint.
+- **Display-only claims never gate authentication.** `role`, `membership_tier` /
+  `membership_expires_at`, and `picture` all degrade to their documented floor
+  (`user`, `none`, no avatar) with a server-side `warn` when they are absent,
+  unknown, malformed or already expired. Core settles membership lazily, clocks
+  drift between hosts, and a client whose `allowed_scopes` were narrowed simply
+  stops emitting a claim family: none of that may cost a user their session.
+  Only genuinely unusable identity (no `sub`, no usable `email`, an id_token that
+  fails verification) refuses the login, and it says which.
+- `/userinfo` is preferred but optional: if that one request fails, the login
+  completes from the signature-verified id_token, which carries the same claims.
 
 ## RBAC
 
@@ -44,10 +58,29 @@ It therefore has no Wallet M2M credentials, balance cache, debit, refund,
 outbox, price table, or recharge UI. Do not add dummy debits merely to make the
 app resemble metered products.
 
+Because Coboard shows no balance, spec §4.4.1 (credit display must mirror
+`GET /api/wallet/balance` field for field) has nothing to bind to here. That is
+the exemption working as intended, not an omission: the correct way to stay
+compliant is to keep showing no balance. If Coboard ever gains a metered
+operation, §4.4.1 applies in full from the first screen that shows a number.
+
 The existing `tasks.points`, claimant allocations, idea `reward_points`, and
 statistics are **Coboard contribution points**. They are application business
 metrics only: they are not Syna Coins, have no spendable balance, and never
 sync into the central wallet.
+
+## Membership tier: display name only
+
+`membership_tier` is mirrored read-only and used for exactly one thing — a
+display name (`MEMBERSHIP_TIER_LABELS` in `packages/shared`, spec §4.1). It is
+absent from every authorization check, rate limit, feature flag and price in the
+codebase, and Coboard states no benefits of its own next to it; the profile pages
+link to <https://accounts.synapsly.org/membership>, where the tier is defined
+once for the whole ecosystem.
+
+Coboard has no free-quota / trial-count / local-credit counter of any kind
+(spec §4.6.1) and never had one — there is nothing to remove and nothing to
+reintroduce.
 
 ## Production configuration
 
@@ -64,11 +97,20 @@ SYNAPSLY_SINGLE_LOGOUT=true
 DEV_LOGIN=false
 ```
 
-The Core OAuth client must allow all six required scopes. Coboard needs no
-`wallet:read` or `wallet:debit` scope. Existing email notifications may still
-use their separately authorized `email:send` capability.
+The Core OAuth client must allow all six required scopes — Syna ID silently
+narrows a request to the client's `allowed_scopes`, so a missing `profile` costs
+new users their avatar, a missing `roles` logs everyone in as an ordinary member,
+and a missing `membership` shows every account as the free tier. Coboard logs a
+`warn` for each degraded claim family rather than refusing the login. Coboard
+needs no `wallet:read` or `wallet:debit` scope. Existing email notifications may
+still use their separately authorized `email:send` capability.
 
 ## Migration and rollback
+
+Migration `0028_strange_speedball.sql` widens the `users_membership_pair_valid`
+CHECK to accept `max`. It is a constraint swap with no data change, applies in
+seconds, and is safe to leave in place if the app image is rolled back — the old
+code simply never writes the new value.
 
 Migration `0027_sparkling_chameleon.sql` adds the authoritative identity,
 baseline/local role, and membership fields plus constraints/indexes. Before

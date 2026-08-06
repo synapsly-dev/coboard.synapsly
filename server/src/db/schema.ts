@@ -155,7 +155,7 @@ export const users = pgTable(
     ),
     check(
       'users_membership_pair_valid',
-      sql`(${table.membershipTier} = 'none' and ${table.membershipExpiresAt} is null) or (${table.membershipTier} in ('plus', 'pro') and ${table.membershipExpiresAt} is not null)`,
+      sql`(${table.membershipTier} = 'none' and ${table.membershipExpiresAt} is null) or (${table.membershipTier} in ('plus', 'pro', 'max') and ${table.membershipExpiresAt} is not null)`,
     ),
     check(
       'users_phone_verified_requires_number',

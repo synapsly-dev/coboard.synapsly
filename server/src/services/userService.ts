@@ -32,8 +32,10 @@ import { createNotifications } from './notificationService.js';
  * `password_hash` and converts the timestamptz Date into an ISO-8601 string.
  */
 export function serializeUser(row: UserRow): User {
+  // Any paid tier — enumerate by exclusion so a tier added to the ecosystem enum
+  // (as `max` was) is carried through instead of silently reading as free.
   const membershipActive =
-    (row.membershipTier === 'plus' || row.membershipTier === 'pro') &&
+    row.membershipTier !== 'none' &&
     row.membershipExpiresAt !== null &&
     row.membershipExpiresAt.getTime() > Date.now();
   return {

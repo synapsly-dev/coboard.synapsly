@@ -4,6 +4,7 @@ import { createTestContext } from './helpers.js';
 import { users, type UserRow } from '../src/db/schema.js';
 import {
   completeSsoJoin,
+  coreRoleClaimWarning,
   effectiveMembership,
   elevateRole,
   mapCoreRole,
@@ -30,32 +31,51 @@ function identity(overrides: Partial<SsoIdentity> & { sub: string }): SsoIdentit
   };
 }
 
-describe('strict Syna ID claims', () => {
-  it('accepts only the four Core roles', () => {
+describe('Syna ID claims never block the login', () => {
+  it('accepts the four Core roles and floors anything else at user', () => {
     expect(parseCoreRole('user')).toBe('user');
     expect(parseCoreRole('staff')).toBe('staff');
     expect(parseCoreRole('admin')).toBe('admin');
     expect(parseCoreRole('super_admin')).toBe('super_admin');
-    expect(() => parseCoreRole(undefined)).toThrow(/role claim/);
-    expect(() => parseCoreRole('root')).toThrow(/role claim/);
+    // A missing `roles` scope is ordinary-user per spec §2.3; an unknown value
+    // cannot mean "more than user" either. Neither may cost the user a login.
+    expect(parseCoreRole(undefined)).toBe('user');
+    expect(parseCoreRole('root')).toBe('user');
+    expect(coreRoleClaimWarning('admin')).toBeNull();
+    expect(coreRoleClaimWarning(undefined)).toMatch(/roles scope/);
+    expect(coreRoleClaimWarning('root')).toMatch(/未知的 role claim/);
   });
 
-  it('strictly validates the membership tier/expiry pair', () => {
+  it('accepts every contract tier including max', () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
     expect(parseMembershipClaims('none', null)).toEqual({
       membershipTier: 'none',
       membershipExpiresAt: null,
     });
-    const future = new Date(Date.now() + 60_000).toISOString();
     expect(parseMembershipClaims('plus', future).membershipTier).toBe('plus');
-    expect(() => parseMembershipClaims(undefined, undefined)).toThrow(/membership_tier/);
-    expect(() => parseMembershipClaims('none', future)).toThrow(/必须为 null/);
-    expect(() => parseMembershipClaims('pro', null)).toThrow(/membership_expires_at/);
-    expect(() => parseMembershipClaims('pro', '2099-02-30T00:00:00Z')).toThrow(
-      /membership_expires_at/,
-    );
-    expect(() => parseMembershipClaims('pro', new Date(Date.now() - 1).toISOString())).toThrow(
-      /已到期/,
-    );
+    expect(parseMembershipClaims('pro', future).membershipTier).toBe('pro');
+    expect(parseMembershipClaims('max', future).membershipTier).toBe('max');
+  });
+
+  it('degrades an absent, unusable or expired tier to free instead of throwing', () => {
+    const future = new Date(Date.now() + 60_000).toISOString();
+    // Scope not granted at all.
+    expect(parseMembershipClaims(undefined, undefined)).toEqual({
+      membershipTier: 'none',
+      membershipExpiresAt: null,
+    });
+    for (const [tier, expires] of [
+      ['ultra', future],
+      ['none', future],
+      ['pro', null],
+      ['pro', '2099-02-30T00:00:00Z'],
+      ['pro', new Date(Date.now() - 1).toISOString()],
+    ] as const) {
+      const parsed = parseMembershipClaims(tier, expires);
+      expect(parsed.membershipTier).toBe('none');
+      expect(parsed.membershipExpiresAt).toBeNull();
+      expect(parsed.warning).toBeTruthy();
+    }
   });
 
   it('invalidates a paid tier immediately when its persisted expiry passes', () => {
@@ -194,6 +214,59 @@ describe('resolveSsoLogin — permanent sub + authoritative sync', () => {
     });
     expect(res.user.membershipExpiresAt?.toISOString()).toBe(expiry.toISOString());
     expect(res.user.identitySyncedAt).toBeInstanceOf(Date);
+  });
+
+  it('seeds the Syna avatar on a legacy row at its first sync, then never again', async () => {
+    // Legacy/pre-provisioned rows (identity_synced_at null, no avatar of any
+    // kind) reach their first Syna login through the sync path, not through
+    // provisioning — they must still inherit the Syna ID picture (§2.4).
+    await seed({
+      email: 'legacy@x.io',
+      synapslySub: 'sub-legacy',
+      displayName: '老账号',
+      identitySyncedAt: null,
+    });
+    const first = await resolveSsoLogin(
+      ctx.db,
+      identity({
+        sub: 'sub-legacy',
+        email: 'legacy@x.io',
+        picture: 'https://accounts.synapsly.org/avatars/3.svg',
+      }),
+    );
+    if (first.status !== 'ok') throw new Error('unreachable');
+    expect(first.user.synaPictureUrl).toBe('https://accounts.synapsly.org/avatars/3.svg');
+    expect(first.user.identitySyncedAt).toBeInstanceOf(Date);
+
+    const second = await resolveSsoLogin(
+      ctx.db,
+      identity({
+        sub: 'sub-legacy',
+        email: 'legacy@x.io',
+        picture: 'https://accounts.synapsly.org/avatars/9.svg',
+      }),
+    );
+    if (second.status !== 'ok') throw new Error('unreachable');
+    expect(second.user.synaPictureUrl).toBe('https://accounts.synapsly.org/avatars/3.svg');
+  });
+
+  it('leaves an uploaded Coboard avatar alone even on a first sync', async () => {
+    await seed({
+      email: 'uploaded@x.io',
+      synapslySub: 'sub-uploaded',
+      avatarMime: 'image/png',
+      identitySyncedAt: null,
+    });
+    const res = await resolveSsoLogin(
+      ctx.db,
+      identity({
+        sub: 'sub-uploaded',
+        email: 'uploaded@x.io',
+        picture: 'https://accounts.synapsly.org/avatars/3.svg',
+      }),
+    );
+    if (res.status !== 'ok') throw new Error('unreachable');
+    expect(res.user.synaPictureUrl).toBeNull();
   });
 
   it('applies higher-wins without retaining a former Core-only admin baseline', async () => {
